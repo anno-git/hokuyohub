@@ -1,0 +1,76 @@
+# === CMake build directories ===
+build/
+build-*/
+cmake-build-*/
+
+# === Compiled object files ===
+*.o
+*.obj
+*.lo
+*.slo
+*.Po
+*.Plo
+
+# === Compiled dynamic libraries ===
+*.so
+*.so.*
+*.dylib
+*.dll
+
+# === Compiled static libraries ===
+*.a
+*.lib
+*.la
+
+# === Executable files ===
+*.exe
+*.out
+*.app
+
+# === Logs & temp files ===
+*.log
+*.tmp
+*.temp
+
+# === Editor/IDE files ===
+.vscode/
+.idea/
+*.swp
+*.swo
+*.bak
+*.orig
+
+# === macOS system files ===
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# === npm / yarn dependencies ===
+frontend/node_modules/
+frontend/.pnp
+frontend/.pnp.js
+.pnp
+.pnp.js
+
+# === npm/yarn logs ===
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# === Frontend build output ===
+frontend/dist/
+frontend/build/
+
+# === Environment files ===
+.env
+.env.*
+!env.example
+
+# === Coverage / test output ===
+coverage/
+*.lcov
+
+# === Local database or cache ===
+*.sqlite
+*.db
+.cache/
