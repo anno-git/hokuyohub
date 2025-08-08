@@ -1,10 +1,32 @@
-#include "ws_handlers.hpp"
+#include "ws_handlers.h"
 #include <drogon/drogon.h>
 
-void LiveWs::handleNewMessage(const drogon::WebSocketConnectionPtr& conn, std::string&& msg, const drogon::WebSocketMessageType& type){
+std::mutex LiveWs::mtx_;
+std::unordered_set<drogon::WebSocketConnectionPtr> LiveWs::conns_;
+
+void LiveWs::handleNewConnection(const drogon::HttpRequestPtr&,
+                                 const drogon::WebSocketConnectionPtr& conn){
+  std::lock_guard<std::mutex> lk(mtx_);
+  conns_.insert(conn);
+}
+
+void LiveWs::handleConnectionClosed(const drogon::WebSocketConnectionPtr& conn){
+  std::lock_guard<std::mutex> lk(mtx_);
+  conns_.erase(conn);
+}
+
+void LiveWs::handleNewMessage(const drogon::WebSocketConnectionPtr& conn,
+                              std::string&& msg,
+                              const drogon::WebSocketMessageType& type){
   if(type==drogon::WebSocketMessageType::Text){
-    // echo
-    conn->send(msg);
+    conn->send(msg); // echo
+  }
+}
+
+void LiveWs::broadcast(std::string_view msg){
+  std::lock_guard<std::mutex> lk(mtx_);
+  for(const auto& c : conns_){
+    if(c && c->connected()) c->send(std::string{msg});
   }
 }
 
@@ -17,7 +39,5 @@ void LiveWs::pushClustersLite(uint64_t t_ns, uint32_t seq, const std::vector<Clu
     j["items"].append(o);
   }
   // 全接続にブロードキャスト
-  for(auto& conn : drogon::app().getWSSessions("/ws/live")){
-    conn->send(j.toStyledString());
-  }
+  LiveWs::broadcast(j.toStyledString());
 }

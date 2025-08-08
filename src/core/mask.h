@@ -1,5 +1,6 @@
 #pragma once
-#include "config/config.hpp"
+
+#include "config/config.h"
 #include <cmath>
 
 inline bool pass_local_mask(float angle, float r, const SensorMaskLocal& m){

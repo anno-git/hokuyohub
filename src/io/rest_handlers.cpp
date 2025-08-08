@@ -1,4 +1,4 @@
-#include "rest_handlers.hpp"
+#include "rest_handlers.h"
 #include <drogon/drogon.h>
 
 void RestApi::getSensors(const drogon::HttpRequestPtr&, std::function<void (const drogon::HttpResponsePtr &)> &&cb){

@@ -2,7 +2,7 @@
 #include <string>
 #include <vector>
 #include <cstdint>
-#include "detect/dbscan.hpp"
+#include "detect/dbscan.h"
 
 class NngBus {
   std::string url_;

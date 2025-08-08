@@ -1,4 +1,4 @@
-#include "nng_bus.hpp"
+#include "nng_bus.h"
 #ifdef USE_NNG
 #include <nng/nng.h>
 #include <nng/protocol/pubsub0/pub.h>

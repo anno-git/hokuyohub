@@ -1,10 +1,10 @@
 #include <drogon/drogon.h>
-#include "config/config.hpp"
-#include "io/rest_handlers.hpp"
-#include "io/ws_handlers.hpp"
-#include "io/nng_bus.hpp"
-#include "core/sensor_manager.hpp"
-#include "detect/dbscan.hpp"
+#include "config/config.h"
+#include "io/rest_handlers.h"
+#include "io/ws_handlers.h"
+#include "io/nng_bus.h"
+#include "core/sensor_manager.h"
+#include "detect/dbscan.h"
 
 using namespace drogon;
 

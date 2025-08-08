@@ -1,4 +1,4 @@
-#include "config.hpp"
+#include "config.h"
 #include <yaml-cpp/yaml.h>
 
 AppConfig load_app_config(const std::string& path){

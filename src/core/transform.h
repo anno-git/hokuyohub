@@ -1,4 +1,5 @@
 #pragma once
+
 #include <cmath>
 inline void apply_pose(float& x, float& y, float tx, float ty, float th){
   const float c=std::cos(th), s=std::sin(th);

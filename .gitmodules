@@ -1,0 +1,3 @@
+[submodule "external/urg_library"]
+	path = external/urg_library
+	url = https://github.com/UrgNetwork/urg_library

@@ -1,8 +1,9 @@
 #pragma once
+
 #include <functional>
 #include <vector>
 #include <cstdint>
-#include "config/config.hpp"
+#include "config/config.h"
 
 struct ScanFrame {
   uint64_t t_ns; uint32_t seq;
