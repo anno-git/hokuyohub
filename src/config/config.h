@@ -2,15 +2,51 @@
 #include <string>
 #include <vector>
 
-struct SensorMaskLocal { float angle_min, angle_max; float range_near, range_far; };
-struct Pose { float tx, ty, theta; };
-struct SensorCfg {
-  int id; std::string name; std::string transport; std::string endpoint; bool enabled; Pose pose; SensorMaskLocal mask;
+struct PoseDeg {
+  float tx{0.0f};
+  float ty{0.0f};
+  float theta_deg{0.0f}; // degree
+};
+
+struct AngleMaskDeg {
+  float min_deg{-180.0f};
+  float max_deg{ 180.0f};
+};
+
+struct RangeMaskM {
+  float near_m{0.05f};
+  float far_m{15.0f};
+};
+
+struct SensorMaskLocal {
+  AngleMaskDeg angle{};
+  RangeMaskM range{};
+};
+
+struct SensorConfig {
+  std::string id{""};
+  std::string type{"hokuyo_urg_eth"};
+  std::string name{"sensor"};
+  std::string host{"192.168.1.10"};
+  int port{10940};
+  bool enabled{true};
+
+  // 取得モードとデバイス設定
+  std::string mode{"ME"}; // "MD"=距離のみ, "ME"=距離+強度
+  int interval{0};        // ms, 0=既定
+  int skip_step{0};
+  int ignore_checksum_error{1};
+
+  PoseDeg pose{};
+  SensorMaskLocal mask{};
 };
 
 struct AppConfig {
-  std::vector<SensorCfg> sensors;
-  float dbscan_eps{0.12f}; int dbscan_minPts{6};
+  std::vector<SensorConfig> sensors;
+
+  // 必要に応じて拡張
+  float dbscan_eps{0.12f};
+  int dbscan_minPts{6};
 };
 
 AppConfig load_app_config(const std::string& path);

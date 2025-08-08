@@ -1,22 +1,16 @@
 sensors:
   - id: 0
     name: "hokuyo-a"
-    transport: "tcp"
-    endpoint: "192.168.1.10:10940"
+    type: "hokuyo_urg_eth"
+    endpoint: "192.168.11.222:10940"
     pose: { tx: 0.0, ty: 0.0, theta: 0.0 }
     enabled: true
+    mode: "ME"          # "MD"=距離のみ / "ME"=距離+強度
+    skip_step: 0          # 0ならダウンサンプリング無し
+    interval: 0         # 0=既定（ms）
     mask:
-      angle: { min: -2.356, max: 2.356 }
-      range: { near: 0.05,  far: 15.0 }
-  - id: 1
-    name: "hokuyo-b"
-    transport: "tcp"
-    endpoint: "192.168.1.11:10940"
-    pose: { tx: 2.4, ty: 0.3, theta: 1.57 }
-    enabled: true
-    mask:
-      angle: { min: -1.57, max: 1.57 }
-      range: { near: 0.10,  far: 10.0 }
+      angle: { min: -135.0, max: 135.0 }  # degree
+      range: { near: 0.05, far: 15.0 }    # m
 
 world_mask:
   polygon: []   # [[x,y], ...]

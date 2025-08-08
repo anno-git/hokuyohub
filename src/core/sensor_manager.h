@@ -15,9 +15,9 @@ struct ScanFrame {
 class SensorManager {
 public:
   using FrameCallback = std::function<void(const ScanFrame&)>;
-  void configure(const std::vector<SensorCfg>& cfgs);
+  void configure(const std::vector<SensorConfig>& cfgs);
   void start(FrameCallback cb);
   void setSensorPower(int id, bool on);
-  void setPose(int id, float tx, float ty, float theta);
+  void setPose(int id, float tx, float ty, float theta_deg);
   void setSensorMask(int id, const SensorMaskLocal& m);
 };
