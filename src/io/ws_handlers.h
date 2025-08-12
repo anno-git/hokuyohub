@@ -7,11 +7,16 @@
 #include "detect/dbscan.h"
 
 class NngBus;
+class SensorManager; // 追加: 前方宣言
 
 class LiveWs : public drogon::WebSocketController<LiveWs, false> { // ★ AutoCreationを無効化
    NngBus& bus_;
+   SensorManager* sensorManager_{nullptr};
  public:
    explicit LiveWs(NngBus& b) : bus_(b) {}
+
+   void setSensorManager(SensorManager* sm) { sensorManager_ = sm; }
+
    void handleNewConnection(const drogon::HttpRequestPtr&,
                             const drogon::WebSocketConnectionPtr&) override;
    void handleConnectionClosed(const drogon::WebSocketConnectionPtr&) override;
@@ -23,6 +28,10 @@ class LiveWs : public drogon::WebSocketController<LiveWs, false> { // ★ AutoCr
    static void broadcast(std::string_view msg);
    void pushClustersLite(uint64_t t_ns, uint32_t seq, const std::vector<Cluster>& items);
 
+   // 追加: センサー状態の送受信用ユーティリティ
+   void sendSnapshotTo(const drogon::WebSocketConnectionPtr& conn);
+   void broadcastSensorUpdated(int id);
+
    WS_PATH_LIST_BEGIN
      WS_PATH_ADD("/ws/live", drogon::Get);
    WS_PATH_LIST_END
@@ -30,4 +39,4 @@ class LiveWs : public drogon::WebSocketController<LiveWs, false> { // ★ AutoCr
  private:
    static std::mutex mtx_;
    static std::unordered_set<drogon::WebSocketConnectionPtr> conns_;
- };
+};

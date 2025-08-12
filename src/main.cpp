@@ -39,13 +39,12 @@ int main(int argc, char** argv) {
 
   auto ws = std::make_shared<LiveWs>(bus);
   auto rest = std::make_shared<RestApi>(sensors, dbscan, bus, ws);
-
-  // Drogon routing
-  app().setUploadPath("/tmp");
   app().registerController(ws);
   app().registerController(rest);
 
-  // 静的ファイル（webui）
+  ws->setSensorManager(&sensors);
+
+  app().setUploadPath("/tmp");
   app().setDocumentRoot("./webui");
 
   // HTTP listen
@@ -63,6 +62,7 @@ int main(int argc, char** argv) {
   else if (!appcfg.ui.rest_listen.empty()) {
     startHttp(appcfg.ui.rest_listen);
   }
+
 
   // センサー開始（スタブ：タイマーでダミーデータを流す）
   sensors.start([&](const ScanFrame& f){

@@ -1,8 +1,10 @@
 #include "sensor_manager.h"
 
+#include <json/json.h>
 #include "sensors/ISensor.h"
 #include "sensors/SensorFactory.h"
 #include "mask.h"
+
 #include "transform.h"
 
 #include <atomic>
@@ -38,11 +40,10 @@ struct Slot {
 };
 
 struct State {
-  // ★ vector<unique_ptr<Slot>> に変更（mutex含む型は再配置できない）
   std::vector<std::unique_ptr<Slot>> slots; 
   std::unordered_map<std::string, uint8_t> id2sid;
   std::atomic<bool> running{false};
-  std::thread th;                      // 集約スレッド
+  std::thread th;
   std::atomic<uint32_t> seq{0};
 };
 
@@ -79,9 +80,6 @@ void SensorManager::configure(const std::vector<SensorConfig>& cfgs) {
     }
     // センサからのpushを受け、「最新だけ」保持
     p->dev->subscribe([raw = p.get()](const RawScan& rs){
-      std::cout << "[SensorManager] received scan from " << raw->cfg.id << std::endl;
-	  // print first data
-	  std::cout << "  first range: " << rs.ranges_mm.front() << " mm" << std::endl;
       std::lock_guard<std::mutex> lk(raw->mu);
       raw->latest = rs;
     });
@@ -205,4 +203,58 @@ void SensorManager::start(FrameCallback cb) {
   });
 
   // NOTE: stop/join は未実装（MVP常駐）。必要になったらメソッド追加。
+}
+
+// =============================================================================
+// 追加: WS連携用最小API（enable の切替、および状態のJSON化）
+// =============================================================================
+
+bool SensorManager::setEnabled(int id, bool on) {
+  auto& st = S();
+  if (id < 0 || id >= static_cast<int>(st.slots.size())) return false;
+  auto& sl = *st.slots[static_cast<size_t>(id)];
+  if (!sl.dev) return false;
+
+  if (on) {
+    if (!sl.started) {
+      if (sl.dev->start(sl.cfg)) {
+        sl.started = true;
+        std::cout << "[SensorManager] enabled sensor slot=" << id
+                  << " (cfg.id=" << sl.cfg.id << ")\n";
+      } else {
+        std::cerr << "[SensorManager] FAILED to enable sensor slot=" << id
+                  << " (cfg.id=" << sl.cfg.id << ")\n";
+        return false;
+      }
+    }
+  } else {
+    if (sl.started) {
+      sl.dev->stop();
+      sl.started = false;
+      std::cout << "[SensorManager] disabled sensor slot=" << id
+                << " (cfg.id=" << sl.cfg.id << ")\n";
+    }
+  }
+  return true;
+}
+
+Json::Value SensorManager::getAsJson(int id) const {
+  Json::Value s(Json::objectValue);
+  const auto& st = S();
+  if (id < 0 || id >= static_cast<int>(st.slots.size())) return s; // 空オブジェクト
+  const auto& sl = *st.slots[static_cast<size_t>(id)];
+
+  s["id"] = id;                       // slots index (MVP)
+  s["enabled"] = sl.started;          // 実行状態
+  // 将来ここに name / endpoint / mode / mask などを拡張
+  return s;
+}
+
+Json::Value SensorManager::listAsJson() const {
+  Json::Value arr(Json::arrayValue);
+  const auto& st = S();
+  for (int i = 0; i < static_cast<int>(st.slots.size()); ++i) {
+    arr.append(getAsJson(i));
+  }
+  return arr;
 }
