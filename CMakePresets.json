@@ -1,0 +1,78 @@
+{
+  "version": 10,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 18,
+    "patch": 0
+  },
+  "configurePresets": [
+    {
+      "name": "mac-base",
+      "displayName": "macOS (Homebrew, Unix Makefiles)",
+      "description": "macOSでHomebrew依存を使う標準設定",
+      "generator": "Unix Makefiles",
+      "binaryDir": "${sourceDir}/build",
+      "cacheVariables": {
+        "CMAKE_PREFIX_PATH": "/opt/homebrew",
+        "ENABLE_NNG": "ON",
+        "CMAKE_INSTALL_PREFIX": "${sourceDir}/dist"
+      },
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Darwin"
+      }
+    },
+    {
+      "name": "mac-debug",
+      "displayName": "macOS Debug",
+      "inherits": "mac-base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug"
+      }
+    },
+    {
+      "name": "mac-release",
+      "displayName": "macOS Release",
+      "inherits": "mac-base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release"
+      }
+    },
+
+    {
+      "name": "rpi-base",
+      "displayName": "Raspberry Pi (cross, placeholder)",
+      "description": "将来用のRaspberry Piクロスビルド。toolchainを実環境に合わせて編集してください。",
+      "generator": "Unix Makefiles",
+      "binaryDir": "${sourceDir}/build-rpi",
+      "toolchainFile": "cmake/toolchains/rpi.cmake",
+      "cacheVariables": {
+        "ENABLE_NNG": "ON",
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_INSTALL_PREFIX": "${sourceDir}/dist-rpi"
+      }
+    }
+  ],
+
+  "buildPresets": [
+    {
+      "name": "build-mac-debug",
+      "displayName": "Build (mac Debug)",
+      "configurePreset": "mac-debug",
+      "targets": [ "hokuyo_hub" ]
+    },
+    {
+      "name": "build-mac-release",
+      "displayName": "Build (mac Release)",
+      "configurePreset": "mac-release",
+      "targets": [ "hokuyo_hub" ]
+    },
+    {
+      "name": "build-rpi",
+      "displayName": "Build (Raspberry Pi)",
+      "configurePreset": "rpi-base",
+      "targets": [ "hokuyo_hub" ]
+    }
+  ]
+}
