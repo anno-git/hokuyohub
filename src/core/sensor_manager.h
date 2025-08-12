@@ -25,4 +25,6 @@ public:
   bool setEnabled(int id, bool on);
   Json::Value getAsJson(int id) const;
   Json::Value listAsJson() const;
+
+  bool applyPatch(int id, const Json::Value& patch, Json::Value& applied, std::string& err);
 };

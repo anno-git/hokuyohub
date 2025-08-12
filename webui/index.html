@@ -21,18 +21,33 @@
 	<div class="table-wrap">
 		<table id="sensor-table">
 			<thead>
-				<tr>
+			<tr>
 				<th>ID</th>
-				<th>Name</th>
-				<th>Endpoint</th>
-				<th>Mode</th>
 				<th>Enabled</th>
-				</tr>
+				<th>tx</th>
+				<th>ty</th>
+				<th>theta</th>
+				<th style="text-align:right;">Actions</th>
+			</tr>
 			</thead>
 			<tbody id="sensor-tbody"></tbody>
 		</table>
 	</div>
 	</section>
-  <script src="app.js"></script>
+<div id="sensor-modal-backdrop" class="modal-backdrop" hidden></div>
+<div id="sensor-modal" class="modal" hidden aria-modal="true" role="dialog">
+  <div class="modal__header">
+    <h3 id="sensor-modal-title">Sensor Details</h3>
+    <button id="sensor-modal-close" class="btn btn-ghost" aria-label="Close">×</button>
+  </div>
+  <div class="modal__body" id="sensor-modal-body">
+    <!-- 動的に項目を生成します -->
+  </div>
+  <div class="modal__footer">
+    <button id="sensor-modal-cancel" class="btn">Cancel</button>
+    <button id="sensor-modal-save" class="btn btn-primary">Save</button>
+  </div>
+</div>
+<script src="app.js"></script>
 </body>
 </html>

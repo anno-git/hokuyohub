@@ -17,6 +17,7 @@
 #include <thread>
 #include <unordered_map>
 #include <vector>
+#include <algorithm>
 
 using clock_mono = std::chrono::steady_clock;
 using clock_sys  = std::chrono::system_clock;
@@ -109,6 +110,107 @@ void SensorManager::setSensorMask(int id, const SensorMaskLocal& m) {
   auto& sl = *st.slots[id];
   sl.cfg.mask = m;
   // 動的にISensorへ渡す必要があれば、ISensor拡張で対応
+}
+
+bool SensorManager::applyPatch(int id, const Json::Value& patch, Json::Value& applied, std::string& err){
+  auto& st = S();
+  if (id < 0 || id >= static_cast<int>(st.slots.size())) { err = "invalid id"; return false; }
+  auto& sl = *st.slots[id];
+  applied = Json::Value(Json::objectValue);
+
+  // enabled / on
+  if (patch.isMember("enabled") || patch.isMember("on")) {
+    const bool en = patch.isMember("enabled") ? patch["enabled"].asBool() : patch["on"].asBool();
+    if (!setEnabled(id, en)) { err = "failed to (en|dis)able"; return false; }
+    applied["enabled"] = en;
+  }
+
+  // pose (flat or nested)
+  bool poseChanged=false;
+  if (patch.isMember("tx"))        { sl.cfg.pose.tx        = patch["tx"].asFloat();        poseChanged=true; }
+  if (patch.isMember("ty"))        { sl.cfg.pose.ty        = patch["ty"].asFloat();        poseChanged=true; }
+  if (patch.isMember("theta_deg")) { sl.cfg.pose.theta_deg = patch["theta_deg"].asFloat(); poseChanged=true; }
+  if (patch.isMember("pose") && patch["pose"].isObject()){
+    const auto& p = patch["pose"];
+    if (p.isMember("tx"))        { sl.cfg.pose.tx        = p["tx"].asFloat();        poseChanged=true; }
+    if (p.isMember("ty"))        { sl.cfg.pose.ty        = p["ty"].asFloat();        poseChanged=true; }
+    if (p.isMember("theta_deg")) { sl.cfg.pose.theta_deg = p["theta_deg"].asFloat(); poseChanged=true; }
+  }
+  if (poseChanged){
+    setPose(id, sl.cfg.pose.tx, sl.cfg.pose.ty, sl.cfg.pose.theta_deg);
+    Json::Value p(Json::objectValue);
+    p["tx"]=sl.cfg.pose.tx; p["ty"]=sl.cfg.pose.ty; p["theta_deg"]=sl.cfg.pose.theta_deg;
+    applied["pose"]=p;
+  }
+
+  // mask (local)
+  if (patch.isMember("mask")){
+    const auto& m = patch["mask"];
+    if (m.isMember("angle")){
+      if (m["angle"].isMember("min_deg")) sl.cfg.mask.angle.min_deg = m["angle"]["min_deg"].asFloat();
+      if (m["angle"].isMember("max_deg")) sl.cfg.mask.angle.max_deg = m["angle"]["max_deg"].asFloat();
+    }
+    if (m.isMember("range")){
+      if (m["range"].isMember("near_m")) sl.cfg.mask.range.near_m = std::max(0.0f, m["range"]["near_m"].asFloat());
+      if (m["range"].isMember("far_m"))  sl.cfg.mask.range.far_m  = std::max(0.0f, m["range"]["far_m"].asFloat());
+    }
+    if (sl.cfg.mask.range.near_m > sl.cfg.mask.range.far_m) std::swap(sl.cfg.mask.range.near_m, sl.cfg.mask.range.far_m);
+    if (sl.cfg.mask.angle.min_deg > sl.cfg.mask.angle.max_deg) std::swap(sl.cfg.mask.angle.min_deg, sl.cfg.mask.angle.max_deg);
+
+    setSensorMask(id, sl.cfg.mask);
+    // 詳細は getAsJson で返るので、ここではキー存在だけ通知
+    applied["mask"] = Json::Value(Json::objectValue);
+  }
+
+    // --- 追加: endpoint(host/port) と mode ---
+  if (patch.isMember("endpoint")) {
+    const auto& ep = patch["endpoint"];
+    if (ep.isObject()) {
+      if (ep.isMember("host")) sl.cfg.host = ep["host"].asString();
+      if (ep.isMember("port")) sl.cfg.port = ep["port"].asInt();
+      Json::Value out(Json::objectValue);
+      out["host"] = sl.cfg.host; out["port"] = sl.cfg.port;
+      applied["endpoint"] = out;
+    } else if (ep.isString()) {
+      // "host:port" 形式も一応許容
+      const auto str = ep.asString();
+      auto pos = str.find(':');
+      if (pos == std::string::npos) {
+        sl.cfg.host = str;
+      } else {
+        sl.cfg.host = str.substr(0, pos);
+        try { sl.cfg.port = std::stoi(str.substr(pos+1)); } catch(...) {}
+      }
+      Json::Value out(Json::objectValue);
+      out["host"] = sl.cfg.host; out["port"] = sl.cfg.port;
+      applied["endpoint"] = out;
+    }
+    // 動作中に接続先を変える場合の再接続は今後のオプションで（MVPでは保持のみ）
+  }
+
+  if (patch.isMember("mode")) {
+    sl.cfg.mode = patch["mode"].asString();
+    applied["mode"] = sl.cfg.mode;
+    // URGの場合は計測モード（距離/強度/両方）など。動的反映の要否は後続対応。
+  }
+  
+  // details tab
+  if (patch.isMember("skip_step")){
+    const int v = patch["skip_step"].asInt();
+    if (v < 1){ err = "skip_step must be >= 1"; return false; }
+    sl.cfg.skip_step = v;
+    applied["skip_step"]=v;
+  }
+  if (patch.isMember("ignore_checksum_error")){
+    const int v = patch["ignore_checksum_error"].asInt();
+    if (v!=0 && v!=1){ err = "ignore_checksum_error must be 0 or 1"; return false; }
+    sl.cfg.ignore_checksum_error = v;
+    applied["ignore_checksum_error"]=v;
+    // 多くのライブラリでは計測開始時の引数なので、動作中変更は保持のみ（再起動時に適用）
+    // 必要ならここで stop->start を行うオプションを後日追加
+  }
+
+  return true;
 }
 
 void SensorManager::start(FrameCallback cb) {
@@ -241,12 +343,39 @@ bool SensorManager::setEnabled(int id, bool on) {
 Json::Value SensorManager::getAsJson(int id) const {
   Json::Value s(Json::objectValue);
   const auto& st = S();
-  if (id < 0 || id >= static_cast<int>(st.slots.size())) return s; // 空オブジェクト
+  if (id < 0 || id >= static_cast<int>(st.slots.size())) return s;
   const auto& sl = *st.slots[static_cast<size_t>(id)];
 
-  s["id"] = id;                       // slots index (MVP)
-  s["enabled"] = sl.started;          // 実行状態
-  // 将来ここに name / endpoint / mode / mask などを拡張
+  s["id"] = id;               // slot index
+  s["enabled"] = sl.started;  // 実行状態
+  s["cfg_id"] = sl.cfg.id;    // 設定上のセンサーID
+
+  // --- 追加: endpoint と mode を出力 ---
+  {
+    Json::Value ep(Json::objectValue);
+    ep["host"] = sl.cfg.host;             // string
+    ep["port"] = sl.cfg.port;             // int
+    s["endpoint"] = ep;
+    s["mode"] = sl.cfg.mode;              // string
+  }
+
+  // pose
+  {
+    Json::Value p(Json::objectValue);
+    p["tx"]=sl.cfg.pose.tx; p["ty"]=sl.cfg.pose.ty; p["theta_deg"]=sl.cfg.pose.theta_deg;
+    s["pose"]=p;
+  }
+  // mask
+  {
+    Json::Value m(Json::objectValue);
+    Json::Value a(Json::objectValue); a["min_deg"]=sl.cfg.mask.angle.min_deg; a["max_deg"]=sl.cfg.mask.angle.max_deg; m["angle"]=a;
+    Json::Value r(Json::objectValue); r["near_m"]=sl.cfg.mask.range.near_m; r["far_m"]=sl.cfg.mask.range.far_m; m["range"]=r;
+    s["mask"]=m;
+  }
+  // details（詳細タブ）
+  s["skip_step"]            = sl.cfg.skip_step;
+  s["ignore_checksum_error"]= sl.cfg.ignore_checksum_error;
+
   return s;
 }
 

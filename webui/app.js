@@ -54,34 +54,62 @@ function setPanelMsg(text, ok=true){
 }
 
 function renderSensors(){
-  // tbodyを都度再描画（件数が少ない前提のシンプル実装）
   tbody.innerHTML = '';
-  // id昇順で安定表示
   const rows = Array.from(sensors.values()).sort((a,b)=>a.id-b.id);
   for(const s of rows){
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td style="padding:6px 8px; border-bottom:1px solid #eee;">${s.id}</td>
-      <td style="padding:6px 8px; border-bottom:1px solid #eee;">${s.name ?? ''}</td>
-      <td style="padding:6px 8px; border-bottom:1px solid #eee;"><code>${s.endpoint ?? ''}</code></td>
-      <td style="padding:6px 8px; border-bottom:1px solid #eee;">${s.mode ?? ''}</td>
       <td style="padding:6px 8px; border-bottom:1px solid #eee;">
-        <label style="display:inline-flex; align-items:center; gap:6px; cursor:pointer;">
+        <label class="toggle">
           <input type="checkbox" ${s.enabled ? 'checked' : ''} data-sid="${s.id}" />
           <span>${s.enabled ? 'ON' : 'OFF'}</span>
         </label>
       </td>
+      <td style="padding:6px 8px; border-bottom:1px solid #eee;">
+        <input class="pose-tx" type="number" step="0.01"
+               value="${Number(s.pose?.tx ?? s.tx ?? 0)}" data-sid="${s.id}" style="width:100px" />
+      </td>
+      <td style="padding:6px 8px; border-bottom:1px solid #eee;">
+        <input class="pose-ty" type="number" step="0.01"
+               value="${Number(s.pose?.ty ?? s.ty ?? 0)}" data-sid="${s.id}" style="width:100px" />
+      </td>
+      <td style="padding:6px 8px; border-bottom:1px solid #eee;">
+        <input class="pose-theta" type="number" step="0.1"
+               value="${Number(s.pose?.theta_deg ?? s.theta_deg ?? 0)}" data-sid="${s.id}" style="width:100px" />
+      </td>
+      <td style="padding:6px 8px; border-bottom:1px solid #eee; text-align:right;">
+        <button class="btn" data-open-modal="${s.id}">Details…</button>
+      </td>
     `;
-    // ON/OFFラベルの即時更新
+
+    // Enabled -> sensor.enable
     const chk = tr.querySelector('input[type=checkbox]');
     const lbl = tr.querySelector('span');
     chk.addEventListener('change', () => {
       lbl.textContent = chk.checked ? 'ON' : 'OFF';
-      // WSへ操作コマンド送信
-      const msg = { type:'sensor.enable', id: s.id, enabled: chk.checked };
+      const msg = { type:'sensor.enable', id: Number(chk.dataset.sid), enabled: chk.checked };
       try { ws.send(JSON.stringify(msg)); setPanelMsg(`apply: sensor ${s.id} ${chk.checked?'ON':'OFF'}`); }
       catch(e){ setPanelMsg('send failed', false); }
     });
+
+    // tx/ty/theta -> blurで patch {pose:{...}}
+    const onPoseBlur = (cls, key) => {
+      const input = tr.querySelector(cls);
+      input.addEventListener('blur', () => {
+        const id = Number(input.dataset.sid);
+        const v = Number(input.value || 0);
+        const patch = { pose: {} };
+        patch.pose[key] = v;
+        ws.send(JSON.stringify({ type:'sensor.update', id, patch }));
+      });
+    };
+    onPoseBlur('.pose-tx', 'tx');
+    onPoseBlur('.pose-ty', 'ty');
+    onPoseBlur('.pose-theta', 'theta_deg');
+
+    // モーダル起動
+    tr.querySelector('[data-open-modal]').addEventListener('click', () => openSensorModal(s.id));
 
     tbody.appendChild(tr);
   }
@@ -101,9 +129,11 @@ ws.onmessage = (ev) => {
       sensors.clear();
       for(const s of m.sensors) sensors.set(s.id, s);
       renderSensors();
+      tryRefreshModalFromState();
     } else if (m.type === 'sensor.updated' && m.sensor && typeof m.sensor.id === 'number') {
       sensors.set(m.sensor.id, m.sensor);
       renderSensors();
+      tryRefreshModalFromState();
     } else if (m.type === 'ok') {
       // 任意：応答OKのとき軽く表示
       setPanelMsg(`ok: ${m.ref ?? ''}`);
@@ -121,3 +151,189 @@ btnRefresh?.addEventListener('click', ()=>{
 ws.addEventListener('open', ()=>{
   try { ws.send(JSON.stringify({ type:'sensor.requestSnapshot' })); } catch(_e){}
 });
+
+
+// modal refs
+const mBackdrop = document.getElementById('sensor-modal-backdrop');
+const mRoot = document.getElementById('sensor-modal');
+const mTitle = document.getElementById('sensor-modal-title');
+const mBody  = document.getElementById('sensor-modal-body');
+const mClose = document.getElementById('sensor-modal-close');
+const mCancel= document.getElementById('sensor-modal-cancel');
+const mSave  = document.getElementById('sensor-modal-save');
+
+let modalSensorId = null;
+let modalWorking  = null; // 編集中の一時オブジェクト（存在する項目だけ）
+
+function openSensorModal(id){
+  const s = sensors.get(id);
+  if(!s) return;
+  modalSensorId = id;
+  modalWorking = buildEditableSnapshot(s); // 存在する項目だけ抽出
+  renderSensorModal(modalWorking, s);
+  mTitle.textContent = `Sensor #${id} Details`;
+  mBackdrop.hidden = false; mRoot.hidden = false;
+}
+
+function closeSensorModal(){
+  modalSensorId = null; modalWorking = null;
+  mBackdrop.hidden = true; mRoot.hidden = true;
+}
+
+mClose.addEventListener('click', closeSensorModal);
+mCancel.addEventListener('click', closeSensorModal);
+mBackdrop.addEventListener('click', (e)=>{ if(e.target===mBackdrop) closeSensorModal(); });
+
+function buildEditableSnapshot(s){
+  const out = {};
+
+  // EndPoint -> host/port に分割して保持
+  if (s.endpoint != null) {
+    if (typeof s.endpoint === 'string') {
+      const [host='', portStr=''] = s.endpoint.split(':');
+      out.endpoint = { host, port: Number(portStr || 0) || '' };
+    } else if (typeof s.endpoint === 'object') {
+      out.endpoint = { host: s.endpoint.host ?? '', port: s.endpoint.port ?? '' };
+    }
+  }
+
+  // Mode（存在時のみ）
+  if (s.mode != null) out.mode = String(s.mode);
+
+  if (typeof s.ignore_checksum_error !== 'undefined') {
+    out.ignore_checksum_error = Number(s.ignore_checksum_error) ? 1 : 0;
+  }
+  if (typeof s.skip_step !== 'undefined') {
+    out.skip_step = Number(s.skip_step) || 1;
+  }
+
+  if (s.mask && typeof s.mask === 'object') {
+    out.mask = {};
+    if (s.mask.angle) {
+      out.mask.angle = {
+        min_deg: Number(s.mask.angle.min_deg ?? s.mask.angle.min ?? 0),
+        max_deg: Number(s.mask.angle.max_deg ?? s.mask.angle.max ?? 0),
+      };
+    }
+    if (s.mask.range) {
+      const near = Number(s.mask.range.near_m ?? s.mask.range.min_m ?? s.mask.range.min ?? 0);
+      const far  = Number(s.mask.range.far_m  ?? s.mask.range.max_m ?? s.mask.range.max ?? 0);
+      out.mask.range = { near_m: near, far_m: far };
+    }
+  }
+  return out;
+}
+
+function renderSensorModal(edit){
+  mBody.innerHTML = '';
+
+  // EndPoint (host/port)
+  if (edit.endpoint) {
+    const group = document.createElement('div'); group.className='modal__group';
+    group.innerHTML = `<h4>EndPoint</h4>
+      <div class="modal__row"><label>Host</label><input id="ep-host" type="text" value="${edit.endpoint.host}"></div>
+      <div class="modal__row"><label>Port</label><input id="ep-port" type="number" min="0" value="${edit.endpoint.port}"></div>`;
+    mBody.appendChild(group);
+  }
+
+  // Mode
+  if (Object.prototype.hasOwnProperty.call(edit, 'mode')) {
+    const row = document.createElement('div'); row.className='modal__row';
+    row.innerHTML = `<label>Mode</label><input id="mode" type="text" value="${edit.mode}">`;
+    mBody.appendChild(row);
+  }
+
+  // ignore_checksum_error
+  if (Object.prototype.hasOwnProperty.call(edit, 'ignore_checksum_error')) {
+    const row = document.createElement('div'); row.className='modal__row';
+    row.innerHTML = `<label>ignore_checksum_error</label>
+      <input id="ice" type="checkbox" ${edit.ignore_checksum_error ? 'checked':''}>`;
+    mBody.appendChild(row);
+  }
+
+  // skip_step
+  if (Object.prototype.hasOwnProperty.call(edit, 'skip_step')) {
+    const row = document.createElement('div'); row.className='modal__row';
+    row.innerHTML = `<label>skip_step (>=1)</label>
+      <input id="skip" type="number" min="1" value="${edit.skip_step}">`;
+    mBody.appendChild(row);
+  }
+
+  // mask（angle/range が存在するときのみ描画）
+  if (edit.mask) {
+    const group = document.createElement('div'); group.className='modal__group';
+    group.innerHTML = `<h4>Mask</h4>`;
+    if (edit.mask.angle) {
+      group.innerHTML += `
+        <div class="modal__row"><label>mask_angle (deg)</label>
+          <div>
+            <input id="ma-min" type="number" step="0.1" style="width:110px" value="${edit.mask.angle.min_deg}">
+            <input id="ma-max" type="number" step="0.1" style="width:110px; margin-left:8px" value="${edit.mask.angle.max_deg}">
+          </div>
+        </div>`;
+    }
+    if (edit.mask.range) {
+      group.innerHTML += `
+        <div class="modal__row"><label>mask_range (m)</label>
+          <div>
+            <input id="mr-near" type="number" step="0.01" style="width:110px" value="${edit.mask.range.near_m}">
+            <input id="mr-far"  type="number" step="0.01" style="width:110px; margin-left:8px" value="${edit.mask.range.far_m}">
+          </div>
+        </div>`;
+    }
+    mBody.appendChild(group);
+  }
+
+  // Save -> sensor.update で送信
+  mSave.onclick = () => {
+    if (modalSensorId == null) return;
+    const patch = buildPatchFromModal();
+    if (!patch) return;
+    ws.send(JSON.stringify({ type:'sensor.update', id: modalSensorId, patch }));
+    closeSensorModal();
+  };
+}
+
+function buildPatchFromModal(){
+  if (modalWorking == null) return null;
+  const patch = {};
+  if (modalWorking.endpoint) {
+    const host = document.getElementById('ep-host')?.value ?? '';
+    const port = Number(document.getElementById('ep-port')?.value ?? 0);
+    patch.endpoint = { host, port: Number.isFinite(port) ? port : 0 };
+  }
+  if (Object.prototype.hasOwnProperty.call(modalWorking, 'mode')) {
+    patch.mode = String(document.getElementById('mode')?.value ?? '');
+  }
+  if (Object.prototype.hasOwnProperty.call(modalWorking, 'ignore_checksum_error')) {
+    patch.ignore_checksum_error = document.getElementById('ice')?.checked ? 1 : 0;
+  }
+  if (Object.prototype.hasOwnProperty.call(modalWorking, 'skip_step')) {
+    const v = Math.max(1, Number(document.getElementById('skip')?.value ?? 1));
+    patch.skip_step = v;
+  }
+  if (modalWorking.mask) {
+    const m = {};
+    if (modalWorking.mask.angle) {
+      const min = Number(document.getElementById('ma-min')?.value ?? modalWorking.mask.angle.min_deg);
+      const max = Number(document.getElementById('ma-max')?.value ?? modalWorking.mask.angle.max_deg);
+      m.angle = { min_deg: min, max_deg: max };
+    }
+    if (modalWorking.mask.range) {
+      const near = Number(document.getElementById('mr-near')?.value ?? modalWorking.mask.range.near_m);
+      const far  = Number(document.getElementById('mr-far')?.value  ?? modalWorking.mask.range.far_m);
+      m.range = { near_m: near, far_m: far };
+    }
+    patch.mask = m;
+  }
+  return patch;
+}
+
+// サーバから更新を受けたらモーダルの内容も最新へ
+function tryRefreshModalFromState(){
+  if (modalSensorId == null) return;
+  const s = sensors.get(modalSensorId);
+  if (!s) return;
+  modalWorking = buildEditableSnapshot(s);
+  renderSensorModal(modalWorking, s);
+}

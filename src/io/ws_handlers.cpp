@@ -57,6 +57,10 @@ void LiveWs::handleNewMessage(const drogon::WebSocketConnectionPtr& conn,
       }
       return;
     }
+    if(t == "sensor.update"){
+      handleSensorUpdate(conn, j);
+      return;
+    }
     // -----------------------------------
 
     // 既存互換: 上記に該当しない Text は echo（後方互換）
@@ -109,5 +113,28 @@ void LiveWs::broadcastSensorUpdated(int id){
   std::lock_guard<std::mutex> lk(mtx_);
   for(const auto& c : conns_){
     if(c && c->connected()) c->send(payload);
+  }
+}
+
+void LiveWs::handleSensorUpdate(const drogon::WebSocketConnectionPtr& conn, const Json::Value& j){
+  const int id = j.get("id",-1).asInt();
+  const Json::Value patch = j.get("patch", Json::Value(Json::objectValue));
+
+  if(!sensorManager_){
+    Json::Value res; res["type"]="error"; res["ref"]="sensor.update"; res["message"]="sensorManager not set";
+    conn->send(res.toStyledString());
+    return;
+  }
+
+  Json::Value applied; std::string err;
+  if(sensorManager_->applyPatch(id, patch, applied, err)){
+    Json::Value res; res["type"]="ok"; res["ref"]="sensor.update";
+    res["applied"]=applied;
+    res["sensor"]=sensorManager_->getAsJson(id);
+    conn->send(res.toStyledString());
+    broadcastSensorUpdated(id);
+  }else{
+    Json::Value res; res["type"]="error"; res["ref"]="sensor.update"; res["message"]=err;
+    conn->send(res.toStyledString());
   }
 }

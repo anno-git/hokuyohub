@@ -95,3 +95,31 @@ button#btn-refresh:hover {
   gap: 6px;
   cursor: pointer;
 }
+
+/* modal */
+.modal-backdrop[hidden], .modal[hidden] { display: none; }
+.modal-backdrop {
+  position: fixed; inset: 0; background: rgba(0,0,0,.35); z-index: 90;
+}
+.modal {
+  position: fixed; z-index: 100; inset: 10% auto auto 50%;
+  transform: translateX(-50%);
+  width: min(720px, calc(100vw - 32px));
+  background: #fff; border: 1px solid #ddd; border-radius: 10px;
+  box-shadow: 0 12px 40px rgba(0,0,0,.25);
+  display: grid; grid-template-rows: auto 1fr auto; max-height: 80vh;
+}
+.modal__header, .modal__footer {
+  padding: 10px 12px; border-bottom: 1px solid #eee; display: flex; align-items: center; gap: 8px;
+}
+.modal__footer { border-top: 1px solid #eee; border-bottom: 0; justify-content: flex-end; }
+.modal__body { padding: 12px; overflow: auto; display: grid; gap: 10px; }
+.modal__row { display: grid; grid-template-columns: 180px 1fr; align-items: center; gap: 12px; }
+.modal__row input[type="number"], .modal__row input[type="text"], .modal__row select {
+  padding: 6px 8px; border: 1px solid #ccc; border-radius: 6px; width: 220px;
+}
+.modal__group { padding: 8px; border: 1px dashed #ddd; border-radius: 8px; }
+.modal__group h4 { margin: 0 0 6px 0; font-size: 13px; opacity: .8; }
+.btn { padding: 6px 10px; border: 1px solid #ccc; border-radius: 8px; background: #f8f8f8; }
+.btn-primary { border-color: #3b82f6; background: #3b82f6; color: #fff; }
+.btn-ghost { border: none; background: transparent; font-size: 20px; line-height: 1; }

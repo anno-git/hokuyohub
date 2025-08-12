@@ -31,6 +31,7 @@ class LiveWs : public drogon::WebSocketController<LiveWs, false> { // ★ AutoCr
    // 追加: センサー状態の送受信用ユーティリティ
    void sendSnapshotTo(const drogon::WebSocketConnectionPtr& conn);
    void broadcastSensorUpdated(int id);
+   void handleSensorUpdate(const drogon::WebSocketConnectionPtr& conn, const Json::Value& j);
 
    WS_PATH_LIST_BEGIN
      WS_PATH_ADD("/ws/live", drogon::Get);
