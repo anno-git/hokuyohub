@@ -2,7 +2,7 @@ sensors:
   - id: 0
     name: "hokuyo-a"
     type: "hokuyo_urg_eth"
-    endpoint: "192.168.11.222:10940"
+    endpoint: "192.168.104.202:10940"
     pose: { tx: 0.0, ty: 0.0, theta: 0.0 }
     enabled: true
     mode: "ME"          # "MD"=距離のみ / "ME"=距離+強度

@@ -1,0 +1,97 @@
+body {
+	font-family: system-ui, sans-serif;
+	margin:0;
+}
+
+header {
+	padding:8px 12px;
+	background:#222;
+	color:#fff;
+}
+
+#stats {
+	padding:6px 12px;
+	font-size:14px;
+}
+
+canvas {
+	display:block;
+	width:100vw;
+	height:60vh;
+	background:#111;
+}
+
+/* ====== panel (sensors) ====== */
+#panel {
+  padding: 8px 12px;
+}
+
+#panel .panel-header {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+#panel .panel-header h2 {
+  margin: 0;
+  font-size: 16px;
+}
+
+#panel .panel-msg {
+  font-size: 12px;
+  opacity: 0.8;
+}
+
+#panel .table-wrap {
+  overflow: auto;
+  max-height: 28vh;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  margin-top: 6px;
+}
+
+/* ====== table ====== */
+#sensor-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+#sensor-table thead {
+  position: sticky;
+  top: 0;
+  background: #f5f5f5;
+}
+
+#sensor-table th,
+#sensor-table td {
+  text-align: left;
+  padding: 6px 8px;
+  border-bottom: 1px solid #eee;
+}
+
+#sensor-table code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-size: 0.95em;
+}
+
+/* ====== button ====== */
+button#btn-refresh {
+  padding: 4px 10px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  background: #fafafa;
+  cursor: pointer;
+}
+
+button#btn-refresh:hover {
+  background: #f0f0f0;
+}
+
+/* ====== toggle label ====== */
+.toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}

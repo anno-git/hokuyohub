@@ -3,18 +3,36 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <!-- head 内のどこか（既存の <script> より前でも後でもOK）に追加 -->
+  <link rel="stylesheet" href="./styles.css">
   <title>hokuyo-hub</title>
-  <style>
-    body { font-family: system-ui, sans-serif; margin:0; }
-    header { padding:8px 12px; background:#222; color:#fff; }
-    #stats { padding:6px 12px; font-size:14px; }
-    canvas { display:block; width:100vw; height:60vh; background:#111; }
-  </style>
 </head>
 <body>
   <header>hokuyo-hub (MVP)</header>
   <div id="stats">connecting...</div>
   <canvas id="cv"></canvas>
+  <section id="panel">
+	<div class="panel-header">
+		<h2>Sensors</h2>
+		<button id="btn-refresh" type="button">Refresh</button>
+		<span id="panel-msg" class="panel-msg"></span>
+	</div>
+
+	<div class="table-wrap">
+		<table id="sensor-table">
+			<thead>
+				<tr>
+				<th>ID</th>
+				<th>Name</th>
+				<th>Endpoint</th>
+				<th>Mode</th>
+				<th>Enabled</th>
+				</tr>
+			</thead>
+			<tbody id="sensor-tbody"></tbody>
+		</table>
+	</div>
+	</section>
   <script src="app.js"></script>
 </body>
 </html>
