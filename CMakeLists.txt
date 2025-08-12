@@ -5,11 +5,16 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
+# -------- install 先（デフォルト: ${CMAKE_SOURCE_DIR}/dist。ただしユーザ指定で上書き可）--------
+if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
+  set(CMAKE_INSTALL_PREFIX "${CMAKE_SOURCE_DIR}/dist" CACHE PATH "Install path prefix" FORCE)
+endif()
+
 option(ENABLE_NNG "Enable NNG publisher" ON)
 
 # 依存：Drogon, yaml-cpp, (optional) nng
 find_package(Drogon REQUIRED)
-find_package(yaml-cpp REQUIRED)
+find_package(yaml-cpp CONFIG REQUIRED)
 
 if(ENABLE_NNG)
   find_path(NNG_INCLUDE_DIR nng/nng.h)
@@ -34,18 +39,17 @@ file(MAKE_DIRECTORY ${URG_INSTALL_DIR})
 file(MAKE_DIRECTORY ${URG_INCLUDE_DIR})
 file(MAKE_DIRECTORY ${URG_LIB_DIR})
 
-# 1) ビルドだけ実行（installは呼ばない）
+# 1) Cライブラリだけビルド（installは呼ばない）
 ExternalProject_Add(urg_library_proj
   SOURCE_DIR        ${URG_SRC_DIR}
   CONFIGURE_COMMAND ""
   BUILD_COMMAND     ${CMAKE_MAKE_PROGRAM} -C ${URG_SRC_DIR}/src
-  INSTALL_COMMAND   ""                     # ★ installを呼ばない
+  INSTALL_COMMAND   ""   # installは呼ばない
   BUILD_IN_SOURCE   1
   LOG_BUILD         1
 )
 
-# 2) ビルド後、必要ファイルだけコピーするカスタムステップ
-#   典型配置をまず試し、その次善策も用意
+# 2) ビルド後、必要ファイルだけコピー
 ExternalProject_Add_Step(urg_library_proj copy_headers
   COMMAND ${CMAKE_COMMAND} -E copy_directory
           ${URG_SRC_DIR}/include/c ${URG_INCLUDE_DIR}
@@ -112,10 +116,23 @@ if(ENABLE_NNG)
 endif()
 
 # =========================
-# webui をランタイムにコピー（簡易）
+# install（配布レイアウト）
 # =========================
-add_custom_command(TARGET hokuyo_hub POST_BUILD
-  COMMAND ${CMAKE_COMMAND} -E copy_if_different ${CMAKE_SOURCE_DIR}/webui/index.html $<TARGET_FILE_DIR:hokuyo_hub>
-  COMMAND ${CMAKE_COMMAND} -E copy_if_different ${CMAKE_SOURCE_DIR}/webui/app.js $<TARGET_FILE_DIR:hokuyo_hub>
-  COMMAND ${CMAKE_COMMAND} -E copy_if_different ${CMAKE_SOURCE_DIR}/configs/default.yaml $<TARGET_FILE_DIR:hokuyo_hub>
+# 実行バイナリはインストール先のトップへ
+install(TARGETS hokuyo_hub
+  RUNTIME DESTINATION .
 )
+
+# 設定ファイル（configs/ 配下を丸ごと）
+install(DIRECTORY ${CMAKE_SOURCE_DIR}/configs/
+        DESTINATION config
+        FILES_MATCHING PATTERN "*")
+
+# WebUI（webui/ 配下を丸ごと）
+install(DIRECTORY ${CMAKE_SOURCE_DIR}/webui/
+        DESTINATION webui
+        FILES_MATCHING PATTERN "*")
+
+# 実行時の動的ライブラリ解決（必要な場合のみ有効化してOK）
+# set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
+# list(APPEND CMAKE_INSTALL_RPATH "/opt/homebrew/lib")

@@ -71,5 +71,22 @@ AppConfig load_app_config(const std::string& path){
     if (d["minPts"]) cfg.dbscan_minPts = d["minPts"].as<int>(cfg.dbscan_minPts);
   }
 
+  if (auto u = y["ui"]) {
+    if (u["ws_listen"])   cfg.ui.ws_listen   = u["ws_listen"].as<std::string>(cfg.ui.ws_listen);
+    if (u["rest_listen"]) cfg.ui.rest_listen = u["rest_listen"].as<std::string>(cfg.ui.rest_listen);
+  }
+
+  if (y["sinks"] && y["sinks"].IsSequence()) {
+    for (const auto& sn : y["sinks"]) {
+      SinkConfig sc;
+      if (sn["type"])      sc.type      = sn["type"].as<std::string>("");
+      if (sn["url"])       sc.url       = sn["url"].as<std::string>("");
+      if (sn["topic"])     sc.topic     = sn["topic"].as<std::string>("");
+      if (sn["encoding"])  sc.encoding  = sn["encoding"].as<std::string>("");
+      if (sn["rate_limit"])sc.rate_limit= sn["rate_limit"].as<int>(0);
+      cfg.sinks.push_back(std::move(sc));
+    }
+  }
+
   return cfg;
 }

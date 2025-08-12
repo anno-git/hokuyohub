@@ -41,12 +41,26 @@ struct SensorConfig {
   SensorMaskLocal mask{};
 };
 
+struct UiConfig {
+  std::string ws_listen{"0.0.0.0:8080"};
+  std::string rest_listen{"0.0.0.0:8080"};
+};
+
+struct SinkConfig {
+  std::string type;      // "nng" など
+  std::string url;       // "tcp://0.0.0.0:5555" など
+  std::string topic;     // "clusters" など
+  std::string encoding;  // "msgpack" など
+  int         rate_limit{0};
+};
+
 struct AppConfig {
   std::vector<SensorConfig> sensors;
 
-  // 必要に応じて拡張
   float dbscan_eps{0.12f};
   int dbscan_minPts{6};
+  UiConfig ui{};
+  std::vector<SinkConfig> sinks;
 };
 
 AppConfig load_app_config(const std::string& path);

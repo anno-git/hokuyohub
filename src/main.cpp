@@ -9,8 +9,8 @@
 using namespace drogon;
 
 int main(int argc, char** argv) {
-  std::string cfgPath = "./default.yaml";
-  std::string httpListen = "0.0.0.0:8080";
+  std::string cfgPath = "./config/default.yaml";
+  std::string httpListen = "";
   std::string pubUrl = "tcp://0.0.0.0:5555";
 
   for (int i=1;i<argc;++i){
@@ -21,6 +21,13 @@ int main(int argc, char** argv) {
   }
 
   AppConfig appcfg = load_app_config(cfgPath);
+
+  for (const auto& s : appcfg.sinks) {
+    if (s.type == "nng" && !s.url.empty()) {
+      pubUrl = s.url;
+      break;
+    }
+  }
 
   // NNG publisher（存在しない場合は NO-OP）
   NngBus bus; bus.startPublisher(pubUrl);
@@ -38,13 +45,23 @@ int main(int argc, char** argv) {
   app().registerController(rest);
 
   // 静的ファイル（webui）
-  app().setDocumentRoot(".");
+  app().setDocumentRoot("./webui");
 
   // HTTP listen
-  auto pos = httpListen.find(":");
-  std::string host = httpListen.substr(0,pos);
-  uint16_t port = static_cast<uint16_t>(std::stoi(httpListen.substr(pos+1)));
-  app().addListener(host, port);
+  auto startHttp = [](const std::string& url) {
+	auto pos = url.find(":");
+	if (pos == std::string::npos) return;
+	std::string host = url.substr(0, pos);
+	uint16_t port = static_cast<uint16_t>(std::stoi(url.substr(pos + 1)));
+	std::cout << "[App] Starting HTTP server on host:" << host << " port:" << port << std::endl;
+	app().addListener(host, port);
+  };
+  if (!httpListen.empty()) {
+	startHttp(httpListen);
+  }
+  else if (!appcfg.ui.rest_listen.empty()) {
+    startHttp(appcfg.ui.rest_listen);
+  }
 
   // センサー開始（スタブ：タイマーでダミーデータを流す）
   sensors.start([&](const ScanFrame& f){

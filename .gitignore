@@ -3,6 +3,8 @@ build/
 build-*/
 cmake-build-*/
 
+dist/
+
 # === Compiled object files ===
 *.o
 *.obj
