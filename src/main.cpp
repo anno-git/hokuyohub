@@ -41,6 +41,7 @@ int main(int argc, char** argv) {
   auto rest = std::make_shared<RestApi>(sensors, dbscan, bus, ws);
 
   // Drogon routing
+  app().setUploadPath("/tmp");
   app().registerController(ws);
   app().registerController(rest);
 
