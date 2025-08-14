@@ -27,4 +27,5 @@ public:
   Json::Value listAsJson() const;
 
   bool applyPatch(int id, const Json::Value& patch, Json::Value& applied, std::string& err);
+  bool restartSensor(int id);
 };

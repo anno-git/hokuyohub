@@ -38,6 +38,7 @@ struct Slot {
   std::mutex mu;                       // latest保護
   uint8_t sid{0};                      // 出力時のセンサーID（0..255）
   bool started{false};
+  std::atomic<bool> need_restart{false};
 };
 
 struct State {
@@ -112,11 +113,29 @@ void SensorManager::setSensorMask(int id, const SensorMaskLocal& m) {
   // 動的にISensorへ渡す必要があれば、ISensor拡張で対応
 }
 
+bool SensorManager::restartSensor(int id){
+  auto& st = S();
+  if (id < 0 || id >= static_cast<int>(st.slots.size())) return false;
+  auto& sl = *st.slots[static_cast<size_t>(id)];
+  if (!sl.dev) return false;
+
+  if (sl.started) {
+    sl.dev->stop();
+    sl.started = false;
+  }
+  const bool ok = sl.dev->start(sl.cfg);
+  sl.started = ok;
+  sl.need_restart.store(false);
+  std::cout << "[SensorManager] restart slot=" << id << " -> " << (ok?"OK":"NG") << std::endl;
+  return ok;
+}
+
 bool SensorManager::applyPatch(int id, const Json::Value& patch, Json::Value& applied, std::string& err){
   auto& st = S();
-  if (id < 0 || id >= static_cast<int>(st.slots.size())) { err = "invalid id"; return false; }
-  auto& sl = *st.slots[id];
+  if (id < 0 || id >= static_cast<int>(st.slots.size())) { err="invalid id"; return false; }
+  auto& sl = *st.slots[static_cast<size_t>(id)];
   applied = Json::Value(Json::objectValue);
+  bool need_restart = false;
 
   // enabled / on
   if (patch.isMember("enabled") || patch.isMember("on")) {
@@ -125,7 +144,7 @@ bool SensorManager::applyPatch(int id, const Json::Value& patch, Json::Value& ap
     applied["enabled"] = en;
   }
 
-  // pose (flat or nested)
+  // pose（flat or nested）
   bool poseChanged=false;
   if (patch.isMember("tx"))        { sl.cfg.pose.tx        = patch["tx"].asFloat();        poseChanged=true; }
   if (patch.isMember("ty"))        { sl.cfg.pose.ty        = patch["ty"].asFloat();        poseChanged=true; }
@@ -143,7 +162,7 @@ bool SensorManager::applyPatch(int id, const Json::Value& patch, Json::Value& ap
     applied["pose"]=p;
   }
 
-  // mask (local)
+  // mask
   if (patch.isMember("mask")){
     const auto& m = patch["mask"];
     if (m.isMember("angle")){
@@ -156,60 +175,55 @@ bool SensorManager::applyPatch(int id, const Json::Value& patch, Json::Value& ap
     }
     if (sl.cfg.mask.range.near_m > sl.cfg.mask.range.far_m) std::swap(sl.cfg.mask.range.near_m, sl.cfg.mask.range.far_m);
     if (sl.cfg.mask.angle.min_deg > sl.cfg.mask.angle.max_deg) std::swap(sl.cfg.mask.angle.min_deg, sl.cfg.mask.angle.max_deg);
-
     setSensorMask(id, sl.cfg.mask);
-    // 詳細は getAsJson で返るので、ここではキー存在だけ通知
     applied["mask"] = Json::Value(Json::objectValue);
   }
 
-    // --- 追加: endpoint(host/port) と mode ---
-  if (patch.isMember("endpoint")) {
+  // endpoint
+  if (patch.isMember("endpoint")){
     const auto& ep = patch["endpoint"];
     if (ep.isObject()) {
       if (ep.isMember("host")) sl.cfg.host = ep["host"].asString();
       if (ep.isMember("port")) sl.cfg.port = ep["port"].asInt();
-      Json::Value out(Json::objectValue);
-      out["host"] = sl.cfg.host; out["port"] = sl.cfg.port;
-      applied["endpoint"] = out;
-    } else if (ep.isString()) {
-      // "host:port" 形式も一応許容
+    } else if (ep.isString()){
       const auto str = ep.asString();
       auto pos = str.find(':');
-      if (pos == std::string::npos) {
-        sl.cfg.host = str;
-      } else {
-        sl.cfg.host = str.substr(0, pos);
-        try { sl.cfg.port = std::stoi(str.substr(pos+1)); } catch(...) {}
-      }
-      Json::Value out(Json::objectValue);
-      out["host"] = sl.cfg.host; out["port"] = sl.cfg.port;
-      applied["endpoint"] = out;
+      if (pos == std::string::npos) { sl.cfg.host = str; }
+      else { sl.cfg.host = str.substr(0,pos); try{ sl.cfg.port = std::stoi(str.substr(pos+1)); }catch(...){} }
     }
-    // 動作中に接続先を変える場合の再接続は今後のオプションで（MVPでは保持のみ）
+    Json::Value out(Json::objectValue); out["host"]=sl.cfg.host; out["port"]=sl.cfg.port;
+    applied["endpoint"] = out;
+    need_restart = true;
   }
 
-  if (patch.isMember("mode")) {
-    sl.cfg.mode = patch["mode"].asString();
+  // mode
+  if (patch.isMember("mode")){
+    const std::string m = patch["mode"].asString();
+    sl.cfg.mode = m;
     applied["mode"] = sl.cfg.mode;
-    // URGの場合は計測モード（距離/強度/両方）など。動的反映の要否は後続対応。
+    if (!sl.dev || !sl.dev->applyMode(m)) need_restart = true;
   }
-  
-  // details tab
+
+  // skip_step
   if (patch.isMember("skip_step")){
     const int v = patch["skip_step"].asInt();
     if (v < 1){ err = "skip_step must be >= 1"; return false; }
     sl.cfg.skip_step = v;
     applied["skip_step"]=v;
+    if (!sl.dev || !sl.dev->applySkipStep(v)) need_restart = true;
   }
   if (patch.isMember("ignore_checksum_error")){
     const int v = patch["ignore_checksum_error"].asInt();
     if (v!=0 && v!=1){ err = "ignore_checksum_error must be 0 or 1"; return false; }
     sl.cfg.ignore_checksum_error = v;
     applied["ignore_checksum_error"]=v;
-    // 多くのライブラリでは計測開始時の引数なので、動作中変更は保持のみ（再起動時に適用）
-    // 必要ならここで stop->start を行うオプションを後日追加
+    need_restart = true;
   }
 
+  if (need_restart && sl.started) {
+    sl.need_restart.store(true);
+    restartSensor(id);
+  }
   return true;
 }
 
@@ -350,15 +364,14 @@ Json::Value SensorManager::getAsJson(int id) const {
   s["enabled"] = sl.started;  // 実行状態
   s["cfg_id"] = sl.cfg.id;    // 設定上のセンサーID
 
-  // --- 追加: endpoint と mode を出力 ---
+  // endpoint + mode
   {
     Json::Value ep(Json::objectValue);
-    ep["host"] = sl.cfg.host;             // string
-    ep["port"] = sl.cfg.port;             // int
+    ep["host"] = sl.cfg.host;
+    ep["port"] = sl.cfg.port;
     s["endpoint"] = ep;
-    s["mode"] = sl.cfg.mode;              // string
+    s["mode"] = sl.cfg.mode;
   }
-
   // pose
   {
     Json::Value p(Json::objectValue);
@@ -375,7 +388,6 @@ Json::Value SensorManager::getAsJson(int id) const {
   // details（詳細タブ）
   s["skip_step"]            = sl.cfg.skip_step;
   s["ignore_checksum_error"]= sl.cfg.ignore_checksum_error;
-
   return s;
 }
 

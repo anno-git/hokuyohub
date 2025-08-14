@@ -67,33 +67,29 @@ function renderSensors(){
         </label>
       </td>
       <td style="padding:6px 8px; border-bottom:1px solid #eee;">
-        <input class="pose-tx" type="number" step="0.01"
-               value="${Number(s.pose?.tx ?? s.tx ?? 0)}" data-sid="${s.id}" style="width:100px" />
+        <input class="pose-tx" type="number" step="0.01" value="${Number(s.pose?.tx ?? s.tx ?? 0)}" data-sid="${s.id}" style="width:100px" />
       </td>
       <td style="padding:6px 8px; border-bottom:1px solid #eee;">
-        <input class="pose-ty" type="number" step="0.01"
-               value="${Number(s.pose?.ty ?? s.ty ?? 0)}" data-sid="${s.id}" style="width:100px" />
+        <input class="pose-ty" type="number" step="0.01" value="${Number(s.pose?.ty ?? s.ty ?? 0)}" data-sid="${s.id}" style="width:100px" />
       </td>
       <td style="padding:6px 8px; border-bottom:1px solid #eee;">
-        <input class="pose-theta" type="number" step="0.1"
-               value="${Number(s.pose?.theta_deg ?? s.theta_deg ?? 0)}" data-sid="${s.id}" style="width:100px" />
+        <input class="pose-theta" type="number" step="0.1" value="${Number(s.pose?.theta_deg ?? s.theta_deg ?? 0)}" data-sid="${s.id}" style="width:100px" />
       </td>
       <td style="padding:6px 8px; border-bottom:1px solid #eee; text-align:right;">
         <button class="btn" data-open-modal="${s.id}">Details…</button>
       </td>
     `;
 
-    // Enabled -> sensor.enable
+    // Enabled → sensor.enable
     const chk = tr.querySelector('input[type=checkbox]');
     const lbl = tr.querySelector('span');
     chk.addEventListener('change', () => {
       lbl.textContent = chk.checked ? 'ON' : 'OFF';
-      const msg = { type:'sensor.enable', id: Number(chk.dataset.sid), enabled: chk.checked };
-      try { ws.send(JSON.stringify(msg)); setPanelMsg(`apply: sensor ${s.id} ${chk.checked?'ON':'OFF'}`); }
+      try { ws.send(JSON.stringify({ type:'sensor.enable', id: Number(chk.dataset.sid), enabled: chk.checked })); }
       catch(e){ setPanelMsg('send failed', false); }
     });
 
-    // tx/ty/theta -> blurで patch {pose:{...}}
+    // tx/ty/theta → blurで {pose:{...}} patch
     const onPoseBlur = (cls, key) => {
       const input = tr.querySelector(cls);
       input.addEventListener('blur', () => {
@@ -129,14 +125,15 @@ ws.onmessage = (ev) => {
       sensors.clear();
       for(const s of m.sensors) sensors.set(s.id, s);
       renderSensors();
-      tryRefreshModalFromState();
+      maybeCloseModalOnAck(m);
     } else if (m.type === 'sensor.updated' && m.sensor && typeof m.sensor.id === 'number') {
       sensors.set(m.sensor.id, m.sensor);
       renderSensors();
-      tryRefreshModalFromState();
+      maybeCloseModalOnAck(m);
     } else if (m.type === 'ok') {
       // 任意：応答OKのとき軽く表示
       setPanelMsg(`ok: ${m.ref ?? ''}`);
+      maybeCloseModalOnAck(m);
     } else if (m.type === 'error') {
       setPanelMsg(m.message || 'error', false);
     }
@@ -153,41 +150,41 @@ ws.addEventListener('open', ()=>{
 });
 
 
-// modal refs
+// --- modal refs/state ---
 const mBackdrop = document.getElementById('sensor-modal-backdrop');
-const mRoot = document.getElementById('sensor-modal');
-const mTitle = document.getElementById('sensor-modal-title');
-const mBody  = document.getElementById('sensor-modal-body');
-const mClose = document.getElementById('sensor-modal-close');
-const mCancel= document.getElementById('sensor-modal-cancel');
-const mSave  = document.getElementById('sensor-modal-save');
+const mRoot     = document.getElementById('sensor-modal');
+const mTitle    = document.getElementById('sensor-modal-title');
+const mBody     = document.getElementById('sensor-modal-body');
+const mClose    = document.getElementById('sensor-modal-close');
+const mCancel   = document.getElementById('sensor-modal-cancel');
+const mSave     = document.getElementById('sensor-modal-save');
 
 let modalSensorId = null;
-let modalWorking  = null; // 編集中の一時オブジェクト（存在する項目だけ）
+let modalWorking  = null;         // モーダルに描画中の「存在する項目だけ」を保持
+let pendingSaveForId = null;      // ← Save後、サーバ応答待ちのID
 
 function openSensorModal(id){
   const s = sensors.get(id);
   if(!s) return;
   modalSensorId = id;
-  modalWorking = buildEditableSnapshot(s); // 存在する項目だけ抽出
-  renderSensorModal(modalWorking, s);
+  modalWorking = buildEditableSnapshot(s);
+  renderSensorModal(modalWorking);
   mTitle.textContent = `Sensor #${id} Details`;
   mBackdrop.hidden = false; mRoot.hidden = false;
 }
-
 function closeSensorModal(){
   modalSensorId = null; modalWorking = null;
+  pendingSaveForId = null;
   mBackdrop.hidden = true; mRoot.hidden = true;
 }
+mClose?.addEventListener('click', closeSensorModal);
+mCancel?.addEventListener('click', closeSensorModal);
+mBackdrop?.addEventListener('click', (e)=>{ if(e.target===mBackdrop) closeSensorModal(); });
 
-mClose.addEventListener('click', closeSensorModal);
-mCancel.addEventListener('click', closeSensorModal);
-mBackdrop.addEventListener('click', (e)=>{ if(e.target===mBackdrop) closeSensorModal(); });
-
+// 現在のセンサー JSON から「存在するキーだけ」を UI 用に抽出
 function buildEditableSnapshot(s){
   const out = {};
-
-  // EndPoint -> host/port に分割して保持
+  // endpoint -> {host,port} へ正規化
   if (s.endpoint != null) {
     if (typeof s.endpoint === 'string') {
       const [host='', portStr=''] = s.endpoint.split(':');
@@ -196,16 +193,9 @@ function buildEditableSnapshot(s){
       out.endpoint = { host: s.endpoint.host ?? '', port: s.endpoint.port ?? '' };
     }
   }
-
-  // Mode（存在時のみ）
   if (s.mode != null) out.mode = String(s.mode);
-
-  if (typeof s.ignore_checksum_error !== 'undefined') {
-    out.ignore_checksum_error = Number(s.ignore_checksum_error) ? 1 : 0;
-  }
-  if (typeof s.skip_step !== 'undefined') {
-    out.skip_step = Number(s.skip_step) || 1;
-  }
+  if (typeof s.ignore_checksum_error !== 'undefined') out.ignore_checksum_error = Number(s.ignore_checksum_error) ? 1 : 0;
+  if (typeof s.skip_step !== 'undefined') out.skip_step = Number(s.skip_step) || 1;
 
   if (s.mask && typeof s.mask === 'object') {
     out.mask = {};
@@ -227,70 +217,65 @@ function buildEditableSnapshot(s){
 function renderSensorModal(edit){
   mBody.innerHTML = '';
 
-  // EndPoint (host/port)
+  // EndPoint
   if (edit.endpoint) {
-    const group = document.createElement('div'); group.className='modal__group';
-    group.innerHTML = `<h4>EndPoint</h4>
+    const g = document.createElement('div'); g.className='modal__group';
+    g.innerHTML = `<h4>EndPoint</h4>
       <div class="modal__row"><label>Host</label><input id="ep-host" type="text" value="${edit.endpoint.host}"></div>
       <div class="modal__row"><label>Port</label><input id="ep-port" type="number" min="0" value="${edit.endpoint.port}"></div>`;
-    mBody.appendChild(group);
+    mBody.appendChild(g);
   }
 
   // Mode
   if (Object.prototype.hasOwnProperty.call(edit, 'mode')) {
-    const row = document.createElement('div'); row.className='modal__row';
-    row.innerHTML = `<label>Mode</label><input id="mode" type="text" value="${edit.mode}">`;
-    mBody.appendChild(row);
+    const r = document.createElement('div'); r.className='modal__row';
+    r.innerHTML = `<label>Mode</label><input id="mode" type="text" value="${edit.mode}">`;
+    mBody.appendChild(r);
   }
 
   // ignore_checksum_error
   if (Object.prototype.hasOwnProperty.call(edit, 'ignore_checksum_error')) {
-    const row = document.createElement('div'); row.className='modal__row';
-    row.innerHTML = `<label>ignore_checksum_error</label>
+    const r = document.createElement('div'); r.className='modal__row';
+    r.innerHTML = `<label>ignore_checksum_error</label>
       <input id="ice" type="checkbox" ${edit.ignore_checksum_error ? 'checked':''}>`;
-    mBody.appendChild(row);
+    mBody.appendChild(r);
   }
 
   // skip_step
   if (Object.prototype.hasOwnProperty.call(edit, 'skip_step')) {
-    const row = document.createElement('div'); row.className='modal__row';
-    row.innerHTML = `<label>skip_step (>=1)</label>
+    const r = document.createElement('div'); r.className='modal__row';
+    r.innerHTML = `<label>skip_step (>=1)</label>
       <input id="skip" type="number" min="1" value="${edit.skip_step}">`;
-    mBody.appendChild(row);
+    mBody.appendChild(r);
   }
 
-  // mask（angle/range が存在するときのみ描画）
+  // mask
   if (edit.mask) {
-    const group = document.createElement('div'); group.className='modal__group';
-    group.innerHTML = `<h4>Mask</h4>`;
+    const g = document.createElement('div'); g.className='modal__group'; g.innerHTML = `<h4>Mask</h4>`;
     if (edit.mask.angle) {
-      group.innerHTML += `
-        <div class="modal__row"><label>mask_angle (deg)</label>
-          <div>
-            <input id="ma-min" type="number" step="0.1" style="width:110px" value="${edit.mask.angle.min_deg}">
-            <input id="ma-max" type="number" step="0.1" style="width:110px; margin-left:8px" value="${edit.mask.angle.max_deg}">
-          </div>
-        </div>`;
+      g.innerHTML += `<div class="modal__row"><label>mask_angle (deg)</label>
+        <div>
+          <input id="ma-min" type="number" step="0.1" style="width:110px" value="${edit.mask.angle.min_deg}">
+          <input id="ma-max" type="number" step="0.1" style="width:110px; margin-left:8px" value="${edit.mask.angle.max_deg}">
+        </div></div>`;
     }
     if (edit.mask.range) {
-      group.innerHTML += `
-        <div class="modal__row"><label>mask_range (m)</label>
-          <div>
-            <input id="mr-near" type="number" step="0.01" style="width:110px" value="${edit.mask.range.near_m}">
-            <input id="mr-far"  type="number" step="0.01" style="width:110px; margin-left:8px" value="${edit.mask.range.far_m}">
-          </div>
-        </div>`;
+      g.innerHTML += `<div class="modal__row"><label>mask_range (m)</label>
+        <div>
+          <input id="mr-near" type="number" step="0.01" style="width:110px" value="${edit.mask.range.near_m}">
+          <input id="mr-far"  type="number" step="0.01" style="width:110px; margin-left:8px" value="${edit.mask.range.far_m}">
+        </div></div>`;
     }
-    mBody.appendChild(group);
+    mBody.appendChild(g);
   }
 
-  // Save -> sensor.update で送信
+  // Save：送信のみ（ここでは閉じない）。サーバ応答で閉じる。
   mSave.onclick = () => {
     if (modalSensorId == null) return;
     const patch = buildPatchFromModal();
     if (!patch) return;
+    pendingSaveForId = modalSensorId;        // ★ 応答待ちIDを記録
     ws.send(JSON.stringify({ type:'sensor.update', id: modalSensorId, patch }));
-    closeSensorModal();
   };
 }
 
@@ -309,8 +294,7 @@ function buildPatchFromModal(){
     patch.ignore_checksum_error = document.getElementById('ice')?.checked ? 1 : 0;
   }
   if (Object.prototype.hasOwnProperty.call(modalWorking, 'skip_step')) {
-    const v = Math.max(1, Number(document.getElementById('skip')?.value ?? 1));
-    patch.skip_step = v;
+    patch.skip_step = Math.max(1, Number(document.getElementById('skip')?.value ?? 1));
   }
   if (modalWorking.mask) {
     const m = {};
@@ -327,6 +311,16 @@ function buildPatchFromModal(){
     patch.mask = m;
   }
   return patch;
+}
+
+// サーバ応答で閉じる（ok/sensor.updated のどちらでも）
+function maybeCloseModalOnAck(m){
+  if (pendingSaveForId == null) return;
+  if (m.type === 'ok' && m.ref === 'sensor.update' && m.sensor && m.sensor.id === pendingSaveForId) {
+    closeSensorModal();
+  } else if (m.type === 'sensor.updated' && m.sensor && m.sensor.id === pendingSaveForId) {
+    closeSensorModal();
+  }
 }
 
 // サーバから更新を受けたらモーダルの内容も最新へ

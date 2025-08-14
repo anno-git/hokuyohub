@@ -23,4 +23,6 @@ public:
     virtual bool start(const SensorConfig& cfg) = 0;
     virtual void stop() = 0;
     virtual void subscribe(Callback cb) = 0;
+    virtual bool applySkipStep(int) { return false; }
+    virtual bool applyMode(const std::string&) { return false; }
 };
