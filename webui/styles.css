@@ -9,9 +9,25 @@ header {
 	color:#fff;
 }
 
-#stats {
+.stats {
 	padding:6px 12px;
 	font-size:14px;
+	display: flex;
+	gap: 16px;
+	align-items: center;
+	flex-wrap: wrap;
+}
+
+.stats span {
+	white-space: nowrap;
+}
+
+.stats .warn {
+	color: #f59e0b;
+}
+
+.stats .error {
+	color: #ef4444;
 }
 
 canvas {
@@ -123,3 +139,66 @@ button#btn-refresh:hover {
 .btn { padding: 6px 10px; border: 1px solid #ccc; border-radius: 8px; background: #f8f8f8; }
 .btn-primary { border-color: #3b82f6; background: #3b82f6; color: #fff; }
 .btn-ghost { border: none; background: transparent; font-size: 20px; line-height: 1; }
+
+/* ====== display controls ====== */
+.display-controls {
+  padding: 8px 0;
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  border-bottom: 1px solid #eee;
+  margin-bottom: 8px;
+}
+
+.control-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.control-item input[type="checkbox"] {
+  margin: 0;
+}
+
+/* ====== legend ====== */
+.legend {
+  margin: 8px 0;
+  padding: 8px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  background: #f9f9f9;
+}
+
+.legend h4 {
+  margin: 0 0 6px 0;
+  font-size: 13px;
+  color: #666;
+}
+
+.legend-items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  max-height: 80px;
+  overflow-y: auto;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: #fff;
+  border: 1px solid #ddd;
+}
+
+.legend-swatch {
+  width: 12px;
+  height: 12px;
+  border-radius: 2px;
+  border: 1px solid rgba(0,0,0,0.2);
+}

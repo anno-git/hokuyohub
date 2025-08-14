@@ -66,6 +66,9 @@ int main(int argc, char** argv) {
 
   // センサー開始（スタブ：タイマーでダミーデータを流す）
   sensors.start([&](const ScanFrame& f){
+    // Push raw points to WebUI
+    ws->pushRawLite(f.t_ns, f.seq, f.xy, f.sid);
+    
     // スタブ：ダミークラスタ
     std::vector<Cluster> items{{7, 3, 0.4f, -1.2f, 0.1f,-1.5f,0.7f,-1.0f,56}};
     ws->pushClustersLite(f.t_ns, f.seq, items);

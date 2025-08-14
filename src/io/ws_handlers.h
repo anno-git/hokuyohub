@@ -27,6 +27,7 @@ class LiveWs : public drogon::WebSocketController<LiveWs, false> { // ★ AutoCr
    // 全接続へ通知
    static void broadcast(std::string_view msg);
    void pushClustersLite(uint64_t t_ns, uint32_t seq, const std::vector<Cluster>& items);
+   void pushRawLite(uint64_t t_ns, uint32_t seq, const std::vector<float>& xy, const std::vector<uint8_t>& sid);
 
    // 追加: センサー状態の送受信用ユーティリティ
    void sendSnapshotTo(const drogon::WebSocketConnectionPtr& conn);

@@ -87,6 +87,28 @@ void LiveWs::pushClustersLite(uint64_t t_ns, uint32_t seq, const std::vector<Clu
   LiveWs::broadcast(j.toStyledString());
 }
 
+void LiveWs::pushRawLite(uint64_t t_ns, uint32_t seq, const std::vector<float>& xy, const std::vector<uint8_t>& sid){
+  Json::Value j;
+  j["type"] = "raw-lite";
+  j["t"] = Json::UInt64(t_ns);
+  j["seq"] = Json::UInt(seq);
+  
+  // Convert xy vector to JSON array
+  j["xy"] = Json::arrayValue;
+  for(const auto& val : xy){
+    j["xy"].append(val);
+  }
+  
+  // Convert sid vector to JSON array
+  j["sid"] = Json::arrayValue;
+  for(const auto& val : sid){
+    j["sid"].append(Json::UInt(val));
+  }
+  
+  // Broadcast to all connections
+  LiveWs::broadcast(j.toStyledString());
+}
+
 // ==== 追加: センサー状態の送受信用ユーティリティ ====
 void LiveWs::sendSnapshotTo(const drogon::WebSocketConnectionPtr& conn){
   Json::Value out; out["type"]="sensor.snapshot";

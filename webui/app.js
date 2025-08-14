@@ -1,44 +1,275 @@
+// UI elements
 const stats = document.getElementById('stats');
+const connectionStatus = document.getElementById('connection-status');
+const seqInfo = document.getElementById('seq-info');
+const lastSeqAgeEl = document.getElementById('last-seq-age');
+const fpsInfo = document.getElementById('fps-info');
 const cv = document.getElementById('cv');
 const ctx = cv.getContext('2d');
+const showRawCheckbox = document.getElementById('show-raw-points');
+const perSensorColorsCheckbox = document.getElementById('per-sensor-colors');
+const legend = document.getElementById('legend');
+const legendItems = document.getElementById('legend-items');
+
+// Display state
+let showRaw = false;
+let perSensorColor = false;
+
+// Connection stats
+let connectionCount = 0;
+let disconnectionCount = 0;
+let errorCount = 0;
+
+// Frame data
+let lastSeq = 0;
+let lastFrameTime = 0; // t_ns from message
+let lastReceiveTime = 0; // local timestamp
+let rawPoints = { xy: [], sid: [] };
+let clusterItems = [];
+
+// FPS tracking
+let frameTimestamps = [];
+let lastFPS = 0;
+
+// Color palette for sensors (stable mapping)
+const sensorColors = new Map();
+const colorPalette = [
+  '#e74c3c', '#3498db', '#2ecc71', '#f39c12', '#9b59b6',
+  '#1abc9c', '#e67e22', '#34495e', '#f1c40f', '#95a5a6',
+  '#c0392b', '#2980b9', '#27ae60', '#d35400', '#8e44ad'
+];
 
 function resize(){ cv.width = window.innerWidth; cv.height = Math.floor(window.innerHeight*0.6); }
 window.addEventListener('resize', resize); resize();
 
 const wsProto = location.protocol === 'https:' ? 'wss' : 'ws';
 const ws = new WebSocket(`${wsProto}://${location.host}/ws/live`);
-let lastSeq = 0;
 
-ws.onopen = () => stats.textContent = 'connected';
-ws.onclose = () => stats.textContent = 'disconnected';
-ws.onerror = () => stats.textContent = 'error';
+// Helper functions
+function getSensorColor(sid) {
+  if (!sensorColors.has(sid)) {
+    const colorIndex = sensorColors.size % colorPalette.length;
+    sensorColors.set(sid, colorPalette[colorIndex]);
+  }
+  return sensorColors.get(sid);
+}
+
+function updateStatsDisplay() {
+  connectionStatus.textContent = ws.readyState === WebSocket.OPEN ? 'connected' :
+                                 ws.readyState === WebSocket.CONNECTING ? 'connecting...' :
+                                 ws.readyState === WebSocket.CLOSING ? 'closing...' : 'disconnected';
+  
+  seqInfo.textContent = `seq=${lastSeq} clusters=${clusterItems.length} points=${rawPoints.xy.length/2}`;
+  
+  // Last seq age
+  if (lastFrameTime > 0) {
+    const ageMs = Date.now() - lastReceiveTime;
+    const ageSec = (ageMs / 1000).toFixed(1);
+    lastSeqAgeEl.textContent = `age=${ageSec}s`;
+    
+    // Apply warning/error classes
+    lastSeqAgeEl.className = '';
+    if (ageMs > 3000) {
+      lastSeqAgeEl.classList.add('error');
+    } else if (ageMs > 1000) {
+      lastSeqAgeEl.classList.add('warn');
+    }
+  } else {
+    lastSeqAgeEl.textContent = 'age=--';
+  }
+  
+  fpsInfo.textContent = `fps=${lastFPS}`;
+}
+
+function updateFPS() {
+  const now = performance.now();
+  frameTimestamps.push(now);
+  
+  // Keep only last 30 frames for FPS calculation
+  if (frameTimestamps.length > 30) {
+    frameTimestamps.shift();
+  }
+  
+  if (frameTimestamps.length >= 2) {
+    const timeSpan = frameTimestamps[frameTimestamps.length - 1] - frameTimestamps[0];
+    lastFPS = Math.round((frameTimestamps.length - 1) * 1000 / timeSpan);
+  }
+}
+
+ws.onopen = () => {
+  connectionCount++;
+  updateStatsDisplay();
+};
+
+ws.onclose = () => {
+  disconnectionCount++;
+  updateStatsDisplay();
+};
+
+ws.onerror = () => {
+  errorCount++;
+  updateStatsDisplay();
+};
 
 ws.onmessage = (ev) => {
   try{
     const m = JSON.parse(ev.data);
+    lastReceiveTime = Date.now();
+    
     if(m.type === 'clusters-lite'){
       lastSeq = m.seq;
-      drawClusters(m.items);
-      stats.textContent = `seq=${m.seq} items=${m.items.length}`;
+      lastFrameTime = m.t || 0;
+      clusterItems = m.items || [];
+      updateFPS();
+      redrawCanvas();
+      updateStatsDisplay();
+    } else if(m.type === 'raw-lite'){
+      lastSeq = m.seq;
+      lastFrameTime = m.t || 0;
+      rawPoints.xy = m.xy || [];
+      rawPoints.sid = m.sid || [];
+      updateFPS();
+      redrawCanvas();
+      updateStatsDisplay();
+      updateLegend();
     }
   }catch(e){ /* ignore */ }
 };
 
-function drawClusters(items){
+function redrawCanvas(){
   ctx.clearRect(0,0,cv.width,cv.height);
-  // 簡易座標変換（メートル -> 画面）
-  const scale = 60; // 1m = 60px（適当）
+  
+  // Draw raw points if enabled
+  if (showRaw && rawPoints.xy.length > 0) {
+    drawRawPoints();
+  }
+  
+  // Draw clusters
+  if (clusterItems.length > 0) {
+    drawClusters();
+  }
+}
+
+function drawRawPoints(){
+  const scale = 60; // 1m = 60px
   const cx = cv.width/2, cy = cv.height*0.8;
-  ctx.strokeStyle = '#33c9'; ctx.fillStyle = '#6cf9'; ctx.lineWidth = 2;
-  for(const c of items){
+  
+  // Batch drawing for performance
+  ctx.save();
+  
+  if (perSensorColor && rawPoints.sid.length > 0) {
+    // Group points by sensor ID for colored drawing
+    const pointsBySensor = new Map();
+    for (let i = 0; i < rawPoints.xy.length; i += 2) {
+      const sidIndex = Math.floor(i / 2);
+      const sid = rawPoints.sid[sidIndex] || 0;
+      if (!pointsBySensor.has(sid)) {
+        pointsBySensor.set(sid, []);
+      }
+      pointsBySensor.get(sid).push(rawPoints.xy[i], rawPoints.xy[i + 1]);
+    }
+    
+    // Draw each sensor's points in its color
+    for (const [sid, points] of pointsBySensor) {
+      ctx.fillStyle = getSensorColor(sid);
+      ctx.beginPath();
+      for (let i = 0; i < points.length; i += 2) {
+        const x = cx + points[i] * scale;
+        const y = cy - points[i + 1] * scale;
+        ctx.rect(x - 1, y - 1, 2, 2);
+      }
+      ctx.fill();
+    }
+  } else {
+    // Single color for all points
+    ctx.fillStyle = '#4fc3f7';
+    ctx.beginPath();
+    for (let i = 0; i < rawPoints.xy.length; i += 2) {
+      const x = cx + rawPoints.xy[i] * scale;
+      const y = cy - rawPoints.xy[i + 1] * scale;
+      ctx.rect(x - 1, y - 1, 2, 2);
+    }
+    ctx.fill();
+  }
+  
+  ctx.restore();
+}
+
+function drawClusters(){
+  const scale = 60; // 1m = 60px
+  const cx = cv.width/2, cy = cv.height*0.8;
+  
+  ctx.save();
+  ctx.strokeStyle = '#33c9';
+  ctx.fillStyle = '#6cf9';
+  ctx.lineWidth = 2;
+  
+  for(const c of clusterItems){
     const x = cx + c.cx*scale;
     const y = cy - c.cy*scale;
-    ctx.beginPath(); ctx.arc(x,y,4,0,Math.PI*2); ctx.fill();
+    ctx.beginPath();
+    ctx.arc(x,y,4,0,Math.PI*2);
+    ctx.fill();
+    
     const minx = cx + c.minx*scale, miny = cy - c.miny*scale;
     const maxx = cx + c.maxx*scale, maxy = cy - c.maxy*scale;
     ctx.strokeRect(minx, maxy, (maxx-minx), (miny-maxy));
   }
+  
+  ctx.restore();
 }
+// Legend management
+function updateLegend() {
+  if (!perSensorColor || rawPoints.sid.length === 0) {
+    legend.hidden = true;
+    return;
+  }
+  
+  // Get unique sensor IDs from current raw points
+  const uniqueSids = [...new Set(rawPoints.sid)].sort((a, b) => a - b);
+  
+  if (uniqueSids.length === 0) {
+    legend.hidden = true;
+    return;
+  }
+  
+  legend.hidden = false;
+  legendItems.innerHTML = '';
+  
+  for (const sid of uniqueSids) {
+    const item = document.createElement('div');
+    item.className = 'legend-item';
+    
+    const swatch = document.createElement('div');
+    swatch.className = 'legend-swatch';
+    swatch.style.backgroundColor = getSensorColor(sid);
+    
+    const label = document.createElement('span');
+    label.textContent = `Sensor ${sid}`;
+    
+    item.appendChild(swatch);
+    item.appendChild(label);
+    legendItems.appendChild(item);
+  }
+}
+
+// UI event handlers
+showRawCheckbox.addEventListener('change', () => {
+  showRaw = showRawCheckbox.checked;
+  redrawCanvas();
+});
+
+perSensorColorsCheckbox.addEventListener('change', () => {
+  perSensorColor = perSensorColorsCheckbox.checked;
+  updateLegend();
+  redrawCanvas();
+});
+
+// Periodic stats update
+setInterval(() => {
+  updateStatsDisplay();
+}, 1000);
+
 // ======== 追加：センサー状態 管理/描画/操作 ========
 const tbody = document.getElementById('sensor-tbody');
 const btnRefresh = document.getElementById('btn-refresh');
