@@ -54,11 +54,27 @@ struct SinkConfig {
   int         rate_limit{0};
 };
 
+struct DbscanConfig {
+  float eps{0.12f};           // Legacy eps (treated as eps_norm)
+  float eps_norm{2.5f};       // Normalized distance threshold
+  int minPts{5};              // Minimum points for core (inclusive of self)
+  float k_scale{1.0f};        // Angular term scale coefficient (1.0 = theoretical optimum)
+  
+  // Performance parameters
+  float h_min{0.01f};         // Minimum grid cell size [m]
+  float h_max{0.20f};         // Maximum grid cell size [m]
+  int R_max{5};               // Maximum search radius in cells
+  int M_max{600};             // Maximum candidate points per query
+};
+
 struct AppConfig {
   std::vector<SensorConfig> sensors;
 
+  // Legacy fields for backward compatibility
   float dbscan_eps{0.12f};
   int dbscan_minPts{6};
+  
+  DbscanConfig dbscan{};
   UiConfig ui{};
   std::vector<SinkConfig> sinks;
 };

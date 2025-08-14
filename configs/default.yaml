@@ -16,12 +16,19 @@ world_mask:
   polygon: []   # [[x,y], ...]
 
 dbscan:
-  eps: 0.12
-  minPts: 6
+  eps_norm: 5       # Normalized distance threshold
+  minPts: 5           # Minimum points for core (inclusive of self)
+  k_scale: 1        # Angular term scale coefficient (1.0 = theoretical optimum)
+  
+  # Performance parameters
+  h_min: 0.01         # Minimum grid cell size [m]
+  h_max: 0.20         # Maximum grid cell size [m]
+  R_max: 5            # Maximum search radius in cells
+  M_max: 600          # Maximum candidate points per query
 
 sinks:
   - { type: "nng", url: "tcp://0.0.0.0:5555", topic: "clusters", encoding: "msgpack", rate_limit: 120 }
 
 ui:
-  ws_listen: "0.0.0.0:8080"
-  rest_listen: "0.0.0.0:8080"
+  ws_listen: "0.0.0.0:8100"
+  rest_listen: "0.0.0.0:8100"

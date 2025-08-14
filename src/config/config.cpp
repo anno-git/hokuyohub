@@ -67,8 +67,26 @@ AppConfig load_app_config(const std::string& path){
   }
 
   if (auto d = y["dbscan"]) {
+    // Legacy fields for backward compatibility
     if (d["eps"])    cfg.dbscan_eps    = d["eps"].as<float>(cfg.dbscan_eps);
     if (d["minPts"]) cfg.dbscan_minPts = d["minPts"].as<int>(cfg.dbscan_minPts);
+    
+    // New structured config
+    if (d["eps"])      cfg.dbscan.eps      = d["eps"].as<float>(cfg.dbscan.eps);
+    if (d["eps_norm"]) cfg.dbscan.eps_norm = d["eps_norm"].as<float>(cfg.dbscan.eps_norm);
+    if (d["minPts"])   cfg.dbscan.minPts   = std::max(1, d["minPts"].as<int>(cfg.dbscan.minPts));
+    if (d["k_scale"])  cfg.dbscan.k_scale  = std::max(0.1f, d["k_scale"].as<float>(cfg.dbscan.k_scale));
+    
+    // Performance parameters
+    if (d["h_min"])    cfg.dbscan.h_min    = std::max(0.001f, d["h_min"].as<float>(cfg.dbscan.h_min));
+    if (d["h_max"])    cfg.dbscan.h_max    = std::max(cfg.dbscan.h_min, d["h_max"].as<float>(cfg.dbscan.h_max));
+    if (d["R_max"])    cfg.dbscan.R_max    = std::max(1, d["R_max"].as<int>(cfg.dbscan.R_max));
+    if (d["M_max"])    cfg.dbscan.M_max    = std::max(10, d["M_max"].as<int>(cfg.dbscan.M_max));
+    
+    // If eps_norm not explicitly set, use eps as eps_norm for backward compatibility
+    if (!d["eps_norm"] && d["eps"]) {
+      cfg.dbscan.eps_norm = cfg.dbscan.eps;
+    }
   }
 
   if (auto u = y["ui"]) {

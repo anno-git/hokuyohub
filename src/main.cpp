@@ -32,10 +32,18 @@ int main(int argc, char** argv) {
   // NNG publisher（存在しない場合は NO-OP）
   NngBus bus; bus.startPublisher(pubUrl);
 
-  // Detection pipeline（スタブ）
+  // Detection pipeline with full configuration
   SensorManager sensors;
   sensors.configure(appcfg.sensors);
-  DBSCAN2D dbscan(appcfg.dbscan_eps, appcfg.dbscan_minPts);
+  
+  // Initialize DBSCAN with new structured config (fallback to legacy for compatibility)
+  const auto& dcfg = appcfg.dbscan;
+  float eps_to_use = (dcfg.eps_norm != 2.5f) ? dcfg.eps_norm : dcfg.eps; // Use eps_norm if set, else eps
+  DBSCAN2D dbscan(eps_to_use, dcfg.minPts);
+  
+  // Configure additional parameters
+  dbscan.setAngularScale(dcfg.k_scale);
+  dbscan.setPerformanceParams(dcfg.h_min, dcfg.h_max, dcfg.R_max, dcfg.M_max);
 
   auto ws = std::make_shared<LiveWs>(bus);
   auto rest = std::make_shared<RestApi>(sensors, dbscan, bus, ws);
@@ -69,8 +77,14 @@ int main(int argc, char** argv) {
     // Push raw points to WebUI
     ws->pushRawLite(f.t_ns, f.seq, f.xy, f.sid);
     
-    // スタブ：ダミークラスタ
-    std::vector<Cluster> items{{7, 3, 0.4f, -1.2f, 0.1f,-1.5f,0.7f,-1.0f,56}};
+    // DBSCAN clustering on aggregated frame
+    std::vector<Cluster> items;
+    try {
+      items = dbscan.run(f.xy, f.sid, f.t_ns, f.seq);
+    } catch (const std::exception& e) {
+      std::cerr << "[DBSCAN] Error in frame seq=" << f.seq << ": " << e.what() << std::endl;
+      // Continue with empty items (UI tolerates items.length=0)
+    }
     ws->pushClustersLite(f.t_ns, f.seq, items);
     bus.publishClusters(f.t_ns, f.seq, items);
   });
