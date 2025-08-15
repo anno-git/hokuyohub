@@ -48,6 +48,7 @@ std::vector<Cluster> DBSCAN2D::run(std::span<const float> xy, std::span<const ui
     for (size_t i = 0; i < N; ++i) {
         const float x = xy[2*i];
         const float y = xy[2*i + 1];
+        // FIXME: センサーがtranslateしている場合、このrの値は正しくない
         const float r = std::hypot(x, y);
         const uint8_t sensor_id = sid[i];
         

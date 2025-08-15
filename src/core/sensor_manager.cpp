@@ -250,13 +250,14 @@ void SensorManager::start(FrameCallback cb) {
   // 集約スレッド：直近Rawを統合してScanFrameに
   st.th = std::thread([cb]{
     auto& st2 = S();
+    // TODO:　アプリ設定によって可変にする
     const double target_fps = 30.0;
 
-    // ★ clock_mono::duration へキャストしておく
     const auto period = std::chrono::duration_cast<clock_mono::duration>(
                           std::chrono::duration<double>(1.0 / target_fps));
     auto next_tick = clock_mono::now();
 
+    // TODO: センサー数やセンサーの種類によって配列サイズは変えるべき
     std::vector<float> xy;  xy.reserve(16384);
     std::vector<uint8_t> sid; sid.reserve(8192);
 
