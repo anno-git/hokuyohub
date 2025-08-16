@@ -26,9 +26,48 @@ dbscan:
   R_max: 5            # Maximum search radius in cells
   M_max: 600          # Maximum candidate points per query
 
+prefilter:
+  enabled: true
+  
+  neighborhood:
+    enabled: true
+    k: 5                    # Minimum neighbors required
+    r_base: 0.05            # Base radius [m]
+    r_scale: 1.0            # Distance-based radius scaling factor
+  
+  spike_removal:
+    enabled: true
+    dr_threshold: 0.3       # |dR/dθ| threshold for spike detection
+    window_size: 3          # Window size for derivative calculation
+  
+  outlier_removal:
+    enabled: true
+    median_window: 5        # Window size for moving median
+    outlier_threshold: 2.0  # Threshold in standard deviations
+    use_robust_regression: false
+  
+  intensity_filter:
+    enabled: false          # Disabled by default (sensor dependent)
+    min_intensity: 0.0      # Minimum intensity threshold
+    min_reliability: 0.0    # Minimum reliability threshold
+  
+  isolation_removal:
+    enabled: true
+    min_cluster_size: 3     # Minimum points to keep a cluster
+    isolation_radius: 0.1   # Radius to check for isolation
+
+postfilter:
+  enabled: true
+  
+  isolation_removal:
+    enabled: true
+    min_points_size: 3     # Minimum points to keep a cluster
+    isolation_radius: 0.2   # Radius to check for isolation between clusters
+    required_neighbors: 2   # Minimum neighbors required for a point to be considered part of a cluster
+
 sinks:
   - { type: "nng", url: "tcp://0.0.0.0:5555", topic: "clusters", encoding: "msgpack", rate_limit: 120 }
 
 ui:
-  ws_listen: "0.0.0.0:8100"
-  rest_listen: "0.0.0.0:8100"
+  ws_listen: "0.0.0.0:8080"
+  rest_listen: "0.0.0.0:8080"

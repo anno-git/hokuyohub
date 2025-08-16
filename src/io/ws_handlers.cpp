@@ -1,6 +1,7 @@
 #include "ws_handlers.h"
 #include <drogon/drogon.h>
 #include "core/sensor_manager.h"  // ★ SensorManager へ橋渡し
+#include "core/filter_manager.h"  // ★ FilterManager へ橋渡し
 
 std::mutex LiveWs::mtx_;
 std::unordered_set<drogon::WebSocketConnectionPtr> LiveWs::conns_;
@@ -61,6 +62,10 @@ void LiveWs::handleNewMessage(const drogon::WebSocketConnectionPtr& conn,
       handleSensorUpdate(conn, j);
       return;
     }
+    if(t == "filter.update"){
+      handleFilterUpdate(conn, j);
+      return;
+    }
     // -----------------------------------
 
     // 既存互換: 上記に該当しない Text は echo（後方互換）
@@ -79,9 +84,9 @@ void LiveWs::pushClustersLite(uint64_t t_ns, uint32_t seq, const std::vector<Clu
   Json::Value j; j["type"]="clusters-lite"; j["t"] = Json::UInt64(t_ns); j["seq"] = Json::UInt(seq);
   j["items"] = Json::arrayValue;
   for(const auto& c: items){
-    Json::Value o; o["id"]=Json::UInt(c.id); o["cx"]=c.cx; o["cy"]=c.cy;
-    o["minx"]=c.minx; o["miny"]=c.miny; o["maxx"]=c.maxx; o["maxy"]=c.maxy; o["count"]=c.count; o["sensor_mask"]=c.sensor_mask;
-    j["items"].append(o);
+      Json::Value o; o["id"]=Json::UInt(c.id); o["cx"]=c.cx; o["cy"]=c.cy;
+      o["minx"]=c.minx; o["miny"]=c.miny; o["maxx"]=c.maxx; o["maxy"]=c.maxy; o["count"]=(int)c.point_indices.size(); o["sensor_mask"]=c.sensor_mask;
+      j["items"].append(o);
   }
   // 全接続にブロードキャスト
   LiveWs::broadcast(j.toStyledString());
@@ -90,6 +95,28 @@ void LiveWs::pushClustersLite(uint64_t t_ns, uint32_t seq, const std::vector<Clu
 void LiveWs::pushRawLite(uint64_t t_ns, uint32_t seq, const std::vector<float>& xy, const std::vector<uint8_t>& sid){
   Json::Value j;
   j["type"] = "raw-lite";
+  j["t"] = Json::UInt64(t_ns);
+  j["seq"] = Json::UInt(seq);
+  
+  // Convert xy vector to JSON array
+  j["xy"] = Json::arrayValue;
+  for(const auto& val : xy){
+    j["xy"].append(val);
+  }
+  
+  // Convert sid vector to JSON array
+  j["sid"] = Json::arrayValue;
+  for(const auto& val : sid){
+    j["sid"].append(Json::UInt(val));
+  }
+  
+  // Broadcast to all connections
+  LiveWs::broadcast(j.toStyledString());
+}
+
+void LiveWs::pushFilteredLite(uint64_t t_ns, uint32_t seq, const std::vector<float>& xy, const std::vector<uint8_t>& sid){
+  Json::Value j;
+  j["type"] = "filtered-lite";
   j["t"] = Json::UInt64(t_ns);
   j["seq"] = Json::UInt(seq);
   
@@ -159,4 +186,33 @@ void LiveWs::handleSensorUpdate(const drogon::WebSocketConnectionPtr& conn, cons
     Json::Value res; res["type"]="error"; res["ref"]="sensor.update"; res["message"]=err;
     conn->send(res.toStyledString());
   }
+}
+
+void LiveWs::handleFilterUpdate(const drogon::WebSocketConnectionPtr& conn, const Json::Value& j){
+  const Json::Value config = j.get("config", Json::Value(Json::objectValue));
+  
+  Json::Value res;
+  res["type"] = "ok";
+  res["ref"] = "filter.update";
+  
+  if (!filterManager_) {
+    res["type"] = "error";
+    res["message"] = "FilterManager not available";
+    conn->send(res.toStyledString());
+    return;
+  }
+  
+  // Update filter configuration through FilterManager
+  bool success = filterManager_->updateFilterConfig(config);
+  
+  if (success) {
+    res["message"] = "Filter configuration updated successfully";
+    std::cout << "[FilterUpdate] Filter configuration updated successfully" << std::endl;
+  } else {
+    res["type"] = "error";
+    res["message"] = "Failed to update filter configuration";
+    std::cout << "[FilterUpdate] Failed to update filter configuration" << std::endl;
+  }
+  
+  conn->send(res.toStyledString());
 }

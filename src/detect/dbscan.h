@@ -5,7 +5,12 @@
 #include <span>
 #include <unordered_map>
 
-struct Cluster { uint32_t id; uint8_t sensor_mask; float cx,cy,minx,miny,maxx,maxy; uint16_t count; };
+struct Cluster {
+    uint32_t id;
+    uint8_t sensor_mask;
+    float cx,cy,minx,miny,maxx,maxy;
+    std::vector<size_t> point_indices; // 元の点群インデックス
+};
 
 struct SensorModel {
   float delta_theta_rad; // Angular resolution in radians

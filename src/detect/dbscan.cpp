@@ -213,11 +213,11 @@ std::vector<Cluster> DBSCAN2D::run(std::span<const float> xy, std::span<const ui
             static_cast<uint32_t>(c), 0, 0.0f, 0.0f,
             std::numeric_limits<float>::max(), std::numeric_limits<float>::max(),
             std::numeric_limits<float>::lowest(), std::numeric_limits<float>::lowest(),
-            0
+            {} // point_indices (empty vector)
         };
     }
     
-    // Accumulate cluster statistics
+    // Accumulate cluster statistics and collect point indices
     for (size_t i = 0; i < N; ++i) {
         const int cid = cluster_id[i];
         if (cid < 0) continue; // Skip noise points
@@ -226,6 +226,9 @@ std::vector<Cluster> DBSCAN2D::run(std::span<const float> xy, std::span<const ui
         const float x = xy[2*i];
         const float y = xy[2*i + 1];
         const uint8_t sensor_id = sid[i];
+        
+        // Add point index to cluster
+        cluster.point_indices.push_back(i);
         
         // Update bounding box
         cluster.minx = std::min(cluster.minx, x);
@@ -236,7 +239,6 @@ std::vector<Cluster> DBSCAN2D::run(std::span<const float> xy, std::span<const ui
         // Update centroid (accumulate for now)
         cluster.cx += x;
         cluster.cy += y;
-        cluster.count++;
         
         // Update sensor mask (guard against sid >= 8 for 8-bit mask)
         if (sensor_id < 8) {
@@ -246,9 +248,10 @@ std::vector<Cluster> DBSCAN2D::run(std::span<const float> xy, std::span<const ui
     
     // Finalize centroids (convert sum to average)
     for (auto& cluster : clusters) {
-        if (cluster.count > 0) {
-            cluster.cx /= cluster.count;
-            cluster.cy /= cluster.count;
+        const size_t point_count = cluster.point_indices.size();
+        if (point_count > 0) {
+            cluster.cx /= static_cast<float>(point_count);
+            cluster.cy /= static_cast<float>(point_count);
         }
     }
 

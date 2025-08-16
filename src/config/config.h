@@ -67,6 +67,65 @@ struct DbscanConfig {
   int M_max{600};             // Maximum candidate points per query
 };
 
+struct PrefilterConfig {
+    bool enabled{true};
+    
+    // Strategy 1: Neighborhood count filter
+    struct {
+        bool enabled{true};
+        int k{5};                    // Minimum neighbors required
+        float r_base{0.05f};         // Base radius [m]
+        float r_scale{1.0f};         // Distance-based radius scaling factor
+    } neighborhood;
+    
+    // Strategy 2: Angular derivative spike removal
+    struct {
+        bool enabled{true};
+        float dr_threshold{0.3f};    // |dR/dθ| threshold for spike detection
+        int window_size{3};          // Window size for derivative calculation
+    } spike_removal;
+    
+    // Strategy 3: Moving median/robust regression outlier removal
+    struct {
+        bool enabled{true};
+        int median_window{5};        // Window size for moving median
+        float outlier_threshold{2.0f}; // Threshold in standard deviations
+        bool use_robust_regression{false}; // Use robust regression instead of median
+    } outlier_removal;
+    
+    // Strategy 4: Sensor intensity/reliability filtering
+    struct {
+        bool enabled{false};         // Disabled by default (sensor dependent)
+        float min_intensity{0.0f};   // Minimum intensity threshold
+        float min_reliability{0.0f}; // Minimum reliability threshold
+    } intensity_filter;
+    
+    // Strategy 5: Post-processing cluster isolation removal
+    struct {
+        bool enabled{true};
+        int min_cluster_size{3};     // Minimum points to keep a cluster
+        float isolation_radius{0.1f}; // Radius to check for isolation
+    } isolation_removal;
+};
+
+struct PostfilterConfig {
+    bool enabled{true};
+    
+    // Strategy 1: Cluster isolation removal
+    struct {
+        bool enabled{true};
+        int min_points_size{3};     // Minimum points to keep a cluster
+        float isolation_radius{0.1f}; // Radius to check for isolation between clusters
+        int required_neighbors{2};     // Minimum neighbors required for a point to be considered non-isolated
+    } isolation_removal;
+    
+    // Future strategies can be added here
+    // struct {
+    //     bool enabled{false};
+    //     // parameters...
+    // } future_strategy;
+};
+
 struct AppConfig {
   std::vector<SensorConfig> sensors;
 
@@ -75,6 +134,8 @@ struct AppConfig {
   int dbscan_minPts{6};
   
   DbscanConfig dbscan{};
+  PrefilterConfig prefilter{};
+  PostfilterConfig postfilter{};
   UiConfig ui{};
   std::vector<SinkConfig> sinks;
 };

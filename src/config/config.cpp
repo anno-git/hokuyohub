@@ -89,6 +89,61 @@ AppConfig load_app_config(const std::string& path){
     }
   }
 
+  // Prefilter configuration
+  if (auto p = y["prefilter"]) {
+    if (p["enabled"]) cfg.prefilter.enabled = p["enabled"].as<bool>(cfg.prefilter.enabled);
+    
+    // Neighborhood filter
+    if (auto n = p["neighborhood"]) {
+      if (n["enabled"])  cfg.prefilter.neighborhood.enabled  = n["enabled"].as<bool>(cfg.prefilter.neighborhood.enabled);
+      if (n["k"])        cfg.prefilter.neighborhood.k        = std::max(1, n["k"].as<int>(cfg.prefilter.neighborhood.k));
+      if (n["r_base"])   cfg.prefilter.neighborhood.r_base   = std::max(0.001f, n["r_base"].as<float>(cfg.prefilter.neighborhood.r_base));
+      if (n["r_scale"])  cfg.prefilter.neighborhood.r_scale  = std::max(0.0f, n["r_scale"].as<float>(cfg.prefilter.neighborhood.r_scale));
+    }
+    
+    // Spike removal filter
+    if (auto s = p["spike_removal"]) {
+      if (s["enabled"])      cfg.prefilter.spike_removal.enabled      = s["enabled"].as<bool>(cfg.prefilter.spike_removal.enabled);
+      if (s["dr_threshold"]) cfg.prefilter.spike_removal.dr_threshold = std::max(0.0f, s["dr_threshold"].as<float>(cfg.prefilter.spike_removal.dr_threshold));
+      if (s["window_size"])  cfg.prefilter.spike_removal.window_size  = std::max(1, s["window_size"].as<int>(cfg.prefilter.spike_removal.window_size));
+    }
+    
+    // Outlier removal filter
+    if (auto o = p["outlier_removal"]) {
+      if (o["enabled"])           cfg.prefilter.outlier_removal.enabled           = o["enabled"].as<bool>(cfg.prefilter.outlier_removal.enabled);
+      if (o["median_window"])     cfg.prefilter.outlier_removal.median_window     = std::max(1, o["median_window"].as<int>(cfg.prefilter.outlier_removal.median_window));
+      if (o["outlier_threshold"]) cfg.prefilter.outlier_removal.outlier_threshold = std::max(0.1f, o["outlier_threshold"].as<float>(cfg.prefilter.outlier_removal.outlier_threshold));
+      if (o["use_robust_regression"]) cfg.prefilter.outlier_removal.use_robust_regression = o["use_robust_regression"].as<bool>(cfg.prefilter.outlier_removal.use_robust_regression);
+    }
+    
+    // Intensity filter
+    if (auto i = p["intensity_filter"]) {
+      if (i["enabled"])        cfg.prefilter.intensity_filter.enabled        = i["enabled"].as<bool>(cfg.prefilter.intensity_filter.enabled);
+      if (i["min_intensity"])  cfg.prefilter.intensity_filter.min_intensity  = std::max(0.0f, i["min_intensity"].as<float>(cfg.prefilter.intensity_filter.min_intensity));
+      if (i["min_reliability"]) cfg.prefilter.intensity_filter.min_reliability = std::max(0.0f, i["min_reliability"].as<float>(cfg.prefilter.intensity_filter.min_reliability));
+    }
+    
+    // Isolation removal filter
+    if (auto iso = p["isolation_removal"]) {
+      if (iso["enabled"])          cfg.prefilter.isolation_removal.enabled          = iso["enabled"].as<bool>(cfg.prefilter.isolation_removal.enabled);
+      if (iso["min_cluster_size"]) cfg.prefilter.isolation_removal.min_cluster_size = std::max(1, iso["min_cluster_size"].as<int>(cfg.prefilter.isolation_removal.min_cluster_size));
+      if (iso["isolation_radius"]) cfg.prefilter.isolation_removal.isolation_radius = std::max(0.001f, iso["isolation_radius"].as<float>(cfg.prefilter.isolation_removal.isolation_radius));
+    }
+  }
+
+  // Postfilter configuration
+  if (auto p = y["postfilter"]) {
+    if (p["enabled"]) cfg.postfilter.enabled = p["enabled"].as<bool>(cfg.postfilter.enabled);
+    
+    // Isolation removal filter
+    if (auto iso = p["isolation_removal"]) {
+      if (iso["enabled"])          cfg.postfilter.isolation_removal.enabled          = iso["enabled"].as<bool>(cfg.postfilter.isolation_removal.enabled);
+      if (iso["min_points_size"]) cfg.postfilter.isolation_removal.min_points_size = std::max(1, iso["min_points_size"].as<int>(cfg.postfilter.isolation_removal.min_points_size));
+      if (iso["isolation_radius"]) cfg.postfilter.isolation_removal.isolation_radius = std::max(0.001f, iso["isolation_radius"].as<float>(cfg.postfilter.isolation_removal.isolation_radius));
+      if (iso["required_neighbors"]) cfg.postfilter.isolation_removal.required_neighbors = std::max(1, iso["required_neighbors"].as<int>(cfg.postfilter.isolation_removal.required_neighbors));
+    }
+  }
+
   if (auto u = y["ui"]) {
     if (u["ws_listen"])   cfg.ui.ws_listen   = u["ws_listen"].as<std::string>(cfg.ui.ws_listen);
     if (u["rest_listen"]) cfg.ui.rest_listen = u["rest_listen"].as<std::string>(cfg.ui.rest_listen);

@@ -29,6 +29,10 @@
   	<span>Show Raw Points</span>
   </label>
   <label class="control-item">
+  	<input type="checkbox" id="show-filtered-data">
+  	<span>Show Filtered Data</span>
+  </label>
+  <label class="control-item">
   	<input type="checkbox" id="per-sensor-colors">
   	<span>Per-sensor Colors</span>
   </label>
@@ -54,6 +58,168 @@
 			<tbody id="sensor-tbody"></tbody>
 		</table>
 	</div>
+
+	<!-- Filter Configuration Section -->
+	<div class="panel-header">
+		<h2>Filter Configuration</h2>
+		<button id="btn-reset-filters" type="button">Reset to Default</button>
+		<span id="filter-msg" class="panel-msg"></span>
+	</div>
+
+	<div class="filter-config">
+		<!-- Prefilter Configuration -->
+		<div class="filter-section">
+			<h3>
+				<label class="control-item">
+					<input type="checkbox" id="prefilter-enabled" checked>
+					<span>Prefilter</span>
+				</label>
+			</h3>
+			
+			<div class="filter-strategies" id="prefilter-strategies">
+				<!-- Neighborhood Filter -->
+				<div class="strategy-group">
+					<h4>
+						<label class="control-item">
+							<input type="checkbox" id="prefilter-neighborhood-enabled" checked>
+							<span>Neighborhood Filter</span>
+						</label>
+					</h4>
+					<div class="strategy-params">
+						<div class="param-row">
+							<label>Min Neighbors (k):</label>
+							<input type="number" id="prefilter-neighborhood-k" min="1" max="20" value="5">
+						</div>
+						<div class="param-row">
+							<label>Base Radius (m):</label>
+							<input type="number" id="prefilter-neighborhood-r-base" min="0.001" max="1.0" step="0.001" value="0.05">
+						</div>
+						<div class="param-row">
+							<label>Radius Scale:</label>
+							<input type="number" id="prefilter-neighborhood-r-scale" min="0.1" max="5.0" step="0.1" value="1.0">
+						</div>
+					</div>
+				</div>
+
+				<!-- Spike Removal Filter -->
+				<div class="strategy-group">
+					<h4>
+						<label class="control-item">
+							<input type="checkbox" id="prefilter-spike-enabled" checked>
+							<span>Spike Removal</span>
+						</label>
+					</h4>
+					<div class="strategy-params">
+						<div class="param-row">
+							<label>dR/dθ Threshold:</label>
+							<input type="number" id="prefilter-spike-dr-threshold" min="0.1" max="2.0" step="0.1" value="0.3">
+						</div>
+						<div class="param-row">
+							<label>Window Size:</label>
+							<input type="number" id="prefilter-spike-window-size" min="1" max="10" value="3">
+						</div>
+					</div>
+				</div>
+
+				<!-- Outlier Removal Filter -->
+				<div class="strategy-group">
+					<h4>
+						<label class="control-item">
+							<input type="checkbox" id="prefilter-outlier-enabled" checked>
+							<span>Outlier Removal</span>
+						</label>
+					</h4>
+					<div class="strategy-params">
+						<div class="param-row">
+							<label>Median Window:</label>
+							<input type="number" id="prefilter-outlier-median-window" min="1" max="20" value="5">
+						</div>
+						<div class="param-row">
+							<label>Outlier Threshold (σ):</label>
+							<input type="number" id="prefilter-outlier-threshold" min="0.5" max="5.0" step="0.1" value="2.0">
+						</div>
+					</div>
+				</div>
+
+				<!-- Intensity Filter -->
+				<div class="strategy-group">
+					<h4>
+						<label class="control-item">
+							<input type="checkbox" id="prefilter-intensity-enabled">
+							<span>Intensity Filter</span>
+						</label>
+					</h4>
+					<div class="strategy-params">
+						<div class="param-row">
+							<label>Min Intensity:</label>
+							<input type="number" id="prefilter-intensity-min" min="0" max="1000" value="0">
+						</div>
+						<div class="param-row">
+							<label>Min Reliability:</label>
+							<input type="number" id="prefilter-intensity-reliability" min="0" max="1" step="0.01" value="0">
+						</div>
+					</div>
+				</div>
+
+				<!-- Isolation Removal Filter -->
+				<div class="strategy-group">
+					<h4>
+						<label class="control-item">
+							<input type="checkbox" id="prefilter-isolation-enabled" checked>
+							<span>Isolation Removal</span>
+						</label>
+					</h4>
+					<div class="strategy-params">
+						<div class="param-row">
+							<label>Min Cluster Size:</label>
+							<input type="number" id="prefilter-isolation-min-size" min="1" max="20" value="3">
+						</div>
+						<div class="param-row">
+							<label>Isolation Radius (m):</label>
+							<input type="number" id="prefilter-isolation-radius" min="0.01" max="1.0" step="0.01" value="0.1">
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
+
+		<!-- Postfilter Configuration -->
+		<div class="filter-section">
+			<h3>
+				<label class="control-item">
+					<input type="checkbox" id="postfilter-enabled" checked>
+					<span>Postfilter</span>
+				</label>
+			</h3>
+			
+			<div class="filter-strategies" id="postfilter-strategies">
+				<!-- Cluster Isolation Removal -->
+				<div class="strategy-group">
+					<h4>
+						<label class="control-item">
+							<input type="checkbox" id="postfilter-isolation-enabled" checked>
+							<span>Cluster Isolation Removal</span>
+						</label>
+					</h4>
+					<div class="strategy-params">
+						<div class="param-row">
+							<label>Min Points Size:</label>
+							<input type="number" id="postfilter-isolation-min-size" min="1" max="50" value="3">
+						</div>
+						<div class="param-row">
+							<label>Isolation Radius (m):</label>
+							<input type="number" id="postfilter-isolation-radius" min="0.001" max="2.0" step="0.001" value="0.2">
+						</div>
+						<div class="param-row">
+							<label>Required Neighbors:</label>
+							<input type="number" id="postfilter-isolation-required-neighbors" min="1" max="20" value="1">
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
+	</div>
+
 	</section>
 <div id="sensor-modal-backdrop" class="modal-backdrop" hidden></div>
 <div id="sensor-modal" class="modal" hidden aria-modal="true" role="dialog">

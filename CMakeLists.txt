@@ -96,7 +96,10 @@ add_executable(hokuyo_hub
   src/main.cpp
   src/config/config.cpp
   src/core/sensor_manager.cpp
+  src/core/filter_manager.cpp
   src/detect/dbscan.cpp
+  src/detect/prefilter.cpp
+  src/detect/postfilter.cpp
   src/io/nng_bus.cpp
   src/io/rest_handlers.cpp
   src/io/ws_handlers.cpp

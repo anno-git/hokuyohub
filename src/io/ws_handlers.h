@@ -8,14 +8,17 @@
 
 class NngBus;
 class SensorManager; // 追加: 前方宣言
+class FilterManager; // 追加: FilterManager前方宣言
 
 class LiveWs : public drogon::WebSocketController<LiveWs, false> { // ★ AutoCreationを無効化
    NngBus& bus_;
    SensorManager* sensorManager_{nullptr};
+   FilterManager* filterManager_{nullptr};
  public:
    explicit LiveWs(NngBus& b) : bus_(b) {}
 
    void setSensorManager(SensorManager* sm) { sensorManager_ = sm; }
+   void setFilterManager(FilterManager* fm) { filterManager_ = fm; }
 
    void handleNewConnection(const drogon::HttpRequestPtr&,
                             const drogon::WebSocketConnectionPtr&) override;
@@ -28,11 +31,13 @@ class LiveWs : public drogon::WebSocketController<LiveWs, false> { // ★ AutoCr
    static void broadcast(std::string_view msg);
    void pushClustersLite(uint64_t t_ns, uint32_t seq, const std::vector<Cluster>& items);
    void pushRawLite(uint64_t t_ns, uint32_t seq, const std::vector<float>& xy, const std::vector<uint8_t>& sid);
+   void pushFilteredLite(uint64_t t_ns, uint32_t seq, const std::vector<float>& xy, const std::vector<uint8_t>& sid);
 
    // 追加: センサー状態の送受信用ユーティリティ
    void sendSnapshotTo(const drogon::WebSocketConnectionPtr& conn);
    void broadcastSensorUpdated(int id);
    void handleSensorUpdate(const drogon::WebSocketConnectionPtr& conn, const Json::Value& j);
+   void handleFilterUpdate(const drogon::WebSocketConnectionPtr& conn, const Json::Value& j);
 
    WS_PATH_LIST_BEGIN
      WS_PATH_ADD("/ws/live", drogon::Get);
