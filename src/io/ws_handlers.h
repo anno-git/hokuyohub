@@ -6,18 +6,18 @@
 #include <unordered_set>
 #include "detect/dbscan.h"
 
-class NngBus;
+class PublisherManager;
 class SensorManager; // 追加: 前方宣言
 class FilterManager; // 追加: FilterManager前方宣言
 struct AppConfig; // 追加: AppConfig前方宣言
 
 class LiveWs : public drogon::WebSocketController<LiveWs, false> { // ★ AutoCreationを無効化
-   NngBus& bus_;
+   PublisherManager& publisher_manager_;
    SensorManager* sensorManager_{nullptr};
    FilterManager* filterManager_{nullptr};
    AppConfig* appConfig_{nullptr};
  public:
-   explicit LiveWs(NngBus& b) : bus_(b) {}
+   explicit LiveWs(PublisherManager& pm) : publisher_manager_(pm) {}
 
    void setSensorManager(SensorManager* sm) { sensorManager_ = sm; }
    void setFilterManager(FilterManager* fm) { filterManager_ = fm; }

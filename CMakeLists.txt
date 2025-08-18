@@ -121,6 +121,7 @@ add_executable(hokuyo_hub
   src/detect/postfilter.cpp
   src/io/nng_bus.cpp
   src/io/osc_publisher.cpp
+  src/io/publisher_manager.cpp
   src/io/rest_handlers.cpp
   src/io/ws_handlers.cpp
   src/core/mask.cpp

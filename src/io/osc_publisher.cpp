@@ -54,7 +54,7 @@ void OscPublisher::start(const SinkConfig& config) {
     host_ = host_port;
     port_ = 7000; // Default OSC port
   }
-
+  
   rate_limit_ = config.rate_limit;
   bundle_fragment_size_ = config.osc().bundle_fragment_size;
   in_bundle_ = config.osc().in_bundle;

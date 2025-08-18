@@ -3,8 +3,7 @@
 #include "core/sensor_manager.h"
 #include "core/filter_manager.h"
 #include "detect/dbscan.h"
-#include "io/nng_bus.h"
-#include "io/osc_publisher.h"
+#include "io/publisher_manager.h"
 #include "config/config.h"
 #include "ws_handlers.h"
 #include <memory>
@@ -13,15 +12,14 @@ class RestApi : public drogon::HttpController<RestApi, false> { // ★ AutoCreat
    SensorManager& sensors_;
    FilterManager& filters_;
    DBSCAN2D& dbscan_;
-   NngBus& bus_;
-   OscPublisher& osc_;
+   PublisherManager& publisher_manager_;
    std::shared_ptr<LiveWs> ws_;
    AppConfig& config_;
    std::string token_;
 
   public:
-    RestApi(SensorManager& s, FilterManager& f, DBSCAN2D& d, NngBus& b, OscPublisher& o, std::shared_ptr<LiveWs> w, AppConfig& cfg)
-     : sensors_(s), filters_(f), dbscan_(d), bus_(b), osc_(o), ws_(std::move(w)), config_(cfg), token_(cfg.security.api_token) {}
+    RestApi(SensorManager& s, FilterManager& f, DBSCAN2D& d, PublisherManager& pm, std::shared_ptr<LiveWs> w, AppConfig& cfg)
+     : sensors_(s), filters_(f), dbscan_(d), publisher_manager_(pm), ws_(std::move(w)), config_(cfg), token_(cfg.security.api_token) {}
 
   METHOD_LIST_BEGIN
     // Sensors

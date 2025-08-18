@@ -1386,56 +1386,16 @@ void RestApi::getConfigsExport(const drogon::HttpRequestPtr&, std::function<void
 void RestApi::applySinksRuntime() {
   std::cout << "[RestApi] Applying sink configuration to runtime..." << std::endl;
   
-  // Stop current publishers
-  bus_.stop();
-  osc_.stop();
+  // Configure all sinks through PublisherManager
+  bool success = publisher_manager_.configure(config_.sinks);
   
-  // Find active sinks (Phase 1: one per type)
-  const SinkConfig* active_nng = nullptr;
-  const SinkConfig* active_osc = nullptr;
-  int nng_count = 0;
-  int osc_count = 0;
-  
-  for (const auto& sink : config_.sinks) {
-    if (sink.isNng()) {
-      nng_count++;
-      if (!active_nng) {
-        active_nng = &sink;
-      }
-    } else if (sink.isOsc()) {
-      osc_count++;
-      if (!active_osc) {
-        active_osc = &sink;
-      }
-    }
-  }
-  
-  // Log warnings for multiple sinks of same type (Phase 1 limitation)
-  if (nng_count > 1) {
-    std::cout << "[RestApi] WARNING: " << nng_count << " NNG sinks configured, only first will be active (Phase 1 limitation)" << std::endl;
-  }
-  if (osc_count > 1) {
-    std::cout << "[RestApi] WARNING: " << osc_count << " OSC sinks configured, only first will be active (Phase 1 limitation)" << std::endl;
-  }
-  
-  // Start active publishers
-  if (active_nng) {
-    bus_.startPublisher(*active_nng);
-    std::cout << "[RestApi] Applied NNG sink: " << active_nng->nng().url
-              << " (topic: " << active_nng->topic
-              << ", rate_limit: " << active_nng->rate_limit << "Hz)" << std::endl;
+  if (success) {
+    std::cout << "[RestApi] All sinks configured successfully" << std::endl;
   } else {
-    std::cout << "[RestApi] No NNG sink configured" << std::endl;
+    std::cout << "[RestApi] Some sinks failed to configure (see logs above)" << std::endl;
   }
   
-  if (active_osc) {
-    osc_.start(*active_osc);
-    std::cout << "[RestApi] Applied OSC sink: " << active_osc->osc().url
-              << " (topic: " << active_osc->topic
-              << ", rate_limit: " << active_osc->rate_limit << "Hz)" << std::endl;
-  } else {
-    std::cout << "[RestApi] No OSC sink configured" << std::endl;
-  }
-  
-  std::cout << "[RestApi] Sink runtime configuration complete" << std::endl;
+  std::cout << "[RestApi] Sink runtime configuration complete - "
+            << publisher_manager_.getEnabledPublisherCount() << " of "
+            << publisher_manager_.getPublisherCount() << " publishers active" << std::endl;
 }

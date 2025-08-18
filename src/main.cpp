@@ -2,8 +2,7 @@
 #include "config/config.h"
 #include "io/rest_handlers.h"
 #include "io/ws_handlers.h"
-#include "io/nng_bus.h"
-#include "io/osc_publisher.h"
+#include "io/publisher_manager.h"
 #include "core/sensor_manager.h"
 #include "detect/dbscan.h"
 #include "detect/prefilter.h"
@@ -24,9 +23,8 @@ int main(int argc, char** argv) {
 
   AppConfig appcfg = load_app_config(cfgPath);
 
-  // Initialize publishers (will be configured via RestApi)
-  NngBus nng_bus;
-  OscPublisher osc_publisher;
+  // Initialize publisher manager (will be configured via RestApi)
+  PublisherManager publisher_manager;
   
   // Detection pipeline with full configuration
   SensorManager sensors(appcfg);
@@ -44,8 +42,8 @@ int main(int argc, char** argv) {
   // Initialize filter manager with configuration
   FilterManager filterManager(appcfg.prefilter, appcfg.postfilter);
 
-  auto ws = std::make_shared<LiveWs>(nng_bus);
-  auto rest = std::make_shared<RestApi>(sensors, filterManager, dbscan, nng_bus, osc_publisher, ws, appcfg);
+  auto ws = std::make_shared<LiveWs>(publisher_manager);
+  auto rest = std::make_shared<RestApi>(sensors, filterManager, dbscan, publisher_manager, ws, appcfg);
   app().registerController(ws);
   app().registerController(rest);
 
@@ -150,8 +148,7 @@ int main(int argc, char** argv) {
     }
     
     ws->pushClustersLite(f.t_ns, f.seq, final_clusters);
-    nng_bus.publishClusters(f.t_ns, f.seq, final_clusters);
-    osc_publisher.publishClusters(f.t_ns, f.seq, final_clusters);
+    publisher_manager.publishClusters(f.t_ns, f.seq, final_clusters);
   });
 
   app().run();
