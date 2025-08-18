@@ -290,49 +290,32 @@ void RestApi::getSnapshot(const drogon::HttpRequestPtr&, std::function<void (con
     // Sinks/Publishers
     Json::Value publishers;
     Json::Value sinks_array = Json::arrayValue;
-    bool nng_enabled = false;
-    bool osc_enabled = false;
     
     // Build new sinks array format
     for (const auto& sink : config_.sinks) {
       Json::Value sink_obj;
-      sink_obj["type"] = sink.type;
       sink_obj["enabled"] = true; // Assume enabled if in config
-      sink_obj["url"] = sink.url;
+      if(sink.isOsc()) {
+        const auto& cfg = sink.osc();
+        sink_obj["type"] = "osc";
+        sink_obj["url"] = cfg.url;
+        sink_obj["in_bundle"] = cfg.in_bundle;
+        sink_obj["bundle_fragment_size"] = cfg.bundle_fragment_size;
+      }
+      if(sink.isNng()) {
+        const auto& cfg = sink.nng();
+        sink_obj["type"] = "nng";
+        sink_obj["url"] = cfg.url;
+        sink_obj["encoding"] = cfg.encoding;
+      }
       if (!sink.topic.empty()) {
         sink_obj["topic"] = sink.topic;
-      }
-      if (!sink.encoding.empty()) {
-        sink_obj["encoding"] = sink.encoding;
       }
       sink_obj["rate_limit"] = sink.rate_limit;
       
       sinks_array.append(sink_obj);
-      
-      // Track for legacy format
-      if (sink.type == "nng") {
-        nng_enabled = true;
-        publishers["nng"]["enabled"] = true;
-        publishers["nng"]["url"] = sink.url;
-        publishers["nng"]["topic"] = sink.topic;
-        publishers["nng"]["encoding"] = sink.encoding;
-        publishers["nng"]["rate_limit"] = sink.rate_limit;
-      } else if (sink.type == "osc") {
-        osc_enabled = true;
-        publishers["osc"]["enabled"] = true;
-        publishers["osc"]["url"] = sink.url;
-        publishers["osc"]["rate_limit"] = sink.rate_limit;
-      }
     }
-    
-    // Legacy format for backward compatibility
-    if (!nng_enabled) {
-      publishers["nng"]["enabled"] = false;
-    }
-    if (!osc_enabled) {
-      publishers["osc"]["enabled"] = false;
-    }
-    
+        
     // Add both formats
     publishers["sinks"] = sinks_array;
     snapshot["publishers"] = publishers;

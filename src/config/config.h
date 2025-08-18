@@ -47,12 +47,29 @@ struct UiConfig {
   std::string rest_listen{"0.0.0.0:8080"};
 };
 
+struct NngConfig {
+  std::string url{"tcp://0.0.0.0:5555"};
+  std::string encoding{"msgpack"};
+};
+
+struct OscConfig {
+  std::string url{"osc://0.0.0.0:7000/hokuyohub/cluster"};
+  bool in_bundle{false}; // Use OSC bundle for multiple messages
+  uint64_t bundle_fragment_size{0}; // Fragment size for OSC bundle
+};
+
 struct SinkConfig {
-  std::string type;      // "nng" など
-  std::string url;       // "tcp://0.0.0.0:5555" など
-  std::string topic;     // "clusters" など
-  std::string encoding;  // "msgpack" など
+  std::string topic{"clusters"};
   int         rate_limit{0};
+
+  std::variant<OscConfig, NngConfig> cfg{OscConfig{}};
+
+  bool isOsc() const { return std::holds_alternative<OscConfig>(cfg); }
+  bool isNng() const { return std::holds_alternative<NngConfig>(cfg); }
+  OscConfig& osc() { return std::get<OscConfig>(cfg); }
+  NngConfig& nng() { return std::get<NngConfig>(cfg); }
+  const OscConfig& osc() const { return std::get<OscConfig>(cfg); }
+  const NngConfig& nng() const { return std::get<NngConfig>(cfg); }
 };
 
 struct DbscanConfig {

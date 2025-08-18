@@ -31,9 +31,10 @@ int main(int argc, char** argv) {
   OscPublisher osc_publisher;
   
   for (const auto& s : appcfg.sinks) {
-    if (s.type == "nng" && !s.url.empty()) {
+    if (s.isNng()) {
       nng_bus.startPublisher(s);
-    } else if (s.type == "osc" && !s.url.empty()) {
+    }
+    if (s.isOsc()) {
       osc_publisher.start(s);
     }
   }
@@ -105,18 +106,6 @@ int main(int argc, char** argv) {
         
         // Log filtering statistics
         const auto& stats = filter_result.stats;
-        if (stats.input_points > 0) {
-          std::cout << "[Prefilter] seq=" << f.seq
-                    << " in=" << stats.input_points
-                    << " out=" << stats.output_points
-                    << " removed=" << stats.total_removed()
-                    << " (n:" << stats.removed_by_neighborhood
-                    << " s:" << stats.removed_by_spike
-                    << " o:" << stats.removed_by_outlier
-                    << " i:" << stats.removed_by_intensity
-                    << " iso:" << stats.removed_by_isolation
-                    << ") time=" << stats.processing_time_us << "μs" << std::endl;
-        }
       } catch (const std::exception& e) {
         std::cerr << "[Prefilter] Error in frame seq=" << f.seq << ": " << e.what() << std::endl;
         // Continue with unfiltered data
@@ -167,15 +156,6 @@ int main(int argc, char** argv) {
         
         // Log postfilter statistics
         const auto& stats = postfilter_result.stats;
-        if (stats.input_clusters > 0) {
-          std::cout << "[Postfilter] seq=" << f.seq
-                    << " in=" << stats.input_clusters
-                    << " out=" << stats.output_clusters
-                    << " removed=" << stats.total_clusters_removed()
-                    << " (iso:" << stats.removed_by_isolation
-                    << ") points_removed=" << stats.points_removed_total
-                    << " time=" << stats.processing_time_us << "μs" << std::endl;
-        }
       } catch (const std::exception& e) {
         std::cerr << "[Postfilter] Error in frame seq=" << f.seq << ": " << e.what() << std::endl;
         // Continue with unfiltered clusters

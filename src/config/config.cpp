@@ -26,24 +26,24 @@ AppConfig load_app_config(const std::string& path){
       SensorConfig c;
 
       if (s["id"])        c.id        = s["id"].as<std::string>(c.id);
-	  if (s["type"])      c.type      = s["type"].as<std::string>(c.type);
+	    if (s["type"])      c.type      = s["type"].as<std::string>(c.type);
       if (s["name"])      c.name      = s["name"].as<std::string>(c.name);
       if (s["endpoint"]) {
-		std::string endpoint = s["endpoint"].as<std::string>("");
-		// split "host:port" into host and port
-		auto colon_pos = endpoint.find(":");
-		if (colon_pos != std::string::npos) {
-		  c.host = endpoint.substr(0, colon_pos);
-		  c.port = std::stoi(endpoint.substr(colon_pos + 1));
-		} else {
-		  c.host = endpoint;
-		}
+        std::string endpoint = s["endpoint"].as<std::string>("");
+        // split "host:port" into host and port
+        auto colon_pos = endpoint.find(":");
+        if (colon_pos != std::string::npos) {
+          c.host = endpoint.substr(0, colon_pos);
+          c.port = std::stoi(endpoint.substr(colon_pos + 1));
+        } else {
+          c.host = endpoint;
+        }
       }
       if (s["enabled"])   c.enabled   = s["enabled"].as<bool>(c.enabled);
 
       if (s["mode"])      c.mode      = s["mode"].as<std::string>(c.mode);
       if (s["interval"])  c.interval  = std::max(0, s["interval"].as<int>(c.interval));
-      if (s["skip_step"]) c.skip_step = std::max(0, s["skip_step"].as<int>(c.skip_step)); // ← 追加
+      if (s["skip_step"]) c.skip_step = std::max(0, s["skip_step"].as<int>(c.skip_step));
 
 	  if (s["ignore_checkSumError"]) {
         int v = s["ignore_checkSumError"].as<int>(1);
@@ -183,11 +183,26 @@ AppConfig load_app_config(const std::string& path){
   if (y["sinks"] && y["sinks"].IsSequence()) {
     for (const auto& sn : y["sinks"]) {
       SinkConfig sc;
-      if (sn["type"])      sc.type      = sn["type"].as<std::string>("");
-      if (sn["url"])       sc.url       = sn["url"].as<std::string>("");
+      for(const auto &[key, value] : sn.as<std::map<std::string, YAML::Node>>()) {
+        std::cout << "Sink " << key << ": " << value << std::endl;
+      }
+
+      std::string type = sn["type"].as<std::string>("");
       if (sn["topic"])     sc.topic     = sn["topic"].as<std::string>("");
-      if (sn["encoding"])  sc.encoding  = sn["encoding"].as<std::string>("");
       if (sn["rate_limit"])sc.rate_limit= sn["rate_limit"].as<int>(0);
+
+      if(type == "nng") {
+        sc.cfg = NngConfig{};
+        if (sn["url"])       sc.nng().url       = sn["url"].as<std::string>("");
+        if (sn["encoding"])  sc.nng().encoding  = sn["encoding"].as<std::string>("");
+      }
+      if(type == "osc") {
+        sc.cfg = OscConfig{};
+        if (sn["url"])       sc.osc().url       = sn["url"].as<std::string>("");
+        if (sn["in_bundle"]) sc.osc().in_bundle = sn["in_bundle"].as<bool>(false);
+        if (sn["bundle_fragment_size"]) sc.osc().bundle_fragment_size = sn["bundle_fragment_size"].as<int>(0);
+      }
+
       cfg.sinks.push_back(std::move(sc));
     }
   }
@@ -331,10 +346,19 @@ std::string dump_app_config(const AppConfig& cfg) {
   out << YAML::Key << "sinks" << YAML::Value << YAML::BeginSeq;
   for (const auto& sink : cfg.sinks) {
     out << YAML::BeginMap;
-    out << YAML::Key << "type" << YAML::Value << sink.type;
-    out << YAML::Key << "url" << YAML::Value << sink.url;
+    if (sink.isOsc()) {
+      auto cfg = sink.osc();
+      out << YAML::Key << "type" << YAML::Value << "osc";
+      out << YAML::Key << "url" << YAML::Value << cfg.url;
+      out << YAML::Key << "in_bundle" << YAML::Value << cfg.in_bundle;
+      out << YAML::Key << "bundle_fragment_size" << YAML::Value << cfg.bundle_fragment_size;
+    } else if (sink.isNng()) {
+      auto cfg = sink.nng();
+      out << YAML::Key << "type" << YAML::Value << "nng";
+      out << YAML::Key << "url" << YAML::Value << cfg.url;
+      out << YAML::Key << "encoding" << YAML::Value << cfg.encoding;
+    }
     out << YAML::Key << "topic" << YAML::Value << sink.topic;
-    out << YAML::Key << "encoding" << YAML::Value << sink.encoding;
     out << YAML::Key << "rate_limit" << YAML::Value << sink.rate_limit;
     out << YAML::EndMap;
   }

@@ -18,6 +18,8 @@ class OscPublisher {
   std::string path_;
   bool enabled_{false};
   int rate_limit_{0};
+  bool in_bundle_{false};
+  uint64_t bundle_fragment_size_{0};
   std::chrono::steady_clock::time_point last_publish_;
   
 #ifdef USE_OSC
@@ -36,6 +38,7 @@ public:
   bool isEnabled() const { return enabled_; }
   
 private:
+  std::string encodeOscBundle(const std::vector<std::string>& messages, uint64_t t_ns);
   std::string encodeOscMessage(const std::string& address, uint32_t id, uint64_t t_ns, uint32_t seq, 
                               float cx, float cy, float minx, float miny, float maxx, float maxy, uint32_t n);
   bool shouldPublish();

@@ -67,7 +67,7 @@ postfilter:
 
 sinks:
   - { type: "nng", url: "tcp://0.0.0.0:5555", topic: "clusters", encoding: "msgpack", rate_limit: 120 }
-  - { type: "osc", url: "0.0.0.0:10000", topic: "clusters", encoding: "osc", rate_limit: 120 }
+  - { type: "osc", url: "0.0.0.0:10000", in_bundle: true, topic: "clusters", encoding: "osc", rate_limit: 120 }
 
 ui:
   ws_listen: "0.0.0.0:8080"

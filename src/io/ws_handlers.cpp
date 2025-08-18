@@ -145,9 +145,9 @@ void LiveWs::pushFilteredLite(uint64_t t_ns, uint32_t seq, const std::vector<flo
   LiveWs::broadcast(j.toStyledString());
 }
 
-// ==== 追加: センサー状態の送受信用ユーティリティ ====
-void LiveWs::sendSnapshotTo(const drogon::WebSocketConnectionPtr& conn){
-  Json::Value out; out["type"]="sensor.snapshot";
+Json::Value LiveWs::buildSnapshot() const
+{
+    Json::Value out; out["type"]="sensor.snapshot";
   // SensorManager から JSON（jsoncpp）でもらう想定。無ければ空配列。
   if(sensorManager_){
     out["sensors"] = sensorManager_->listAsJson(); // 例: [{id,enabled,...}, ...]
@@ -200,48 +200,38 @@ void LiveWs::sendSnapshotTo(const drogon::WebSocketConnectionPtr& conn){
     // Build new sinks array format
     for (const auto& sink : appConfig_->sinks) {
       Json::Value sink_obj;
-      sink_obj["type"] = sink.type;
       sink_obj["enabled"] = true; // Assume enabled if in config
-      sink_obj["url"] = sink.url;
+      if (sink.isNng()) {
+        const auto& cfg = sink.nng();
+        sink_obj["type"] = "nng";
+        sink_obj["url"] = cfg.url;
+        sink_obj["encoding"] = cfg.encoding;
+      }
+      else if (sink.isOsc()) {
+        const auto& cfg = sink.osc();
+        sink_obj["type"] = "osc";
+        sink_obj["url"] = cfg.url;
+        sink_obj["in_bundle"] = cfg.in_bundle;
+        sink_obj["bundle_fragment_size"] = cfg.bundle_fragment_size;
+      }
       if (!sink.topic.empty()) {
         sink_obj["topic"] = sink.topic;
-      }
-      if (!sink.encoding.empty()) {
-        sink_obj["encoding"] = sink.encoding;
       }
       sink_obj["rate_limit"] = sink.rate_limit;
       
       sinks_array.append(sink_obj);
-      
-      // Track for legacy format
-      if (sink.type == "nng") {
-        nng_enabled = true;
-        publishers["nng"]["enabled"] = true;
-        publishers["nng"]["url"] = sink.url;
-        publishers["nng"]["topic"] = sink.topic;
-        publishers["nng"]["encoding"] = sink.encoding;
-        publishers["nng"]["rate_limit"] = sink.rate_limit;
-      } else if (sink.type == "osc") {
-        osc_enabled = true;
-        publishers["osc"]["enabled"] = true;
-        publishers["osc"]["url"] = sink.url;
-        publishers["osc"]["rate_limit"] = sink.rate_limit;
-      }
-    }
-    
-    // Legacy format for backward compatibility
-    if (!nng_enabled) {
-      publishers["nng"]["enabled"] = false;
-    }
-    if (!osc_enabled) {
-      publishers["osc"]["enabled"] = false;
     }
     
     // Add both formats
     publishers["sinks"] = sinks_array;
     out["publishers"] = publishers;
   }
-  
+  return out;
+}
+
+// ==== 追加: センサー状態の送受信用ユーティリティ ====
+void LiveWs::sendSnapshotTo(const drogon::WebSocketConnectionPtr& conn){
+  Json::Value out = buildSnapshot();
   if(conn && conn->connected()){
     conn->send(out.toStyledString());
   }
@@ -249,102 +239,7 @@ void LiveWs::sendSnapshotTo(const drogon::WebSocketConnectionPtr& conn){
 }
 
 void LiveWs::broadcastSnapshot(){
-  Json::Value out; out["type"]="sensor.snapshot";
-  // SensorManager から JSON（jsoncpp）でもらう想定。無ければ空配列。
-  if(sensorManager_){
-    out["sensors"] = sensorManager_->listAsJson(); // 例: [{id,enabled,...}, ...]
-  }else{
-    out["sensors"] = Json::arrayValue;
-  }
-  
-  // Add world mask data to snapshot
-  if(appConfig_){
-    out["world_mask"]["includes"] = Json::arrayValue;
-    out["world_mask"]["excludes"] = Json::arrayValue;
-    
-    // Convert include polygons to JSON
-    for (const auto& polygon : appConfig_->world_mask.include) {
-      Json::Value poly_json = Json::arrayValue;
-      for (const auto& point : polygon.points) {
-        Json::Value point_json = Json::arrayValue;
-        point_json.append(point.x);
-        point_json.append(point.y);
-        poly_json.append(point_json);
-      }
-      out["world_mask"]["includes"].append(poly_json);
-    }
-    
-    // Convert exclude polygons to JSON
-    for (const auto& polygon : appConfig_->world_mask.exclude) {
-      Json::Value poly_json = Json::arrayValue;
-      for (const auto& point : polygon.points) {
-        Json::Value point_json = Json::arrayValue;
-        point_json.append(point.x);
-        point_json.append(point.y);
-        poly_json.append(point_json);
-      }
-      out["world_mask"]["excludes"].append(poly_json);
-    }
-  }
-  
-  // Add filter configuration to snapshot
-  if(filterManager_){
-    out["filter_config"] = filterManager_->getFilterConfigAsJson();
-  }
-  
-  // Add publishers/sinks information to snapshot
-  if(appConfig_){
-    Json::Value publishers;
-    Json::Value sinks_array = Json::arrayValue;
-    bool nng_enabled = false;
-    bool osc_enabled = false;
-    
-    // Build new sinks array format
-    for (const auto& sink : appConfig_->sinks) {
-      Json::Value sink_obj;
-      sink_obj["type"] = sink.type;
-      sink_obj["enabled"] = true; // Assume enabled if in config
-      sink_obj["url"] = sink.url;
-      if (!sink.topic.empty()) {
-        sink_obj["topic"] = sink.topic;
-      }
-      if (!sink.encoding.empty()) {
-        sink_obj["encoding"] = sink.encoding;
-      }
-      sink_obj["rate_limit"] = sink.rate_limit;
-      
-      sinks_array.append(sink_obj);
-      
-      // Track for legacy format
-      if (sink.type == "nng") {
-        nng_enabled = true;
-        publishers["nng"]["enabled"] = true;
-        publishers["nng"]["url"] = sink.url;
-        publishers["nng"]["topic"] = sink.topic;
-        publishers["nng"]["encoding"] = sink.encoding;
-        publishers["nng"]["rate_limit"] = sink.rate_limit;
-      } else if (sink.type == "osc") {
-        osc_enabled = true;
-        publishers["osc"]["enabled"] = true;
-        publishers["osc"]["url"] = sink.url;
-        publishers["osc"]["rate_limit"] = sink.rate_limit;
-      }
-    }
-    
-    // Legacy format for backward compatibility
-    if (!nng_enabled) {
-      publishers["nng"]["enabled"] = false;
-    }
-    if (!osc_enabled) {
-      publishers["osc"]["enabled"] = false;
-    }
-    
-    // Add both formats
-    publishers["sinks"] = sinks_array;
-    out["publishers"] = publishers;
-  }
-  
-  // Broadcast to all connected clients
+  Json::Value out = buildSnapshot();
   const auto payload = out.toStyledString();
   std::lock_guard<std::mutex> lk(mtx_);
   for(const auto& c : conns_){

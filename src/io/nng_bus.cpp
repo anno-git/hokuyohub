@@ -50,9 +50,9 @@ void NngBus::startPublisher(const std::string& url) {
 }
 
 void NngBus::startPublisher(const SinkConfig& config) {
-  if (config.type != "nng") return;
-  
-  url_ = config.url;
+  if (!config.isNng()) return;
+
+  url_ = config.nng().url;
   rate_limit_ = config.rate_limit;
   enabled_ = !url_.empty();
   
