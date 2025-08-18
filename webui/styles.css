@@ -480,3 +480,69 @@ button#btn-refresh:hover {
 .control-group .roi-btn:last-child {
   margin-right: 0;
 }
+
+/* ====== Publishers Configuration ====== */
+.publishers-config {
+  margin-top: 20px;
+  border-top: 1px solid #ddd;
+  padding-top: 20px;
+}
+
+#publishers-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+#publishers-table thead {
+  position: sticky;
+  top: 0;
+  background: #f5f5f5;
+}
+
+#publishers-table th,
+#publishers-table td {
+  text-align: left;
+  padding: 6px 8px;
+  border-bottom: 1px solid #eee;
+}
+
+#publishers-table th {
+  font-weight: 600;
+  color: #495057;
+  background: #f8f9fa;
+}
+
+/* Status badges */
+.status-badge {
+  display: inline-block;
+  padding: 2px 6px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.status-enabled {
+  background-color: #d4edda;
+  color: #155724;
+  border: 1px solid #c3e6cb;
+}
+
+.status-disabled {
+  background-color: #f8d7da;
+  color: #721c24;
+  border: 1px solid #f5c6cb;
+}
+
+/* Publishers message styling */
+#publishers-msg {
+  margin-left: 10px;
+  font-size: 12px;
+  color: #27ae60;
+}
+
+#publishers-msg.error {
+  color: #e74c3c;
+}

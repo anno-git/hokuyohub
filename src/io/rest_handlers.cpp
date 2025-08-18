@@ -289,10 +289,27 @@ void RestApi::getSnapshot(const drogon::HttpRequestPtr&, std::function<void (con
     
     // Sinks/Publishers
     Json::Value publishers;
+    Json::Value sinks_array = Json::arrayValue;
     bool nng_enabled = false;
     bool osc_enabled = false;
     
+    // Build new sinks array format
     for (const auto& sink : config_.sinks) {
+      Json::Value sink_obj;
+      sink_obj["type"] = sink.type;
+      sink_obj["enabled"] = true; // Assume enabled if in config
+      sink_obj["url"] = sink.url;
+      if (!sink.topic.empty()) {
+        sink_obj["topic"] = sink.topic;
+      }
+      if (!sink.encoding.empty()) {
+        sink_obj["encoding"] = sink.encoding;
+      }
+      sink_obj["rate_limit"] = sink.rate_limit;
+      
+      sinks_array.append(sink_obj);
+      
+      // Track for legacy format
       if (sink.type == "nng") {
         nng_enabled = true;
         publishers["nng"]["enabled"] = true;
@@ -308,6 +325,7 @@ void RestApi::getSnapshot(const drogon::HttpRequestPtr&, std::function<void (con
       }
     }
     
+    // Legacy format for backward compatibility
     if (!nng_enabled) {
       publishers["nng"]["enabled"] = false;
     }
@@ -315,6 +333,8 @@ void RestApi::getSnapshot(const drogon::HttpRequestPtr&, std::function<void (con
       publishers["osc"]["enabled"] = false;
     }
     
+    // Add both formats
+    publishers["sinks"] = sinks_array;
     snapshot["publishers"] = publishers;
     
     // UI config

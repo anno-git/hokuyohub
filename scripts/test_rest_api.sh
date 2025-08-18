@@ -119,6 +119,28 @@ test_endpoint "PUT" "/api/v1/filters/postfilter" "$postfilter_config" true
 log_info "=== Testing Snapshot Endpoint ==="
 test_endpoint "GET" "/api/v1/snapshot"
 
+# Test publishers.sinks array in snapshot
+log_info "=== Testing Publishers Sinks Array ==="
+snapshot_response=$(curl -s "$BASE_URL/api/v1/snapshot")
+if echo "$snapshot_response" | grep -q '"sinks":\s*\['; then
+    log_success "Publishers sinks array found in snapshot"
+else
+    log_error "Publishers sinks array not found in snapshot"
+fi
+
+# Test backward compatibility - legacy publishers format
+if echo "$snapshot_response" | grep -q '"publishers".*"nng"'; then
+    log_success "Legacy publishers.nng format maintained"
+else
+    log_error "Legacy publishers.nng format missing"
+fi
+
+if echo "$snapshot_response" | grep -q '"publishers".*"osc"'; then
+    log_success "Legacy publishers.osc format maintained"
+else
+    log_error "Legacy publishers.osc format missing"
+fi
+
 # Test config endpoints
 log_info "=== Testing Config Endpoints ==="
 

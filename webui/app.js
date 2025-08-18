@@ -864,6 +864,11 @@ ws.onmessage = (ev) => {
     } else if (m.type === 'error') {
       setPanelMsg(m.message || 'error', false);
     }
+    
+    // Handle publishers information in snapshots
+    if (m.publishers && m.publishers.sinks) {
+      renderPublishers(m.publishers.sinks);
+    }
   }catch(e){ /* ignore */ }
 };
 
@@ -2231,6 +2236,59 @@ document.addEventListener('keydown', (e) => {
     updateViewportInfo();
   }, 0);
 });
+
+// Publishers management
+const publishersTbody = document.getElementById('publishers-tbody');
+const publishersMsg = document.getElementById('publishers-msg');
+
+function setPublishersMessage(text, isError = false) {
+  if (publishersMsg) {
+    publishersMsg.textContent = text || '';
+    publishersMsg.className = isError ? 'panel-msg error' : 'panel-msg';
+    if (text) {
+      setTimeout(() => { publishersMsg.textContent = ''; }, 3000);
+    }
+  }
+}
+
+function renderPublishers(sinksArray) {
+  if (!publishersTbody) return;
+  
+  publishersTbody.innerHTML = '';
+  
+  if (!Array.isArray(sinksArray) || sinksArray.length === 0) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = '<td colspan="6" style="text-align: center; color: #666;">No publishers configured</td>';
+    publishersTbody.appendChild(tr);
+    return;
+  }
+  
+  for (const sink of sinksArray) {
+    const tr = document.createElement('tr');
+    
+    const type = sink.type || 'unknown';
+    const enabled = sink.enabled ? 'Yes' : 'No';
+    const url = sink.url || '-';
+    const topic = sink.topic || '-';
+    const encoding = sink.encoding || '-';
+    const rateLimit = sink.rate_limit || 0;
+    
+    tr.innerHTML = `
+      <td style="padding: 6px 8px; border-bottom: 1px solid #eee;">${type}</td>
+      <td style="padding: 6px 8px; border-bottom: 1px solid #eee;">
+        <span class="status-badge ${enabled === 'Yes' ? 'status-enabled' : 'status-disabled'}">${enabled}</span>
+      </td>
+      <td style="padding: 6px 8px; border-bottom: 1px solid #eee; font-family: monospace; font-size: 0.9em;">${url}</td>
+      <td style="padding: 6px 8px; border-bottom: 1px solid #eee;">${topic}</td>
+      <td style="padding: 6px 8px; border-bottom: 1px solid #eee;">${encoding}</td>
+      <td style="padding: 6px 8px; border-bottom: 1px solid #eee; text-align: right;">${rateLimit}</td>
+    `;
+    
+    publishersTbody.appendChild(tr);
+  }
+  
+  setPublishersMessage(`Updated: ${sinksArray.length} publisher(s) configured`);
+}
 
 // Initialize canvas state
 updateCanvasState();
