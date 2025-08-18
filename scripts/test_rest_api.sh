@@ -80,6 +80,17 @@ test_endpoint "GET" "/api/v1/sensors"
 test_endpoint "GET" "/api/v1/sensors/0"
 test_endpoint "PATCH" "/api/v1/sensors/0" '{"enabled": true}' true
 
+# Test new sensor addition endpoint
+log_info "=== Testing New Sensor Addition ==="
+sensor_config='{
+  "type": "hokuyo_urg_eth",
+  "name": "Test Sensor",
+  "endpoint": "192.168.1.100:10940",
+  "enabled": false,
+  "mode": "ME"
+}'
+test_endpoint "POST" "/api/v1/sensors" "$sensor_config" true
+
 # Test filters endpoints
 log_info "=== Testing Filters Endpoints ==="
 test_endpoint "GET" "/api/v1/filters"
@@ -114,6 +125,55 @@ postfilter_config='{
   }
 }'
 test_endpoint "PUT" "/api/v1/filters/postfilter" "$postfilter_config" true
+
+# Test DBSCAN endpoints
+log_info "=== Testing DBSCAN Configuration Endpoints ==="
+test_endpoint "GET" "/api/v1/dbscan"
+
+dbscan_config='{
+  "eps_norm": 2.5,
+  "minPts": 5,
+  "k_scale": 1.0,
+  "h_min": 0.01,
+  "h_max": 0.20,
+  "R_max": 5,
+  "M_max": 600
+}'
+test_endpoint "PUT" "/api/v1/dbscan" "$dbscan_config" true
+
+# Test Sinks endpoints
+log_info "=== Testing Sinks Configuration Endpoints ==="
+test_endpoint "GET" "/api/v1/sinks"
+
+# Test adding NNG sink
+nng_sink_config='{
+  "type": "nng",
+  "url": "tcp://localhost:5556",
+  "topic": "test_clusters",
+  "encoding": "msgpack",
+  "rate_limit": 30
+}'
+test_endpoint "POST" "/api/v1/sinks" "$nng_sink_config" true
+
+# Test adding OSC sink
+osc_sink_config='{
+  "type": "osc",
+  "url": "osc://localhost:7001/test",
+  "topic": "test_clusters",
+  "in_bundle": false,
+  "rate_limit": 0
+}'
+test_endpoint "POST" "/api/v1/sinks" "$osc_sink_config" true
+
+# Test updating sink (assuming sink at index 0 exists)
+sink_update_config='{
+  "topic": "updated_clusters",
+  "rate_limit": 60
+}'
+test_endpoint "PATCH" "/api/v1/sinks/0" "$sink_update_config" true
+
+# Note: DELETE test commented out to avoid data loss in production
+# test_endpoint "DELETE" "/api/v1/sinks/1" "" true
 
 # Test snapshot endpoint
 log_info "=== Testing Snapshot Endpoint ==="

@@ -22,6 +22,7 @@ public:
     Json::Value getFilterConfigAsJson() const;
     
     // Apply filters (thread-safe)
+    // sid: 点群処理用の数値センサーID (0-255)
     Prefilter::FilterResult applyPrefilter(const std::vector<float>& xy, const std::vector<uint8_t>& sid);
     Postfilter::FilterResult applyPostfilter(const std::vector<Cluster>& clusters,
                                             const std::vector<float>& xy,

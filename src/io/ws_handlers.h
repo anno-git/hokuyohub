@@ -40,7 +40,7 @@ class LiveWs : public drogon::WebSocketController<LiveWs, false> { // ★ AutoCr
    Json::Value buildSnapshot() const;
    void sendSnapshotTo(const drogon::WebSocketConnectionPtr& conn);
    void broadcastSnapshot(); // Broadcast snapshot to all connected clients
-   void broadcastSensorUpdated(int id);
+   void broadcastSensorUpdated(std::string sensor_id);
    void handleSensorUpdate(const drogon::WebSocketConnectionPtr& conn, const Json::Value& j);
    void handleFilterUpdate(const drogon::WebSocketConnectionPtr& conn, const Json::Value& j);
    void handleWorldUpdate(const drogon::WebSocketConnectionPtr& conn, const Json::Value& j);
@@ -48,6 +48,18 @@ class LiveWs : public drogon::WebSocketController<LiveWs, false> { // ★ AutoCr
    // 追加: フィルター設定の送受信用ユーティリティ
    void broadcastFilterConfigUpdate();
    void sendFilterConfigTo(const drogon::WebSocketConnectionPtr& conn);
+   
+   // 追加: DBSCAN設定の送受信用ユーティリティ
+   void sendDbscanConfigTo(const drogon::WebSocketConnectionPtr& conn);
+   void handleDbscanUpdate(const drogon::WebSocketConnectionPtr& conn, const Json::Value& j);
+   
+   // 追加: センサー追加用ユーティリティ
+   void handleSensorAdd(const drogon::WebSocketConnectionPtr& conn, const Json::Value& j);
+   
+   // 追加: Sink設定の送受信用ユーティリティ
+   void handleSinkAdd(const drogon::WebSocketConnectionPtr& conn, const Json::Value& j);
+   void handleSinkUpdate(const drogon::WebSocketConnectionPtr& conn, const Json::Value& j);
+   void handleSinkDelete(const drogon::WebSocketConnectionPtr& conn, const Json::Value& j);
 
    WS_PATH_LIST_BEGIN
      WS_PATH_ADD("/ws/live", drogon::Get);

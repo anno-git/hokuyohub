@@ -54,10 +54,19 @@ State& S() {
   return s;
 }
 
-} // namespace
-
-//------------------------------------------------------------------------------
-
+bool getSlotIndexById(std::string sensor_id, int &slot_index) {
+  slot_index = -1;
+  auto& st = S();
+  for (size_t i = 0; i < st.slots.size(); ++i) {
+    if (st.slots[i] && st.slots[i]->cfg.id == sensor_id) {
+      slot_index = static_cast<int>(i);
+      if (slot_index < 0 || slot_index >= static_cast<int>(st.slots.size())) return false;
+      return true;
+    }
+  }
+  return false;
+}
+}
 SensorManager::SensorManager(AppConfig& app_config) : app_config_(app_config) {
 }
 
@@ -198,44 +207,44 @@ void SensorManager::configure(const std::vector<SensorConfig>& cfgs) {
   std::cout << "[SensorManager] configured sensors=" << st.slots.size() << std::endl;
 }
 
-void SensorManager::setSensorPower(int /*id*/, bool /*on*/) {
+void SensorManager::setSensorPower(std::string /*sensor_id*/, bool /*on*/) {
   // 現状、Hokuyoは電源制御API無し。必要なら将来 ISensor に拡張。
 }
 
-void SensorManager::setPose(int id, float tx, float ty, float theta_deg) {
-  auto& st = S();
-  if (id < 0 || id >= static_cast<int>(st.slots.size())) return;
-  auto& sl = *st.slots[id];
+void SensorManager::setPose(std::string sensor_id, float tx, float ty, float theta_deg) {
+  int slot_index = -1;
+  if (!getSlotIndexById(sensor_id, slot_index)) return;
+  auto& sl = *(S().slots[slot_index]);
   sl.cfg.pose.tx   = tx;
   sl.cfg.pose.ty   = ty;
   sl.cfg.pose.theta_deg = theta_deg; // pose.theta_deg は [deg] 想定
   
   // Update app_config_ immediately
-  if (id < static_cast<int>(app_config_.sensors.size())) {
-    app_config_.sensors[id].pose.tx = tx;
-    app_config_.sensors[id].pose.ty = ty;
-    app_config_.sensors[id].pose.theta_deg = theta_deg;
+  if (slot_index < static_cast<int>(app_config_.sensors.size())) {
+    app_config_.sensors[slot_index].pose.tx = tx;
+    app_config_.sensors[slot_index].pose.ty = ty;
+    app_config_.sensors[slot_index].pose.theta_deg = theta_deg;
   }
 }
 
-void SensorManager::setSensorMask(int id, const SensorMaskLocal& m) {
-  auto& st = S();
-  if (id < 0 || id >= static_cast<int>(st.slots.size())) return;
-  auto& sl = *st.slots[id];
+void SensorManager::setSensorMask(std::string sensor_id, const SensorMaskLocal& m) {
+  int slot_index = -1;
+  if (!getSlotIndexById(sensor_id, slot_index)) return;
+  auto& sl = *(S().slots[slot_index]);
   sl.cfg.mask = m;
   
   // Update app_config_ immediately
-  if (id < static_cast<int>(app_config_.sensors.size())) {
-    app_config_.sensors[id].mask = m;
+  if (slot_index < static_cast<int>(app_config_.sensors.size())) {
+    app_config_.sensors[slot_index].mask = m;
   }
   
   // 動的にISensorへ渡す必要があれば、ISensor拡張で対応
 }
 
-bool SensorManager::restartSensor(int id){
-  auto& st = S();
-  if (id < 0 || id >= static_cast<int>(st.slots.size())) return false;
-  auto& sl = *st.slots[static_cast<size_t>(id)];
+bool SensorManager::restartSensor(std::string sensor_id) {
+  int slot_index = -1;
+  if (!getSlotIndexById(sensor_id, slot_index)) return false;
+  auto& sl = *(S().slots[slot_index]);
   if (!sl.dev) return false;
 
   if (sl.started) {
@@ -245,21 +254,21 @@ bool SensorManager::restartSensor(int id){
   const bool ok = sl.dev->start(sl.cfg);
   sl.started = ok;
   sl.need_restart.store(false);
-  std::cout << "[SensorManager] restart slot=" << id << " -> " << (ok?"OK":"NG") << std::endl;
+  std::cout << "[SensorManager] restart slot=" << slot_index << " -> " << (ok?"OK":"NG") << std::endl;
   return ok;
 }
 
-bool SensorManager::applyPatch(int id, const Json::Value& patch, Json::Value& applied, std::string& err){
-  auto& st = S();
-  if (id < 0 || id >= static_cast<int>(st.slots.size())) { err="invalid id"; return false; }
-  auto& sl = *st.slots[static_cast<size_t>(id)];
+bool SensorManager::applyPatch(std::string sensor_id, const Json::Value& patch, Json::Value& applied, std::string& err){
+  int slot_index = -1;
+  if (!getSlotIndexById(sensor_id, slot_index)) return false;
+  auto& sl = *(S().slots[slot_index]);
   applied = Json::Value(Json::objectValue);
   bool need_restart = false;
 
   // enabled / on
   if (patch.isMember("enabled") || patch.isMember("on")) {
     const bool en = patch.isMember("enabled") ? patch["enabled"].asBool() : patch["on"].asBool();
-    if (!setEnabled(id, en)) { err = "failed to (en|dis)able"; return false; }
+    if (!setEnabled(sensor_id, en)) { err = "failed to (en|dis)able"; return false; }
     applied["enabled"] = en;
   }
 
@@ -275,7 +284,7 @@ bool SensorManager::applyPatch(int id, const Json::Value& patch, Json::Value& ap
     if (p.isMember("theta_deg")) { sl.cfg.pose.theta_deg = p["theta_deg"].asFloat(); poseChanged=true; }
   }
   if (poseChanged){
-    setPose(id, sl.cfg.pose.tx, sl.cfg.pose.ty, sl.cfg.pose.theta_deg);
+    setPose(sensor_id, sl.cfg.pose.tx, sl.cfg.pose.ty, sl.cfg.pose.theta_deg);
     Json::Value p(Json::objectValue);
     p["tx"]=sl.cfg.pose.tx; p["ty"]=sl.cfg.pose.ty; p["theta_deg"]=sl.cfg.pose.theta_deg;
     applied["pose"]=p;
@@ -294,7 +303,7 @@ bool SensorManager::applyPatch(int id, const Json::Value& patch, Json::Value& ap
     }
     if (sl.cfg.mask.range.near_m > sl.cfg.mask.range.far_m) std::swap(sl.cfg.mask.range.near_m, sl.cfg.mask.range.far_m);
     if (sl.cfg.mask.angle.min_deg > sl.cfg.mask.angle.max_deg) std::swap(sl.cfg.mask.angle.min_deg, sl.cfg.mask.angle.max_deg);
-    setSensorMask(id, sl.cfg.mask);
+    setSensorMask(sensor_id, sl.cfg.mask);
     applied["mask"] = Json::Value(Json::objectValue);
   }
 
@@ -314,9 +323,9 @@ bool SensorManager::applyPatch(int id, const Json::Value& patch, Json::Value& ap
     applied["endpoint"] = out;
     
     // Update app_config_ immediately
-    if (id < static_cast<int>(app_config_.sensors.size())) {
-      app_config_.sensors[id].host = sl.cfg.host;
-      app_config_.sensors[id].port = sl.cfg.port;
+    if (slot_index < static_cast<int>(app_config_.sensors.size())) {
+      app_config_.sensors[slot_index].host = sl.cfg.host;
+      app_config_.sensors[slot_index].port = sl.cfg.port;
     }
     
     need_restart = true;
@@ -329,8 +338,8 @@ bool SensorManager::applyPatch(int id, const Json::Value& patch, Json::Value& ap
     applied["mode"] = sl.cfg.mode;
     
     // Update app_config_ immediately
-    if (id < static_cast<int>(app_config_.sensors.size())) {
-      app_config_.sensors[id].mode = m;
+    if (slot_index < static_cast<int>(app_config_.sensors.size())) {
+      app_config_.sensors[slot_index].mode = m;
     }
     
     if (!sl.dev || !sl.dev->applyMode(m)) need_restart = true;
@@ -344,8 +353,8 @@ bool SensorManager::applyPatch(int id, const Json::Value& patch, Json::Value& ap
     applied["skip_step"]=v;
     
     // Update app_config_ immediately
-    if (id < static_cast<int>(app_config_.sensors.size())) {
-      app_config_.sensors[id].skip_step = v;
+    if (slot_index < static_cast<int>(app_config_.sensors.size())) {
+      app_config_.sensors[slot_index].skip_step = v;
     }
     
     if (!sl.dev || !sl.dev->applySkipStep(v)) need_restart = true;
@@ -357,8 +366,8 @@ bool SensorManager::applyPatch(int id, const Json::Value& patch, Json::Value& ap
     applied["ignore_checksum_error"]=v;
     
     // Update app_config_ immediately
-    if (id < static_cast<int>(app_config_.sensors.size())) {
-      app_config_.sensors[id].ignore_checksum_error = v;
+    if (slot_index < static_cast<int>(app_config_.sensors.size())) {
+      app_config_.sensors[slot_index].ignore_checksum_error = v;
     }
     
     need_restart = true;
@@ -366,7 +375,7 @@ bool SensorManager::applyPatch(int id, const Json::Value& patch, Json::Value& ap
 
   if (need_restart && sl.started) {
     sl.need_restart.store(true);
-    restartSensor(id);
+    restartSensor(sensor_id);
   }
   return true;
 }
@@ -474,20 +483,27 @@ void SensorManager::start(FrameCallback cb) {
 // 追加: WS連携用最小API（enable の切替、および状態のJSON化）
 // =============================================================================
 
-bool SensorManager::setEnabled(int id, bool on) {
+bool SensorManager::setEnabled(std::string sensor_id, bool on) {
   auto& st = S();
-  if (id < 0 || id >= static_cast<int>(st.slots.size())) return false;
-  auto& sl = *st.slots[static_cast<size_t>(id)];
+  int slot_index = -1;
+  for (size_t i = 0; i < st.slots.size(); ++i) {
+    if (st.slots[i]->cfg.id == sensor_id) {
+      slot_index = static_cast<int>(i);
+      break;
+    }
+  }
+  if (slot_index < 0 || slot_index >= static_cast<int>(st.slots.size())) return false;
+  auto& sl = *st.slots[static_cast<size_t>(slot_index)];
   if (!sl.dev) return false;
 
   if (on) {
     if (!sl.started) {
       if (sl.dev->start(sl.cfg)) {
         sl.started = true;
-        std::cout << "[SensorManager] enabled sensor slot=" << id
+        std::cout << "[SensorManager] enabled sensor slot=" << slot_index
                   << " (cfg.id=" << sl.cfg.id << ")\n";
       } else {
-        std::cerr << "[SensorManager] FAILED to enable sensor slot=" << id
+        std::cerr << "[SensorManager] FAILED to enable sensor slot=" << slot_index
                   << " (cfg.id=" << sl.cfg.id << ")\n";
         return false;
       }
@@ -496,22 +512,29 @@ bool SensorManager::setEnabled(int id, bool on) {
     if (sl.started) {
       sl.dev->stop();
       sl.started = false;
-      std::cout << "[SensorManager] disabled sensor slot=" << id
+      std::cout << "[SensorManager] disabled sensor slot=" << slot_index
                 << " (cfg.id=" << sl.cfg.id << ")\n";
     }
   }
   return true;
 }
 
-Json::Value SensorManager::getAsJson(int id) const {
+Json::Value SensorManager::getAsJson(std::string sensor_id) const {
   Json::Value s(Json::objectValue);
   const auto& st = S();
-  if (id < 0 || id >= static_cast<int>(st.slots.size())) return s;
-  const auto& sl = *st.slots[static_cast<size_t>(id)];
+  int slot_index = -1;
+  for (size_t i = 0; i < st.slots.size(); ++i) {
+    if (st.slots[i]->cfg.id == sensor_id) {
+      slot_index = static_cast<int>(i);
+      break;
+    }
+  }
+  const auto& sl = *st.slots[static_cast<size_t>(slot_index)];
 
-  s["id"] = id;               // slot index
+  s["id"] = slot_index;       // slot index (API操作用)
   s["enabled"] = sl.started;  // 実行状態
-  s["cfg_id"] = sl.cfg.id;    // 設定上のセンサーID
+  s["id"] = sl.cfg.id;    // 設定上の文字列センサーID
+  s["sid"] = sl.sid;          // 点群処理用の数値センサーID
 
   // endpoint + mode
   {
@@ -544,7 +567,7 @@ Json::Value SensorManager::listAsJson() const {
   Json::Value arr(Json::arrayValue);
   const auto& st = S();
   for (int i = 0; i < static_cast<int>(st.slots.size()); ++i) {
-    arr.append(getAsJson(i));
+    arr.append(getAsJson(st.slots[i]->cfg.id));  // 各センサーの設定をJSON化して配列に追加
   }
   return arr;
 }

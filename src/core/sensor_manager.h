@@ -6,10 +6,31 @@
 #include "config/config.h"
 #include <json/json.h>
 
+/**
+ * センサーID管理の整理:
+ *
+ * 1. 点群処理用: 数値センサーID (sid)
+ *    - 型: uint8_t (0-255)
+ *    - 用途: ScanFrame.sid, フィルター処理, クラスタリング
+ *    - 高速な点群処理のため数値で管理
+ *
+ * 2. 設定・API用: 文字列センサーID
+ *    - 型: std::string (例: "sensor_1", "lidar_front")
+ *    - 用途: SensorConfig.id, REST API削除, 設定ファイル
+ *    - 人間が読みやすい識別子
+ *
+ * 3. API操作用: スロットインデックス
+ *    - 型: int (0から始まる配列インデックス)
+ *    - 用途: REST API操作, WebSocket操作
+ *    - 内部的なセンサー管理用
+ *
+ * 変換: SensorManager内でid2sidマップにより文字列ID↔数値sidを変換
+ */
+
 struct ScanFrame {
   uint64_t t_ns; uint32_t seq;
   std::vector<float> xy;           // [x0,y0,x1,y1,...]
-  std::vector<uint8_t> sid;        // センサーID
+  std::vector<uint8_t> sid;        // 点群処理用の数値センサーID (0-255)
 };
 
 class SensorManager {
@@ -21,17 +42,16 @@ public:
   
   void configure(const std::vector<SensorConfig>& cfgs);
   void start(FrameCallback cb);
-  void setSensorPower(int id, bool on);
-  void setPose(int id, float tx, float ty, float theta_deg);
-  void setSensorMask(int id, const SensorMaskLocal& m);
+  void setSensorPower(std::string sensor_id, bool on);
+  void setPose(std::string sensor_id, float tx, float ty, float theta_deg);
+  void setSensorMask(std::string sensor_id, const SensorMaskLocal& m);
 
-  // id は slots のインデックス（0..）として扱う（MVP）
-  bool setEnabled(int id, bool on);
-  Json::Value getAsJson(int id) const;
+  bool setEnabled(std::string sensor_id, bool on);
+  Json::Value getAsJson(std::string sensor_id) const;
   Json::Value listAsJson() const;
 
-  bool applyPatch(int id, const Json::Value& patch, Json::Value& applied, std::string& err);
-  bool restartSensor(int id);
+  bool applyPatch(std::string id, const Json::Value& patch, Json::Value& applied, std::string& err);
+  bool restartSensor(std::string sensor_id);
   
   // Reload configuration from AppConfig (for Load/Import operations)
   void reloadFromAppConfig();

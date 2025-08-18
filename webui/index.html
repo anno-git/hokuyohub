@@ -42,58 +42,137 @@
     </div>
   </div>
   
-  <canvas id="cv"></canvas>
-  <section id="panel">
- <div class="panel-header">
-  <h2>Sensors</h2>
-  <button id="btn-refresh" type="button">Refresh</button>
-  <span id="panel-msg" class="panel-msg"></span>
- </div>
+  <!-- Main 3-column layout -->
+  <div id="main-container" class="main-container">
+    <!-- Left sidebar -->
+    <aside id="sidebar-left" class="sidebar-left">
+      <section id="sensors-panel">
+        <div class="panel-header">
+          <h2>Sensors</h2>
+          <button id="btn-refresh" type="button">Refresh</button>
+          <button id="btn-add-sensor" type="button" class="btn-primary">Add Sensor</button>
+          <span id="panel-msg" class="panel-msg"></span>
+        </div>
 
- <div class="display-controls">
-  <label class="control-item">
-  	<input type="checkbox" id="show-raw-points">
-  	<span>Show Raw Points</span>
-  </label>
-  <label class="control-item">
-  	<input type="checkbox" id="show-filtered-data">
-  	<span>Show Filtered Data</span>
-  </label>
-  <label class="control-item">
-  	<input type="checkbox" id="per-sensor-colors">
-  	<span>Per-sensor Colors</span>
-  </label>
- </div>
+        <div class="display-controls">
+          <label class="control-item">
+            <input type="checkbox" id="show-raw-points">
+            <span>Show Raw Points</span>
+          </label>
+          <label class="control-item">
+            <input type="checkbox" id="show-filtered-data">
+            <span>Show Filtered Data</span>
+          </label>
+          <label class="control-item">
+            <input type="checkbox" id="per-sensor-colors">
+            <span>Per-sensor Colors</span>
+          </label>
+        </div>
 
- <div id="legend" class="legend" hidden>
-  <h4>Sensor Legend</h4>
-  <div id="legend-items" class="legend-items"></div>
- </div>
+        <div id="legend" class="legend" hidden>
+          <h4>Sensor Legend</h4>
+          <div id="legend-items" class="legend-items"></div>
+        </div>
 
- <div class="table-wrap">
-		<table id="sensor-table">
-		<thead>
-			<tr>
-				<th>ID</th>
-				<th>Enabled</th>
-				<th>tx</th>
-				<th>ty</th>
-				<th>theta</th>
-				<th style="text-align:right;">Actions</th>
-			</tr>
-			</thead>
-			<tbody id="sensor-tbody"></tbody>
-		</table>
-	</div>
+        <div class="table-wrap">
+          <table id="sensor-table">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Enabled</th>
+                <th>tx</th>
+                <th>ty</th>
+                <th>theta</th>
+                <th style="text-align:right;">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="sensor-tbody"></tbody>
+          </table>
+        </div>
+      </section>
 
-	<!-- Filter Configuration Section -->
-	<div class="panel-header">
-		<h2>Filter Configuration</h2>
-		<button id="btn-reset-filters" type="button">Reset to Default</button>
-		<span id="filter-msg" class="panel-msg"></span>
-	</div>
+      <!-- Sinks Configuration Section -->
+      <section id="sinks-panel">
+        <div class="panel-header">
+          <h2>Sinks</h2>
+          <button id="btn-add-sink" type="button" class="btn-primary">Add Sink</button>
+          <span id="sinks-msg" class="panel-msg"></span>
+        </div>
 
-	<div class="filter-config">
+        <div class="table-wrap">
+          <table id="sinks-table">
+            <thead>
+              <tr>
+                <th>Type</th>
+                <th>Enabled</th>
+                <th>URL</th>
+                <th>Topic</th>
+                <th>Encoding</th>
+                <th>Rate Limit (Hz)</th>
+                <th style="text-align:right;">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="sinks-tbody"></tbody>
+          </table>
+        </div>
+      </section>
+    </aside>
+
+    <!-- Center canvas area -->
+    <main id="center-canvas" class="center-canvas">
+      <canvas id="cv"></canvas>
+    </main>
+
+    <!-- Right sidebar -->
+    <aside id="sidebar-right" class="sidebar-right">
+      <!-- DBSCAN Configuration Section -->
+      <section id="dbscan-panel">
+        <div class="panel-header">
+          <h2>DBSCAN Configuration</h2>
+          <span id="dbscan-msg" class="panel-msg"></span>
+        </div>
+
+        <div class="dbscan-config">
+          <div class="param-row">
+            <label>eps_norm:</label>
+            <input type="number" id="dbscan-eps-norm" min="0.1" max="10.0" step="0.1" value="2.5">
+          </div>
+          <div class="param-row">
+            <label>minPts:</label>
+            <input type="number" id="dbscan-min-pts" min="1" max="100" value="5">
+          </div>
+          <div class="param-row">
+            <label>k_scale:</label>
+            <input type="number" id="dbscan-k-scale" min="0.1" max="10.0" step="0.1" value="1.0">
+          </div>
+          <div class="param-row">
+            <label>h_min (m):</label>
+            <input type="number" id="dbscan-h-min" min="0.001" max="1.0" step="0.001" value="0.01">
+          </div>
+          <div class="param-row">
+            <label>h_max (m):</label>
+            <input type="number" id="dbscan-h-max" min="0.001" max="1.0" step="0.001" value="0.20">
+          </div>
+          <div class="param-row">
+            <label>R_max:</label>
+            <input type="number" id="dbscan-r-max" min="1" max="50" value="5">
+          </div>
+          <div class="param-row">
+            <label>M_max:</label>
+            <input type="number" id="dbscan-m-max" min="10" max="5000" value="600">
+          </div>
+        </div>
+      </section>
+
+      <!-- Filter Configuration Section -->
+      <section id="filter-panel">
+        <div class="panel-header">
+          <h2>Filter Configuration</h2>
+          <button id="btn-reset-filters" type="button">Reset to Default</button>
+          <span id="filter-msg" class="panel-msg"></span>
+        </div>
+
+        <div class="filter-config">
 		<!-- Prefilter Configuration -->
 		<div class="filter-section">
 			<h3>
@@ -245,33 +324,12 @@
 				</div>
 			</div>
 		</div>
-	</div>
+	       </div>
+	     </section>
+	   </aside>
+	 </div>
 
-	<!-- Publishers Configuration Section -->
-	<div class="panel-header">
-		<h2>Publishers</h2>
-		<span id="publishers-msg" class="panel-msg"></span>
-	</div>
-
-	<div id="publishers-panel" class="publishers-config">
-		<div class="table-wrap">
-			<table id="publishers-table">
-				<thead>
-					<tr>
-						<th>Type</th>
-						<th>Enabled</th>
-						<th>URL</th>
-						<th>Topic</th>
-						<th>Encoding</th>
-						<th>Rate Limit (Hz)</th>
-					</tr>
-				</thead>
-				<tbody id="publishers-tbody"></tbody>
-			</table>
-		</div>
-	</div>
-
-	</section>
+<!-- Modals and other elements -->
 <div id="sensor-modal-backdrop" class="modal-backdrop" hidden></div>
 <div id="sensor-modal" class="modal" hidden aria-modal="true" role="dialog">
   <div class="modal__header">

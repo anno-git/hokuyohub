@@ -76,8 +76,16 @@ let worldMask = {
 };
 
 function resize(){
-  cv.width = window.innerWidth;
-  cv.height = Math.floor(window.innerHeight*0.6);
+  const centerCanvas = document.getElementById('center-canvas');
+  if (centerCanvas) {
+    const rect = centerCanvas.getBoundingClientRect();
+    cv.width = rect.width;
+    cv.height = rect.height;
+  } else {
+    // Fallback for when center-canvas is not available
+    cv.width = window.innerWidth;
+    cv.height = Math.floor(window.innerHeight * 0.6);
+  }
   redrawCanvas();
 }
 window.addEventListener('resize', resize); resize();
@@ -512,9 +520,9 @@ function drawClusters(){
 function drawSensors() {
   ctx.save();
   
-  for (const [id, sensor] of sensors) {
-    if (!sensor.pose) continue;
-    
+  for (let [id, sensor] of sensors.entries()) {
+    if (!sensor || !sensor.pose) continue;
+
     const tx = sensor.pose.tx || 0;
     const ty = sensor.pose.ty || 0;
     const theta = (sensor.pose.theta_deg || 0) * Math.PI / 180;
@@ -543,11 +551,12 @@ function drawSensors() {
     ctx.lineTo(arrowX, arrowY);
     ctx.stroke();
     
-    // Draw sensor ID
+    // Draw sensor config ID and slot index
     ctx.fillStyle = '#2c3e50';
     ctx.font = '12px sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText(id.toString(), pos.x, pos.y - 15);
+    const displayText = sensor && sensor.id ? sensor.id : `slot${id}`;
+    ctx.fillText(displayText, pos.x, pos.y - 15);
   }
   
   ctx.restore();
@@ -761,57 +770,68 @@ function setPanelMsg(text, ok=true){
 
 function renderSensors(){
   tbody.innerHTML = '';
-  const rows = Array.from(sensors.values()).sort((a,b)=>a.id-b.id);
+  const rows = Array.from(sensors.values()).sort((a,b)=>{
+    // Sort by slot index (id field in JSON response)
+    return a.id - b.id;
+  });
+  console.log('Rendering sensors:', rows.map(s => ({
+    ...s
+  })));
   for(const s of rows){
     const tr = document.createElement('tr');
+    // Display config ID but use slot index for operations
     tr.innerHTML = `
       <td style="padding:6px 8px; border-bottom:1px solid #eee;">${s.id}</td>
       <td style="padding:6px 8px; border-bottom:1px solid #eee;">
         <label class="toggle">
-          <input type="checkbox" ${s.enabled ? 'checked' : ''} data-sid="${s.id}" />
+          <input type="checkbox" ${s.enabled ? 'checked' : ''} data-sensor-id="${s.id}" />
           <span>${s.enabled ? 'ON' : 'OFF'}</span>
         </label>
       </td>
       <td style="padding:6px 8px; border-bottom:1px solid #eee;">
-        <input class="pose-tx" type="number" step="0.01" value="${Number(s.pose?.tx ?? s.tx ?? 0)}" data-sid="${s.id}" style="width:100px" />
+        <input class="pose-tx" type="number" step="0.01" value="${Number(s.pose?.tx ?? s.tx ?? 0)}" data-sensor-id="${s.id}" style="width:100px" />
       </td>
       <td style="padding:6px 8px; border-bottom:1px solid #eee;">
-        <input class="pose-ty" type="number" step="0.01" value="${Number(s.pose?.ty ?? s.ty ?? 0)}" data-sid="${s.id}" style="width:100px" />
+        <input class="pose-ty" type="number" step="0.01" value="${Number(s.pose?.ty ?? s.ty ?? 0)}" data-sensor-id="${s.id}" style="width:100px" />
       </td>
       <td style="padding:6px 8px; border-bottom:1px solid #eee;">
-        <input class="pose-theta" type="number" step="0.1" value="${Number(s.pose?.theta_deg ?? s.theta_deg ?? 0)}" data-sid="${s.id}" style="width:100px" />
+        <input class="pose-theta" type="number" step="0.1" value="${Number(s.pose?.theta_deg ?? s.theta_deg ?? 0)}" data-sensor-id="${s.id}" style="width:100px" />
       </td>
       <td style="padding:6px 8px; border-bottom:1px solid #eee; text-align:right;">
         <button class="btn" data-open-modal="${s.id}">Details…</button>
+        <button class="btn" data-delete-sensor="${s.id}" style="margin-left: 4px; background-color: #dc3545; color: white;">Delete</button>
       </td>
     `;
 
-    // Enabled → sensor.enable
+    // Enabled → sensor.enable (use slot index)
     const chk = tr.querySelector('input[type=checkbox]');
     const lbl = tr.querySelector('span');
     chk.addEventListener('change', () => {
       lbl.textContent = chk.checked ? 'ON' : 'OFF';
-      try { ws.send(JSON.stringify({ type:'sensor.enable', id: Number(chk.dataset.sid), enabled: chk.checked })); }
+      try { ws.send(JSON.stringify({ type:'sensor.enable', id: Number(chk.dataset.slotIndex), enabled: chk.checked })); }
       catch(e){ setPanelMsg('send failed', false); }
     });
 
-    // tx/ty/theta → blurで {pose:{...}} patch
+    // tx/ty/theta → blurで {pose:{...}} patch (use slot index)
     const onPoseBlur = (cls, key) => {
       const input = tr.querySelector(cls);
       input.addEventListener('blur', () => {
-        const id = Number(input.dataset.sid);
+        const sensorId = Number(input.dataset.sensorId);
         const v = Number(input.value || 0);
         const patch = { pose: {} };
         patch.pose[key] = v;
-        ws.send(JSON.stringify({ type:'sensor.update', id, patch }));
+        ws.send(JSON.stringify({ type:'sensor.update', id: sensorId, patch }));
       });
     };
     onPoseBlur('.pose-tx', 'tx');
     onPoseBlur('.pose-ty', 'ty');
     onPoseBlur('.pose-theta', 'theta_deg');
 
-    // モーダル起動
+    // モーダル起動 (use slot index)
     tr.querySelector('[data-open-modal]').addEventListener('click', () => openSensorModal(s.id));
+
+    // Delete sensor (use slot index)
+    tr.querySelector('[data-delete-sensor]').addEventListener('click', () => deleteSensor(s.id));
 
     tbody.appendChild(tr);
   }
@@ -1068,6 +1088,55 @@ function tryRefreshModalFromState(){
   if (!s) return;
   modalWorking = buildEditableSnapshot(s);
   renderSensorModal(modalWorking, s);
+}
+
+// Delete sensor function
+function deleteSensor(slotIndex) {
+  console.log('Attempting to delete sensor with slot index:', slotIndex);
+  
+  // Get the actual sensor config ID from the sensor data
+  const sensor = sensors.get(slotIndex);
+  if (!sensor || !sensor.id) {
+    setPanelMsg('Sensor not found or missing config ID', false);
+    return;
+  }
+  
+  const sensorConfigId = sensor.id;
+  console.log('Deleting sensor with config ID:', sensorConfigId);
+  
+  if (!confirm(`Are you sure you want to delete sensor ${sensorConfigId}?`)) {
+    return;
+  }
+  
+  try {
+    // Use the string config ID for deletion, not the slot index
+    fetch(`/api/v1/sensors/${encodeURIComponent(sensorConfigId)}`, {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    }).then(response => {
+      console.log('Delete sensor response status:', response.status);
+      if (response.ok) {
+        setPanelMsg(`Sensor ${sensorConfigId} deleted successfully`, true);
+        // Refresh sensor list
+        ws.send(JSON.stringify({ type: 'sensor.requestSnapshot' }));
+      } else {
+        response.json().then(error => {
+          console.error('Delete sensor error:', error);
+          setPanelMsg(`Failed to delete sensor: ${error.message}`, false);
+        }).catch(() => {
+          setPanelMsg(`Failed to delete sensor: HTTP ${response.status}`, false);
+        });
+      }
+    }).catch(e => {
+      console.error('Delete sensor network error:', e);
+      setPanelMsg(`Failed to delete sensor: ${e.message}`, false);
+    });
+  } catch (e) {
+    console.error('Delete sensor exception:', e);
+    setPanelMsg(`Failed to delete sensor: ${e.message}`, false);
+  }
 }
 
 // ======== Filter Configuration Management ========
@@ -1347,9 +1416,13 @@ document.addEventListener('DOMContentLoaded', () => {
 // Mouse and touch interaction handlers
 function getMousePos(e) {
   const rect = cv.getBoundingClientRect();
+  // Account for any CSS scaling or transformations
+  const scaleX = cv.width / rect.width;
+  const scaleY = cv.height / rect.height;
+  
   return {
-    x: e.clientX - rect.left,
-    y: e.clientY - rect.top
+    x: (e.clientX - rect.left) * scaleX,
+    y: (e.clientY - rect.top) * scaleY
   };
 }
 
@@ -2292,3 +2365,644 @@ function renderPublishers(sinksArray) {
 
 // Initialize canvas state
 updateCanvasState();
+
+// ======== DBSCAN Configuration Management ========
+const dbscanElements = {
+  epsNorm: document.getElementById('dbscan-eps-norm'),
+  minPts: document.getElementById('dbscan-min-pts'),
+  kScale: document.getElementById('dbscan-k-scale'),
+  hMin: document.getElementById('dbscan-h-min'),
+  hMax: document.getElementById('dbscan-h-max'),
+  rMax: document.getElementById('dbscan-r-max'),
+  mMax: document.getElementById('dbscan-m-max'),
+  msg: document.getElementById('dbscan-msg')
+};
+
+let currentDbscanConfig = {
+  eps_norm: 2.5,
+  minPts: 5,
+  k_scale: 1.0,
+  h_min: 0.01,
+  h_max: 0.20,
+  R_max: 5,
+  M_max: 600
+};
+
+let dbscanUpdateTimeout = null;
+
+function setDbscanMessage(text, isError = false) {
+  if (dbscanElements.msg) {
+    dbscanElements.msg.textContent = text || '';
+    dbscanElements.msg.className = isError ? 'panel-msg error' : 'panel-msg';
+    if (text) {
+      setTimeout(() => { dbscanElements.msg.textContent = ''; }, 3000);
+    }
+  }
+}
+
+function loadDbscanConfigFromUI() {
+  return {
+    eps_norm: parseFloat(dbscanElements.epsNorm?.value ?? 2.5),
+    minPts: parseInt(dbscanElements.minPts?.value ?? 5),
+    k_scale: parseFloat(dbscanElements.kScale?.value ?? 1.0),
+    h_min: parseFloat(dbscanElements.hMin?.value ?? 0.01),
+    h_max: parseFloat(dbscanElements.hMax?.value ?? 0.20),
+    R_max: parseInt(dbscanElements.rMax?.value ?? 5),
+    M_max: parseInt(dbscanElements.mMax?.value ?? 600)
+  };
+}
+
+function applyDbscanConfigToUI(config) {
+  if (dbscanElements.epsNorm) dbscanElements.epsNorm.value = config.eps_norm;
+  if (dbscanElements.minPts) dbscanElements.minPts.value = config.minPts;
+  if (dbscanElements.kScale) dbscanElements.kScale.value = config.k_scale;
+  if (dbscanElements.hMin) dbscanElements.hMin.value = config.h_min;
+  if (dbscanElements.hMax) dbscanElements.hMax.value = config.h_max;
+  if (dbscanElements.rMax) dbscanElements.rMax.value = config.R_max;
+  if (dbscanElements.mMax) dbscanElements.mMax.value = config.M_max;
+}
+
+function sendDbscanConfig() {
+  const config = loadDbscanConfigFromUI();
+  currentDbscanConfig = config;
+  
+  try {
+    ws.send(JSON.stringify({
+      type: 'dbscan.update',
+      config: config
+    }));
+    setDbscanMessage('DBSCAN configuration updated');
+  } catch (e) {
+    setDbscanMessage('Failed to send DBSCAN configuration', true);
+  }
+}
+
+function setupDbscanEventListeners() {
+  const parameterInputs = [
+    dbscanElements.epsNorm,
+    dbscanElements.minPts,
+    dbscanElements.kScale,
+    dbscanElements.hMin,
+    dbscanElements.hMax,
+    dbscanElements.rMax,
+    dbscanElements.mMax
+  ];
+  
+  parameterInputs.forEach(input => {
+    if (input) {
+      input.addEventListener('change', () => {
+        // Debounce updates
+        if (dbscanUpdateTimeout) {
+          clearTimeout(dbscanUpdateTimeout);
+        }
+        dbscanUpdateTimeout = setTimeout(sendDbscanConfig, 500);
+      });
+      input.addEventListener('blur', () => {
+        // Immediate update on blur
+        if (dbscanUpdateTimeout) {
+          clearTimeout(dbscanUpdateTimeout);
+        }
+        sendDbscanConfig();
+      });
+    }
+  });
+}
+
+// ======== Sensor Addition Management ========
+const btnAddSensor = document.getElementById('btn-add-sensor');
+let sensorAddModal = null;
+
+function createSensorAddModal() {
+  // Create modal HTML
+  const modalHtml = `
+    <div id="sensor-add-modal-backdrop" class="modal-backdrop">
+      <div id="sensor-add-modal" class="modal">
+        <div class="modal__header">
+          <h3>Add New Sensor</h3>
+          <button id="sensor-add-modal-close" class="btn btn-ghost">×</button>
+        </div>
+        <div class="modal__body">
+          <div class="modal__row">
+            <label>Sensor Type:</label>
+            <select id="sensor-type-select">
+              <option value="hokuyo_urg_eth">Hokuyo URG Ethernet</option>
+              <option value="unknown">Unknown</option>
+            </select>
+          </div>
+          <div class="modal__row">
+            <label>Name:</label>
+            <input type="text" id="sensor-name-input" value="New Sensor">
+          </div>
+          <div class="modal__row">
+            <label>Host:</label>
+            <input type="text" id="sensor-host-input" value="192.168.1.10">
+          </div>
+          <div class="modal__row">
+            <label>Port:</label>
+            <input type="number" id="sensor-port-input" min="1" max="65535" value="10940">
+          </div>
+          <div class="modal__row">
+            <label>Mode:</label>
+            <select id="sensor-mode-select">
+              <option value="ME">ME (Distance + Intensity)</option>
+              <option value="MD">MD (Distance Only)</option>
+            </select>
+          </div>
+          <div class="modal__row">
+            <label>Enabled:</label>
+            <input type="checkbox" id="sensor-enabled-input" checked>
+          </div>
+        </div>
+        <div class="modal__footer">
+          <button id="sensor-add-cancel" class="btn">Cancel</button>
+          <button id="sensor-add-save" class="btn btn-primary">Add Sensor</button>
+        </div>
+      </div>
+    </div>
+  `;
+  
+  // Add to document
+  document.body.insertAdjacentHTML('beforeend', modalHtml);
+  
+  // Get references
+  const backdrop = document.getElementById('sensor-add-modal-backdrop');
+  const modal = document.getElementById('sensor-add-modal');
+  const closeBtn = document.getElementById('sensor-add-modal-close');
+  const cancelBtn = document.getElementById('sensor-add-cancel');
+  const saveBtn = document.getElementById('sensor-add-save');
+  
+  // Event listeners
+  const closeModal = () => {
+    backdrop.remove();
+    sensorAddModal = null;
+  };
+  
+  closeBtn.addEventListener('click', closeModal);
+  cancelBtn.addEventListener('click', closeModal);
+  backdrop.addEventListener('click', (e) => {
+    if (e.target === backdrop) closeModal();
+  });
+  
+  saveBtn.addEventListener('click', async () => {
+    const sensorData = {
+      type: document.getElementById('sensor-type-select').value,
+      name: document.getElementById('sensor-name-input').value,
+      endpoint: document.getElementById('sensor-host-input').value + ':' + document.getElementById('sensor-port-input').value,
+      mode: document.getElementById('sensor-mode-select').value,
+      enabled: document.getElementById('sensor-enabled-input').checked
+    };
+    
+    try {
+      const response = await fetch('/api/v1/sensors', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(sensorData)
+      });
+      
+      if (response.ok) {
+        const result = await response.json();
+        setPanelMsg(`Sensor added: ${result.id}`, true);
+        closeModal();
+        // Refresh sensor list
+        ws.send(JSON.stringify({ type: 'sensor.requestSnapshot' }));
+      } else {
+        const error = await response.json();
+        setPanelMsg(`Failed to add sensor: ${error.message}`, false);
+      }
+    } catch (e) {
+      setPanelMsg(`Failed to add sensor: ${e.message}`, false);
+    }
+  });
+  
+  return { backdrop, modal };
+}
+
+// ======== Sink Management ========
+const btnAddSink = document.getElementById('btn-add-sink');
+const sinksTbody = document.getElementById('sinks-tbody');
+const sinksMsg = document.getElementById('sinks-msg');
+
+function setSinksMessage(text, isError = false) {
+  if (sinksMsg) {
+    sinksMsg.textContent = text || '';
+    sinksMsg.className = isError ? 'panel-msg error' : 'panel-msg';
+    if (text) {
+      setTimeout(() => { sinksMsg.textContent = ''; }, 3000);
+    }
+  }
+}
+
+function renderSinks(sinksArray) {
+  if (!sinksTbody) return;
+  
+  sinksTbody.innerHTML = '';
+  
+  if (!Array.isArray(sinksArray) || sinksArray.length === 0) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = '<td colspan="7" style="text-align: center; color: #666;">No sinks configured</td>';
+    sinksTbody.appendChild(tr);
+    return;
+  }
+  
+  for (let i = 0; i < sinksArray.length; i++) {
+    const sink = sinksArray[i];
+    const tr = document.createElement('tr');
+    
+    const type = sink.type || 'unknown';
+    const enabled = sink.enabled ? 'Yes' : 'No';
+    const url = sink.url || '-';
+    const topic = sink.topic || '-';
+    const encoding = sink.encoding || '-';
+    const rateLimit = sink.rate_limit || 0;
+    
+    tr.innerHTML = `
+      <td>${type}</td>
+      <td><span class="status-badge ${enabled === 'Yes' ? 'status-enabled' : 'status-disabled'}">${enabled}</span></td>
+      <td style="font-family: monospace; font-size: 0.9em;">${url}</td>
+      <td>${topic}</td>
+      <td>${encoding}</td>
+      <td style="text-align: right;">${rateLimit}</td>
+      <td style="text-align: right;">
+        <button class="btn" data-edit-sink="${i}">Edit</button>
+        <button class="btn" data-delete-sink="${i}" style="margin-left: 4px; background-color: #dc3545; color: white;">Delete</button>
+      </td>
+    `;
+    
+    // Add event listeners
+    const editBtn = tr.querySelector('[data-edit-sink]');
+    const deleteBtn = tr.querySelector('[data-delete-sink]');
+    
+    editBtn.addEventListener('click', () => editSink(i));
+    deleteBtn.addEventListener('click', () => deleteSink(i));
+    
+    sinksTbody.appendChild(tr);
+  }
+  
+  setSinksMessage(`${sinksArray.length} sink(s) configured`);
+}
+
+// Create sink add modal
+function createSinkAddModal() {
+  const modalHtml = `
+    <div id="sink-add-modal-backdrop" class="modal-backdrop">
+      <div id="sink-add-modal" class="modal">
+        <div class="modal__header">
+          <h3>Add New Sink</h3>
+          <button id="sink-add-modal-close" class="btn btn-ghost">×</button>
+        </div>
+        <div class="modal__body">
+          <div class="modal__row">
+            <label>Sink Type:</label>
+            <select id="sink-type-select">
+              <option value="nng">NNG</option>
+              <option value="osc">OSC</option>
+            </select>
+          </div>
+          <div class="modal__row">
+            <label>URL:</label>
+            <input type="text" id="sink-url-input" value="tcp://localhost:5555">
+          </div>
+          <div class="modal__row">
+            <label>Topic:</label>
+            <input type="text" id="sink-topic-input" value="lidar_data">
+          </div>
+          <div class="modal__row">
+            <label>Rate Limit (Hz):</label>
+            <input type="number" id="sink-rate-limit-input" min="0" value="30">
+          </div>
+          <div class="modal__row" id="sink-encoding-row">
+            <label>Encoding:</label>
+            <select id="sink-encoding-select">
+              <option value="msgpack">MessagePack</option>
+              <option value="json">JSON</option>
+            </select>
+          </div>
+          <div class="modal__row" id="sink-bundle-row" style="display: none;">
+            <label>In Bundle:</label>
+            <input type="checkbox" id="sink-in-bundle-input">
+          </div>
+          <div class="modal__row" id="sink-fragment-row" style="display: none;">
+            <label>Bundle Fragment Size:</label>
+            <input type="number" id="sink-fragment-size-input" min="0" value="1024">
+          </div>
+          <div class="modal__row">
+            <label>Enabled:</label>
+            <input type="checkbox" id="sink-enabled-input" checked>
+          </div>
+        </div>
+        <div class="modal__footer">
+          <button id="sink-add-cancel" class="btn">Cancel</button>
+          <button id="sink-add-save" class="btn btn-primary">Add Sink</button>
+        </div>
+      </div>
+    </div>
+  `;
+  
+  document.body.insertAdjacentHTML('beforeend', modalHtml);
+  
+  const backdrop = document.getElementById('sink-add-modal-backdrop');
+  const modal = document.getElementById('sink-add-modal');
+  const closeBtn = document.getElementById('sink-add-modal-close');
+  const cancelBtn = document.getElementById('sink-add-cancel');
+  const saveBtn = document.getElementById('sink-add-save');
+  const typeSelect = document.getElementById('sink-type-select');
+  
+  // Type-specific field visibility
+  const updateFieldVisibility = () => {
+    const type = typeSelect.value;
+    const encodingRow = document.getElementById('sink-encoding-row');
+    const bundleRow = document.getElementById('sink-bundle-row');
+    const fragmentRow = document.getElementById('sink-fragment-row');
+    
+    if (type === 'nng') {
+      encodingRow.style.display = 'flex';
+      bundleRow.style.display = 'none';
+      fragmentRow.style.display = 'none';
+    } else if (type === 'osc') {
+      encodingRow.style.display = 'none';
+      bundleRow.style.display = 'flex';
+      fragmentRow.style.display = 'flex';
+    }
+  };
+  
+  typeSelect.addEventListener('change', updateFieldVisibility);
+  updateFieldVisibility();
+  
+  const closeModal = () => {
+    backdrop.remove();
+  };
+  
+  closeBtn.addEventListener('click', closeModal);
+  cancelBtn.addEventListener('click', closeModal);
+  backdrop.addEventListener('click', (e) => {
+    if (e.target === backdrop) closeModal();
+  });
+  
+  saveBtn.addEventListener('click', async () => {
+    const type = document.getElementById('sink-type-select').value;
+    const sinkData = {
+      type: type,
+      url: document.getElementById('sink-url-input').value,
+      topic: document.getElementById('sink-topic-input').value,
+      rate_limit: parseInt(document.getElementById('sink-rate-limit-input').value) || 0,
+      enabled: document.getElementById('sink-enabled-input').checked
+    };
+    
+    if (type === 'nng') {
+      sinkData.encoding = document.getElementById('sink-encoding-select').value;
+    } else if (type === 'osc') {
+      sinkData.in_bundle = document.getElementById('sink-in-bundle-input').checked;
+      sinkData.bundle_fragment_size = parseInt(document.getElementById('sink-fragment-size-input').value) || 1024;
+    }
+    
+    try {
+      const response = await fetch('/api/v1/sinks', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(sinkData)
+      });
+      
+      if (response.ok) {
+        const result = await response.json();
+        setSinksMessage(`Sink added successfully`, false);
+        closeModal();
+        // Refresh sink list
+        ws.send(JSON.stringify({ type: 'sensor.requestSnapshot' }));
+      } else {
+        const error = await response.json();
+        setSinksMessage(`Failed to add sink: ${error.message}`, true);
+      }
+    } catch (e) {
+      setSinksMessage(`Failed to add sink: ${e.message}`, true);
+    }
+  });
+}
+
+// Edit sink function
+function editSink(index) {
+  // Get current sink data from the rendered table or from a global sinks array
+  // For now, we'll create a simple edit modal similar to add modal
+  createSinkEditModal(index);
+}
+
+// Create sink edit modal
+function createSinkEditModal(index) {
+  // First, we need to get the current sink data
+  // Since we don't have it readily available, we'll fetch it from the server
+  fetch('/api/v1/sinks')
+    .then(response => response.json())
+    .then(sinks => {
+      if (index >= sinks.length) {
+        setSinksMessage(`Sink index ${index} not found`, true);
+        return;
+      }
+      
+      const sink = sinks[index];
+      
+      const modalHtml = `
+        <div id="sink-edit-modal-backdrop" class="modal-backdrop">
+          <div id="sink-edit-modal" class="modal">
+            <div class="modal__header">
+              <h3>Edit Sink ${index}</h3>
+              <button id="sink-edit-modal-close" class="btn btn-ghost">×</button>
+            </div>
+            <div class="modal__body">
+              <div class="modal__row">
+                <label>Sink Type:</label>
+                <select id="sink-edit-type-select" disabled>
+                  <option value="nng" ${sink.type === 'nng' ? 'selected' : ''}>NNG</option>
+                  <option value="osc" ${sink.type === 'osc' ? 'selected' : ''}>OSC</option>
+                </select>
+              </div>
+              <div class="modal__row">
+                <label>URL:</label>
+                <input type="text" id="sink-edit-url-input" value="${sink.url || ''}">
+              </div>
+              <div class="modal__row">
+                <label>Topic:</label>
+                <input type="text" id="sink-edit-topic-input" value="${sink.topic || ''}">
+              </div>
+              <div class="modal__row">
+                <label>Rate Limit (Hz):</label>
+                <input type="number" id="sink-edit-rate-limit-input" min="0" value="${sink.rate_limit || 0}">
+              </div>
+              <div class="modal__row" id="sink-edit-encoding-row" style="display: ${sink.type === 'nng' ? 'flex' : 'none'};">
+                <label>Encoding:</label>
+                <select id="sink-edit-encoding-select">
+                  <option value="msgpack" ${sink.encoding === 'msgpack' ? 'selected' : ''}>MessagePack</option>
+                  <option value="json" ${sink.encoding === 'json' ? 'selected' : ''}>JSON</option>
+                </select>
+              </div>
+              <div class="modal__row" id="sink-edit-bundle-row" style="display: ${sink.type === 'osc' ? 'flex' : 'none'};">
+                <label>In Bundle:</label>
+                <input type="checkbox" id="sink-edit-in-bundle-input" ${sink.in_bundle ? 'checked' : ''}>
+              </div>
+              <div class="modal__row" id="sink-edit-fragment-row" style="display: ${sink.type === 'osc' ? 'flex' : 'none'};">
+                <label>Bundle Fragment Size:</label>
+                <input type="number" id="sink-edit-fragment-size-input" min="0" value="${sink.bundle_fragment_size || 1024}">
+              </div>
+            </div>
+            <div class="modal__footer">
+              <button id="sink-edit-cancel" class="btn">Cancel</button>
+              <button id="sink-edit-save" class="btn btn-primary">Save Changes</button>
+            </div>
+          </div>
+        </div>
+      `;
+      
+      document.body.insertAdjacentHTML('beforeend', modalHtml);
+      
+      const backdrop = document.getElementById('sink-edit-modal-backdrop');
+      const modal = document.getElementById('sink-edit-modal');
+      const closeBtn = document.getElementById('sink-edit-modal-close');
+      const cancelBtn = document.getElementById('sink-edit-cancel');
+      const saveBtn = document.getElementById('sink-edit-save');
+      
+      const closeModal = () => {
+        backdrop.remove();
+      };
+      
+      closeBtn.addEventListener('click', closeModal);
+      cancelBtn.addEventListener('click', closeModal);
+      backdrop.addEventListener('click', (e) => {
+        if (e.target === backdrop) closeModal();
+      });
+      
+      saveBtn.addEventListener('click', async () => {
+        const type = sink.type; // Type is immutable
+        const patchData = {
+          url: document.getElementById('sink-edit-url-input').value,
+          topic: document.getElementById('sink-edit-topic-input').value,
+          rate_limit: parseInt(document.getElementById('sink-edit-rate-limit-input').value) || 0
+        };
+        
+        if (type === 'nng') {
+          patchData.encoding = document.getElementById('sink-edit-encoding-select').value;
+        } else if (type === 'osc') {
+          patchData.in_bundle = document.getElementById('sink-edit-in-bundle-input').checked;
+          patchData.bundle_fragment_size = parseInt(document.getElementById('sink-edit-fragment-size-input').value) || 1024;
+        }
+        
+        try {
+          const response = await fetch(`/api/v1/sinks/${index}`, {
+            method: 'PATCH',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(patchData)
+          });
+          
+          if (response.ok) {
+            const result = await response.json();
+            setSinksMessage(`Sink ${index} updated successfully`, false);
+            closeModal();
+            // Refresh sink list
+            ws.send(JSON.stringify({ type: 'sensor.requestSnapshot' }));
+          } else {
+            const error = await response.json();
+            setSinksMessage(`Failed to update sink: ${error.message}`, true);
+          }
+        } catch (e) {
+          setSinksMessage(`Failed to update sink: ${e.message}`, true);
+        }
+      });
+    })
+    .catch(e => {
+      setSinksMessage(`Failed to fetch sink data: ${e.message}`, true);
+    });
+}
+
+// Delete sink function
+function deleteSink(index) {
+  if (!confirm(`Are you sure you want to delete sink ${index}?`)) {
+    return;
+  }
+  
+  try {
+    fetch(`/api/v1/sinks/${index}`, {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    }).then(response => {
+      if (response.ok) {
+        setSinksMessage(`Sink ${index} deleted successfully`, false);
+        // Refresh sink list
+        ws.send(JSON.stringify({ type: 'sensor.requestSnapshot' }));
+      } else {
+        response.json().then(error => {
+          setSinksMessage(`Failed to delete sink: ${error.message}`, true);
+        });
+      }
+    }).catch(e => {
+      setSinksMessage(`Failed to delete sink: ${e.message}`, true);
+    });
+  } catch (e) {
+    setSinksMessage(`Failed to delete sink: ${e.message}`, true);
+  }
+}
+
+// Initialize DBSCAN and other UI components
+document.addEventListener('DOMContentLoaded', () => {
+  setupDbscanEventListeners();
+  
+  // Add sensor button
+  if (btnAddSensor) {
+    btnAddSensor.addEventListener('click', () => {
+      if (!sensorAddModal) {
+        sensorAddModal = createSensorAddModal();
+      }
+    });
+  }
+  
+  // Add sink button
+  if (btnAddSink) {
+    btnAddSink.addEventListener('click', () => {
+      createSinkAddModal();
+    });
+  }
+  
+  // Request initial DBSCAN config
+  if (ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: 'dbscan.requestConfig' }));
+  } else {
+    ws.addEventListener('open', () => {
+      ws.send(JSON.stringify({ type: 'dbscan.requestConfig' }));
+    });
+  }
+});
+
+// Handle DBSCAN WebSocket messages
+const originalWsOnMessage = ws.onmessage;
+ws.onmessage = (ev) => {
+  // Call original handler first
+  if (originalWsOnMessage) {
+    originalWsOnMessage.call(ws, ev);
+  }
+  
+  // Handle DBSCAN messages
+  try {
+    const m = JSON.parse(ev.data);
+    
+    if (m.type === 'dbscan.config' && m.config) {
+      currentDbscanConfig = m.config;
+      applyDbscanConfigToUI(m.config);
+      setDbscanMessage('DBSCAN configuration loaded from server');
+    } else if (m.type === 'dbscan.updated' && m.config) {
+      currentDbscanConfig = m.config;
+      applyDbscanConfigToUI(m.config);
+      setDbscanMessage('DBSCAN configuration updated');
+    }
+    
+    // Handle sinks in snapshot
+    if (m.publishers && m.publishers.sinks) {
+      renderSinks(m.publishers.sinks);
+    }
+  } catch (e) {
+    // Ignore parsing errors
+  }
+};

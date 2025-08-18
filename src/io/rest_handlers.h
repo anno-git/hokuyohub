@@ -34,6 +34,20 @@ class RestApi : public drogon::HttpController<RestApi, false> { // ★ AutoCreat
     ADD_METHOD_TO(RestApi::putPostfilter, "/api/v1/filters/postfilter", drogon::Put);
     ADD_METHOD_TO(RestApi::getFilters, "/api/v1/filters", drogon::Get);
     
+    // DBSCAN
+    ADD_METHOD_TO(RestApi::getDbscan, "/api/v1/dbscan", drogon::Get);
+    ADD_METHOD_TO(RestApi::putDbscan, "/api/v1/dbscan", drogon::Put);
+    
+    // Sensors (new endpoints)
+    ADD_METHOD_TO(RestApi::postSensor, "/api/v1/sensors", drogon::Post);
+    ADD_METHOD_TO(RestApi::deleteSensor, "/api/v1/sensors/{id}", drogon::Delete);
+    
+    // Sinks
+    ADD_METHOD_TO(RestApi::getSinks, "/api/v1/sinks", drogon::Get);
+    ADD_METHOD_TO(RestApi::postSink, "/api/v1/sinks", drogon::Post);
+    ADD_METHOD_TO(RestApi::patchSink, "/api/v1/sinks/{index}", drogon::Patch);
+    ADD_METHOD_TO(RestApi::deleteSink, "/api/v1/sinks/{index}", drogon::Delete);
+    
     // Snapshot
     ADD_METHOD_TO(RestApi::getSnapshot, "/api/v1/snapshot", drogon::Get);
     
@@ -60,6 +74,20 @@ private:
   void getPostfilter(const drogon::HttpRequestPtr&, std::function<void (const drogon::HttpResponsePtr &)> &&);
   void putPostfilter(const drogon::HttpRequestPtr&, std::function<void (const drogon::HttpResponsePtr &)> &&);
   void getFilters(const drogon::HttpRequestPtr&, std::function<void (const drogon::HttpResponsePtr &)> &&);
+  
+  // DBSCAN
+  void getDbscan(const drogon::HttpRequestPtr&, std::function<void (const drogon::HttpResponsePtr &)> &&);
+  void putDbscan(const drogon::HttpRequestPtr&, std::function<void (const drogon::HttpResponsePtr &)> &&);
+  
+  // Sensors (new endpoints)
+  void postSensor(const drogon::HttpRequestPtr&, std::function<void (const drogon::HttpResponsePtr &)> &&);
+  void deleteSensor(const drogon::HttpRequestPtr&, std::function<void (const drogon::HttpResponsePtr &)> &&);
+  
+  // Sinks
+  void getSinks(const drogon::HttpRequestPtr&, std::function<void (const drogon::HttpResponsePtr &)> &&);
+  void postSink(const drogon::HttpRequestPtr&, std::function<void (const drogon::HttpResponsePtr &)> &&);
+  void patchSink(const drogon::HttpRequestPtr&, std::function<void (const drogon::HttpResponsePtr &)> &&);
+  void deleteSink(const drogon::HttpRequestPtr&, std::function<void (const drogon::HttpResponsePtr &)> &&);
   
   // Snapshot
   void getSnapshot(const drogon::HttpRequestPtr&, std::function<void (const drogon::HttpResponsePtr &)> &&);
