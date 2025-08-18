@@ -74,18 +74,18 @@ int main(int argc, char** argv) {
 
   // HTTP listen
   auto startHttp = [](const std::string& url) {
-	auto pos = url.find(":");
-	if (pos == std::string::npos) return;
-	std::string host = url.substr(0, pos);
-	uint16_t port = static_cast<uint16_t>(std::stoi(url.substr(pos + 1)));
-	std::cout << "[App] Starting HTTP server on host:" << host << " port:" << port << std::endl;
-	app().addListener(host, port);
+    auto pos = url.find(":");
+	  if (pos == std::string::npos) return;
+    std::string host = url.substr(0, pos);
+    uint16_t port = static_cast<uint16_t>(std::stoi(url.substr(pos + 1)));
+    std::cout << "[App] Starting HTTP server on host:" << host << " port:" << port << std::endl;
+    app().addListener(host, port);
   };
   if (!httpListen.empty()) {
-	startHttp(httpListen);
+	  startHttp(httpListen);
   }
-  else if (!appcfg.ui.rest_listen.empty()) {
-    startHttp(appcfg.ui.rest_listen);
+  else if (!appcfg.ui.listen.empty()) {
+    startHttp(appcfg.ui.listen);
   }
 
 

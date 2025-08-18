@@ -147,8 +147,7 @@ AppConfig load_app_config(const std::string& path){
   }
 
   if (auto u = y["ui"]) {
-    if (u["ws_listen"])   cfg.ui.ws_listen   = u["ws_listen"].as<std::string>(cfg.ui.ws_listen);
-    if (u["rest_listen"]) cfg.ui.rest_listen = u["rest_listen"].as<std::string>(cfg.ui.rest_listen);
+    if (u["listen"])   cfg.ui.listen   = u["listen"].as<std::string>(cfg.ui.listen);
   }
 
   // Security configuration
@@ -183,9 +182,6 @@ AppConfig load_app_config(const std::string& path){
   if (y["sinks"] && y["sinks"].IsSequence()) {
     for (const auto& sn : y["sinks"]) {
       SinkConfig sc;
-      for(const auto &[key, value] : sn.as<std::map<std::string, YAML::Node>>()) {
-        std::cout << "Sink " << key << ": " << value << std::endl;
-      }
 
       std::string type = sn["type"].as<std::string>("");
       if (sn["topic"])     sc.topic     = sn["topic"].as<std::string>("");
@@ -313,8 +309,7 @@ std::string dump_app_config(const AppConfig& cfg) {
 
   // UI
   out << YAML::Key << "ui" << YAML::Value << YAML::BeginMap;
-  out << YAML::Key << "ws_listen" << YAML::Value << cfg.ui.ws_listen;
-  out << YAML::Key << "rest_listen" << YAML::Value << cfg.ui.rest_listen;
+  out << YAML::Key << "listen" << YAML::Value << cfg.ui.listen;
   out << YAML::EndMap;
 
   // Security

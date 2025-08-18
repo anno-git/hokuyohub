@@ -58,9 +58,6 @@ void OscPublisher::start(const SinkConfig& config) {
   rate_limit_ = config.rate_limit;
   bundle_fragment_size_ = config.osc().bundle_fragment_size;
   in_bundle_ = config.osc().in_bundle;
-  std::cout << "[OscPublisher] Configured OSC publisher with URL: " << config.osc().url << std::endl;
-  std::cout << "[OscPublisher] In bundle: " << (in_bundle_ ? "true" : "false") << std::endl;
-  std::cout << "[OscPublisher] Bundle fragment size: " << bundle_fragment_size_ << std::endl;
 
 #ifdef USE_OSC
   socket_fd_ = socket(AF_INET, SOCK_DGRAM, 0);
@@ -256,8 +253,6 @@ void OscPublisher::sendUdp(const std::string& data) {
                         (struct sockaddr*)&addr_, sizeof(addr_));
   if (sent < 0) {
     std::cerr << "[OscPublisher] Failed to send UDP packet" << std::endl;
-  } else {
-    std::cout << "[OscPublisher] Sent UDP packet (" << sent << " bytes)" << std::endl;
   }
 #endif
 }

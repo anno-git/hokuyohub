@@ -53,7 +53,6 @@ bool Postfilter::applyIsolationRemovalFilter(Cluster& cluster,
                                              const std::vector<float>& xy,
                                              const std::vector<uint8_t>& sid) const {
     const auto& cfg = config_.isolation_removal;
-    std::cout << "Applying isolation removal filter with config: " << cfg.isolation_radius << ", " << cfg.min_points_size << ", " << cfg.required_neighbors << std::endl;
 
     // remove points that is isolated in the cluster
     std::vector<size_t> isolated_points;

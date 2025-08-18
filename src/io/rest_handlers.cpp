@@ -321,9 +321,8 @@ void RestApi::getSnapshot(const drogon::HttpRequestPtr&, std::function<void (con
     snapshot["publishers"] = publishers;
     
     // UI config
-    snapshot["ui"]["ws_listen"] = config_.ui.ws_listen;
-    snapshot["ui"]["rest_listen"] = config_.ui.rest_listen;
-    
+    snapshot["ui"]["listen"] = config_.ui.listen;
+
     auto resp = drogon::HttpResponse::newHttpJsonResponse(snapshot);
     callback(resp);
   } catch (const std::exception& e) {

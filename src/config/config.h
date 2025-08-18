@@ -43,8 +43,7 @@ struct SensorConfig {
 };
 
 struct UiConfig {
-  std::string ws_listen{"0.0.0.0:8080"};
-  std::string rest_listen{"0.0.0.0:8080"};
+  std::string listen{"0.0.0.0:8080"};
 };
 
 struct NngConfig {

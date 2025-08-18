@@ -92,8 +92,7 @@ postfilter:
 
 # UI configuration
 ui:
-  ws_listen: "0.0.0.0:8080"
-  rest_listen: "0.0.0.0:8080"
+  listen: "0.0.0.0:8080"
 
 # Security configuration
 security:

@@ -146,7 +146,7 @@ std::string NngBus::serializeToMessagePack(uint64_t t_ns, uint32_t seq, const st
   // This is a minimal implementation - in production you'd use a proper MessagePack library
   std::ostringstream ss;
   
-  // MessagePack map with 4 elements: {v, seq, t_ns, items, raw}
+  // MessagePack map with 5 elements: {v, seq, t_ns, items, raw}
   ss << char(0x85); // fixmap with 5 elements
   
   // "v": 1
