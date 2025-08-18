@@ -15,13 +15,11 @@ using namespace drogon;
 int main(int argc, char** argv) {
   std::string cfgPath = "./config/default.yaml";
   std::string httpListen = "";
-  std::string pubUrl = "tcp://0.0.0.0:5555";
 
   for (int i=1;i<argc;++i){
     std::string a = argv[i];
     if(a=="--config" && i+1<argc) cfgPath = argv[++i];
     else if(a=="--listen" && i+1<argc) httpListen = argv[++i];
-    else if(a=="--pub" && i+1<argc) pubUrl = argv[++i];
   }
 
   AppConfig appcfg = load_app_config(cfgPath);
@@ -39,11 +37,6 @@ int main(int argc, char** argv) {
     }
   }
   
-  // Fallback for legacy pubUrl parameter
-  if (!nng_bus.isEnabled() && !pubUrl.empty()) {
-    nng_bus.startPublisher(pubUrl);
-  }
-
   // Detection pipeline with full configuration
   SensorManager sensors(appcfg);
   sensors.configure(appcfg.sensors);
