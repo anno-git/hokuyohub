@@ -1,6 +1,7 @@
 #include "config.h"
 #include <yaml-cpp/yaml.h>
 #include <algorithm>
+#include <iostream>
 
 static float clampf(float v, float lo, float hi){ return std::max(lo, std::min(hi, v)); }
 

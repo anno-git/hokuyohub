@@ -9,7 +9,7 @@
 
 class FilterManager {
 public:
-    FilterManager(const PrefilterConfig& prefilter_config, const PostfilterConfig& postfilter_config, AppConfig& app_config);
+    FilterManager(PrefilterConfig& prefilter_config, PostfilterConfig& postfilter_config);
     
     // Update filter configurations from JSON
     bool updatePrefilterConfig(const Json::Value& config);
@@ -30,14 +30,16 @@ public:
     // Check if filters are enabled
     bool isPrefilterEnabled() const { return prefilter_config_.enabled; }
     bool isPostfilterEnabled() const { return postfilter_config_.enabled; }
+    
+    // Reload configuration from AppConfig (for Load/Import operations)
+    void reloadFromAppConfig();
 
 private:
     mutable std::mutex mutex_;
-    PrefilterConfig prefilter_config_;
-    PostfilterConfig postfilter_config_;
+    PrefilterConfig& prefilter_config_;
+    PostfilterConfig& postfilter_config_;
     std::unique_ptr<Prefilter> prefilter_;
     std::unique_ptr<Postfilter> postfilter_;
-    AppConfig& app_config_;  // Reference to main config for immediate updates
     
     void recreatePrefilter();
     void recreatePostfilter();

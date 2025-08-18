@@ -426,6 +426,15 @@ void RestApi::postConfigsLoad(const drogon::HttpRequestPtr& req, std::function<v
     try {
       AppConfig new_config = load_app_config(path);
       config_ = new_config;
+
+      // Reload configurations in SensorManager and FilterManager
+      sensors_.reloadFromAppConfig();
+      filters_.reloadFromAppConfig();
+      
+      // Notify all WebSocket clients about the configuration change
+      if (ws_) {
+        ws_->broadcastSnapshot();
+      }
       
       Json::Value result;
       result["loaded"] = true;
@@ -469,6 +478,15 @@ void RestApi::postConfigsImport(const drogon::HttpRequestPtr& req, std::function
     try {
       AppConfig new_config = load_app_config(temp_path);
       config_ = new_config;
+      
+      // Reload configurations in SensorManager and FilterManager
+      sensors_.reloadFromAppConfig();
+      filters_.reloadFromAppConfig();
+      
+      // Notify all WebSocket clients about the configuration change
+      if (ws_) {
+        ws_->broadcastSnapshot();
+      }
       
       // Clean up temp file
       std::remove(temp_path.c_str());

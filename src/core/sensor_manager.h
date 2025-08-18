@@ -32,6 +32,9 @@ public:
 
   bool applyPatch(int id, const Json::Value& patch, Json::Value& applied, std::string& err);
   bool restartSensor(int id);
+  
+  // Reload configuration from AppConfig (for Load/Import operations)
+  void reloadFromAppConfig();
 
 private:
   AppConfig& app_config_;  // Reference to main config for immediate updates

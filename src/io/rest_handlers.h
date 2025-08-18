@@ -5,9 +5,8 @@
 #include "detect/dbscan.h"
 #include "io/nng_bus.h"
 #include "config/config.h"
+#include "ws_handlers.h"
 #include <memory>
-
-class LiveWs;
 
 class RestApi : public drogon::HttpController<RestApi, false> { // ★ AutoCreationを無効化
    SensorManager& sensors_;

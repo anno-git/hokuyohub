@@ -63,33 +63,136 @@ SensorManager::SensorManager(AppConfig& app_config) : app_config_(app_config) {
 
 void SensorManager::configure(const std::vector<SensorConfig>& cfgs) {
   auto& st = S();
-  if (st.running.load()) {
-    std::cerr << "[SensorManager] configure() ignored while running.\n";
-    return;
+  
+  // Build maps for current and new configurations
+  std::unordered_map<std::string, std::unique_ptr<Slot>> current_sensors;
+  std::unordered_map<std::string, const SensorConfig*> new_configs;
+  
+  // Extract current sensors by ID
+  for (auto& slot : st.slots) {
+    if (slot) {
+      current_sensors[slot->cfg.id] = std::move(slot);
+    }
   }
+  
+  // Build new config map
+  for (const auto& cfg : cfgs) {
+    new_configs[cfg.id] = &cfg;
+  }
+  
+  // Clear current state
   st.slots.clear();
   st.id2sid.clear();
-  st.seq.store(0);
-
+  
   uint8_t next_sid = 0;
-  for (const auto& c : cfgs) {
-    if (!c.enabled) continue;
-
-    auto p = std::make_unique<Slot>();
-    p->cfg = c;
-    p->sid = next_sid++;
-    p->dev = create_sensor(c);
-    if (!p->dev) {
-      std::cerr << "[SensorManager] no driver for type: " << c.type << " (id=" << c.id << ")\n";
-      continue;
+  
+  // Process each new configuration
+  for (const auto& new_cfg : cfgs) {
+    auto current_it = current_sensors.find(new_cfg.id);
+    std::unique_ptr<Slot> slot;
+    
+    if (current_it != current_sensors.end()) {
+      // Sensor exists in current configuration
+      slot = std::move(current_it->second);
+      
+      // Update configuration (but preserve device and state)
+      bool config_changed = (slot->cfg.host != new_cfg.host ||
+                           slot->cfg.port != new_cfg.port ||
+                           slot->cfg.type != new_cfg.type ||
+                           slot->cfg.mode != new_cfg.mode ||
+                           slot->cfg.skip_step != new_cfg.skip_step ||
+                           slot->cfg.ignore_checksum_error != new_cfg.ignore_checksum_error);
+      
+      slot->cfg = new_cfg;
+      
+      // If critical config changed, need to recreate device
+      if (config_changed) {
+        if (slot->started) {
+          slot->dev->stop();
+          slot->started = false;
+        }
+        slot->dev = create_sensor(new_cfg);
+        if (!slot->dev) {
+          std::cerr << "[SensorManager] no driver for type: " << new_cfg.type << " (id=" << new_cfg.id << ")\n";
+          continue;
+        }
+        // Re-setup subscription
+        slot->dev->subscribe([raw = slot.get()](const RawScan& rs){
+          std::lock_guard<std::mutex> lk(raw->mu);
+          raw->latest = rs;
+        });
+      }
+      
+      // Handle enabled state based on new configuration
+      if (new_cfg.enabled) {
+        // Should be running
+        if (!slot->started) {
+          // Currently not running + should run → start
+          if (slot->dev && slot->dev->start(slot->cfg)) {
+            slot->started = true;
+            std::cout << "[SensorManager] started existing sensor id=" << slot->cfg.id << std::endl;
+          } else {
+            std::cerr << "[SensorManager] FAILED to start existing sensor id=" << slot->cfg.id << std::endl;
+          }
+        }
+        // Currently running + should run → do nothing (already handled above)
+      } else {
+        // Should not be running
+        if (slot->started) {
+          // Currently running + should not run → stop
+          slot->dev->stop();
+          slot->started = false;
+          std::cout << "[SensorManager] stopped sensor id=" << slot->cfg.id << std::endl;
+        }
+        // Currently not running + should not run → do nothing
+      }
+      
+      current_sensors.erase(current_it);
+    } else {
+      // New sensor not in current configuration
+      slot = std::make_unique<Slot>();
+      slot->cfg = new_cfg;
+      slot->dev = create_sensor(new_cfg);
+      if (!slot->dev) {
+        std::cerr << "[SensorManager] no driver for type: " << new_cfg.type << " (id=" << new_cfg.id << ")\n";
+        continue;
+      }
+      
+      // Setup subscription
+      slot->dev->subscribe([raw = slot.get()](const RawScan& rs){
+        std::lock_guard<std::mutex> lk(raw->mu);
+        raw->latest = rs;
+      });
+      
+      if (new_cfg.enabled) {
+        // Not in current + should run → add and start
+        if (slot->dev->start(slot->cfg)) {
+          slot->started = true;
+          std::cout << "[SensorManager] added and started new sensor id=" << slot->cfg.id << std::endl;
+        } else {
+          std::cerr << "[SensorManager] FAILED to start new sensor id=" << slot->cfg.id << std::endl;
+        }
+      } else {
+        // Not in current + should not run → add but don't start
+        std::cout << "[SensorManager] added new sensor id=" << slot->cfg.id << " (not started)" << std::endl;
+      }
     }
-    // センサからのpushを受け、「最新だけ」保持
-    p->dev->subscribe([raw = p.get()](const RawScan& rs){
-      std::lock_guard<std::mutex> lk(raw->mu);
-      raw->latest = rs;
-    });
-    st.id2sid[c.id] = p->sid;
-    st.slots.emplace_back(std::move(p));
+    
+    // Assign sensor ID and add to slots
+    slot->sid = next_sid++;
+    st.id2sid[new_cfg.id] = slot->sid;
+    st.slots.emplace_back(std::move(slot));
+  }
+  
+  // Handle sensors that exist in current but not in new configuration
+  // → stop and remove (they're already removed from st.slots, just need to stop)
+  for (auto& [id, slot] : current_sensors) {
+    if (slot->started) {
+      slot->dev->stop();
+      slot->started = false;
+      std::cout << "[SensorManager] stopped and removed sensor id=" << id << std::endl;
+    }
+    // slot will be automatically destroyed when current_sensors goes out of scope
   }
 
   std::cout << "[SensorManager] configured sensors=" << st.slots.size() << std::endl;
@@ -444,4 +547,14 @@ Json::Value SensorManager::listAsJson() const {
     arr.append(getAsJson(i));
   }
   return arr;
+}
+
+void SensorManager::reloadFromAppConfig() {
+  try {
+    // Reconfigure sensors with new configuration from app_config_
+    configure(app_config_.sensors);
+    std::cout << "[SensorManager] Configuration reloaded from AppConfig" << std::endl;
+  } catch (const std::exception& e) {
+    std::cerr << "[SensorManager] Failed to reload from AppConfig: " << e.what() << std::endl;
+  }
 }

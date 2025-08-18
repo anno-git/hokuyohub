@@ -57,7 +57,7 @@ int main(int argc, char** argv) {
   dbscan.setPerformanceParams(dcfg.h_min, dcfg.h_max, dcfg.R_max, dcfg.M_max);
 
   // Initialize filter manager with configuration
-  FilterManager filterManager(appcfg.prefilter, appcfg.postfilter, appcfg);
+  FilterManager filterManager(appcfg.prefilter, appcfg.postfilter);
 
   auto ws = std::make_shared<LiveWs>(nng_bus);
   auto rest = std::make_shared<RestApi>(sensors, filterManager, dbscan, nng_bus, ws, appcfg);
@@ -144,8 +144,6 @@ int main(int argc, char** argv) {
       
       filtered_xy = std::move(roi_filtered_xy);
       filtered_sid = std::move(roi_filtered_sid);
-      
-      std::cout << "[ROI] Applied world_mask filtering, points after ROI: " << (filtered_xy.size() / 2) << std::endl;
     }
     
     // Push filtered points to WebUI

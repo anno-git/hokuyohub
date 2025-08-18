@@ -67,6 +67,10 @@ void LiveWs::handleNewMessage(const drogon::WebSocketConnectionPtr& conn,
       handleFilterUpdate(conn, j);
       return;
     }
+    if(t == "filter.requestConfig"){
+      sendFilterConfigTo(conn);
+      return;
+    }
     if(t == "world.update"){
       handleWorldUpdate(conn, j);
       return;
@@ -181,10 +185,68 @@ void LiveWs::sendSnapshotTo(const drogon::WebSocketConnectionPtr& conn){
     }
   }
   
+  // Add filter configuration to snapshot
+  if(filterManager_){
+    out["filter_config"] = filterManager_->getFilterConfigAsJson();
+  }
+  
   if(conn && conn->connected()){
     conn->send(out.toStyledString());
   }
   std::cout << out.toStyledString() << std::endl;
+}
+
+void LiveWs::broadcastSnapshot(){
+  Json::Value out; out["type"]="sensor.snapshot";
+  // SensorManager から JSON（jsoncpp）でもらう想定。無ければ空配列。
+  if(sensorManager_){
+    out["sensors"] = sensorManager_->listAsJson(); // 例: [{id,enabled,...}, ...]
+  }else{
+    out["sensors"] = Json::arrayValue;
+  }
+  
+  // Add world mask data to snapshot
+  if(appConfig_){
+    out["world_mask"]["includes"] = Json::arrayValue;
+    out["world_mask"]["excludes"] = Json::arrayValue;
+    
+    // Convert include polygons to JSON
+    for (const auto& polygon : appConfig_->world_mask.include) {
+      Json::Value poly_json = Json::arrayValue;
+      for (const auto& point : polygon.points) {
+        Json::Value point_json = Json::arrayValue;
+        point_json.append(point.x);
+        point_json.append(point.y);
+        poly_json.append(point_json);
+      }
+      out["world_mask"]["includes"].append(poly_json);
+    }
+    
+    // Convert exclude polygons to JSON
+    for (const auto& polygon : appConfig_->world_mask.exclude) {
+      Json::Value poly_json = Json::arrayValue;
+      for (const auto& point : polygon.points) {
+        Json::Value point_json = Json::arrayValue;
+        point_json.append(point.x);
+        point_json.append(point.y);
+        poly_json.append(point_json);
+      }
+      out["world_mask"]["excludes"].append(poly_json);
+    }
+  }
+  
+  // Add filter configuration to snapshot
+  if(filterManager_){
+    out["filter_config"] = filterManager_->getFilterConfigAsJson();
+  }
+  
+  // Broadcast to all connected clients
+  const auto payload = out.toStyledString();
+  std::lock_guard<std::mutex> lk(mtx_);
+  for(const auto& c : conns_){
+    if(c && c->connected()) c->send(payload);
+  }
+  std::cout << "[LiveWs] Broadcasted snapshot to " << conns_.size() << " clients" << std::endl;
 }
 
 void LiveWs::broadcastSensorUpdated(int id){
@@ -356,6 +418,9 @@ void LiveWs::handleFilterUpdate(const drogon::WebSocketConnectionPtr& conn, cons
   if (success) {
     res["message"] = "Filter configuration updated successfully";
     std::cout << "[FilterUpdate] Filter configuration updated successfully" << std::endl;
+    
+    // Broadcast filter configuration update to all clients
+    broadcastFilterConfigUpdate();
   } else {
     res["type"] = "error";
     res["message"] = "Failed to update filter configuration";
@@ -363,4 +428,29 @@ void LiveWs::handleFilterUpdate(const drogon::WebSocketConnectionPtr& conn, cons
   }
   
   conn->send(res.toStyledString());
+}
+
+void LiveWs::broadcastFilterConfigUpdate(){
+  if (!filterManager_) return;
+  
+  Json::Value out;
+  out["type"] = "filter.updated";
+  out["config"] = filterManager_->getFilterConfigAsJson();
+  
+  const auto payload = out.toStyledString();
+  std::lock_guard<std::mutex> lk(mtx_);
+  for(const auto& c : conns_){
+    if(c && c->connected()) c->send(payload);
+  }
+  std::cout << "[LiveWs] Broadcasted filter config update to " << conns_.size() << " clients" << std::endl;
+}
+
+void LiveWs::sendFilterConfigTo(const drogon::WebSocketConnectionPtr& conn){
+  if (!filterManager_ || !conn || !conn->connected()) return;
+  
+  Json::Value out;
+  out["type"] = "filter.config";
+  out["config"] = filterManager_->getFilterConfigAsJson();
+  
+  conn->send(out.toStyledString());
 }

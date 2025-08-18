@@ -180,6 +180,20 @@ ws.onmessage = (ev) => {
       redrawCanvas();
       updateStatsDisplay();
       updateLegend();
+    } else if(m.type === 'filter.config'){
+      // フィルター設定を受信
+      if(m.config){
+        currentFilterConfig = m.config;
+        applyFilterConfigToUI(m.config);
+        setFilterMessage('Filter configuration received from server');
+      }
+    } else if(m.type === 'filter.updated'){
+      // フィルター設定更新通知を受信
+      if(m.config){
+        currentFilterConfig = m.config;
+        applyFilterConfigToUI(m.config);
+        setFilterMessage('Filter configuration updated');
+      }
     }
   }catch(e){ /* ignore */ }
 };
@@ -818,10 +832,31 @@ ws.onmessage = (ev) => {
       for(const s of m.sensors) sensors.set(s.id, s);
       renderSensors();
       maybeCloseModalOnAck(m);
+      
+      // フィルター設定がスナップショットに含まれている場合は適用
+      if (m.filter_config) {
+        currentFilterConfig = m.filter_config;
+        applyFilterConfigToUI(m.filter_config);
+        setFilterMessage('Filter configuration loaded from server');
+      }
     } else if (m.type === 'sensor.updated' && m.sensor && typeof m.sensor.id === 'number') {
       sensors.set(m.sensor.id, m.sensor);
       renderSensors();
       maybeCloseModalOnAck(m);
+    } else if (m.type === 'filter.config') {
+      // フィルター設定を受信
+      if(m.config){
+        currentFilterConfig = m.config;
+        applyFilterConfigToUI(m.config);
+        setFilterMessage('Filter configuration received from server');
+      }
+    } else if (m.type === 'filter.updated') {
+      // フィルター設定更新通知を受信
+      if(m.config){
+        currentFilterConfig = m.config;
+        applyFilterConfigToUI(m.config);
+        setFilterMessage('Filter configuration updated');
+      }
     } else if (m.type === 'ok') {
       // 任意：応答OKのとき軽く表示
       setPanelMsg(`ok: ${m.ref ?? ''}`);
@@ -834,11 +869,17 @@ ws.onmessage = (ev) => {
 
 // 接続時に snapshot 要求（サーバが自動送信しない環境でも取得できるように）
 btnRefresh?.addEventListener('click', ()=>{
-  try { ws.send(JSON.stringify({ type:'sensor.requestSnapshot' })); }
+  try {
+    ws.send(JSON.stringify({ type:'sensor.requestSnapshot' }));
+    ws.send(JSON.stringify({ type:'filter.requestConfig' }));
+  }
   catch(e){ setPanelMsg('send failed', false); }
 });
 ws.addEventListener('open', ()=>{
-  try { ws.send(JSON.stringify({ type:'sensor.requestSnapshot' })); } catch(_e){}
+  try {
+    ws.send(JSON.stringify({ type:'sensor.requestSnapshot' }));
+    ws.send(JSON.stringify({ type:'filter.requestConfig' }));
+  } catch(_e){}
 });
 
 

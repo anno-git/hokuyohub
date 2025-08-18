@@ -1,8 +1,8 @@
 #include "filter_manager.h"
 #include <iostream>
 
-FilterManager::FilterManager(const PrefilterConfig& prefilter_config, const PostfilterConfig& postfilter_config, AppConfig& app_config)
-    : prefilter_config_(prefilter_config), postfilter_config_(postfilter_config), app_config_(app_config) {
+FilterManager::FilterManager(PrefilterConfig& prefilter_config, PostfilterConfig& postfilter_config)
+    : prefilter_config_(prefilter_config), postfilter_config_(postfilter_config) {
     recreatePrefilter();
     recreatePostfilter();
 }
@@ -12,9 +12,6 @@ bool FilterManager::updatePrefilterConfig(const Json::Value& config) {
     try {
         PrefilterConfig new_config = jsonToPrefilterConfig(config);
         prefilter_config_ = new_config;
-        
-        // Update app_config_ immediately
-        app_config_.prefilter = new_config;
         
         recreatePrefilter();
         std::cout << "[FilterManager] Prefilter configuration updated" << std::endl;
@@ -30,9 +27,6 @@ bool FilterManager::updatePostfilterConfig(const Json::Value& config) {
     try {
         PostfilterConfig new_config = jsonToPostfilterConfig(config);
         postfilter_config_ = new_config;
-        
-        // Update app_config_ immediately
-        app_config_.postfilter = new_config;
         
         recreatePostfilter();
         std::cout << "[FilterManager] Postfilter configuration updated" << std::endl;
@@ -52,18 +46,12 @@ bool FilterManager::updateFilterConfig(const Json::Value& config) {
             PrefilterConfig new_prefilter_config = jsonToPrefilterConfig(config["prefilter"]);
             prefilter_config_ = new_prefilter_config;
             
-            // Update app_config_ immediately
-            app_config_.prefilter = new_prefilter_config;
-            
             recreatePrefilter();
         }
         
         if (config.isMember("postfilter")) {
             PostfilterConfig new_postfilter_config = jsonToPostfilterConfig(config["postfilter"]);
             postfilter_config_ = new_postfilter_config;
-            
-            // Update app_config_ immediately
-            app_config_.postfilter = new_postfilter_config;
             
             recreatePostfilter();
         }
@@ -73,6 +61,19 @@ bool FilterManager::updateFilterConfig(const Json::Value& config) {
     } catch (const std::exception& e) {
         std::cerr << "[FilterManager] Failed to update filter config: " << e.what() << std::endl;
         return false;
+    }
+}
+
+void FilterManager::reloadFromAppConfig() {
+    std::lock_guard<std::mutex> lock(mutex_);
+    try {
+        // Recreate filters with new configurations
+        recreatePrefilter();
+        recreatePostfilter();
+        
+        std::cout << "[FilterManager] Configuration reloaded from AppConfig" << std::endl;
+    } catch (const std::exception& e) {
+        std::cerr << "[FilterManager] Failed to reload from AppConfig: " << e.what() << std::endl;
     }
 }
 
