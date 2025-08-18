@@ -4,6 +4,7 @@
 #include "core/filter_manager.h"
 #include "detect/dbscan.h"
 #include "io/nng_bus.h"
+#include "io/osc_publisher.h"
 #include "config/config.h"
 #include "ws_handlers.h"
 #include <memory>
@@ -13,13 +14,14 @@ class RestApi : public drogon::HttpController<RestApi, false> { // ★ AutoCreat
    FilterManager& filters_;
    DBSCAN2D& dbscan_;
    NngBus& bus_;
+   OscPublisher& osc_;
    std::shared_ptr<LiveWs> ws_;
    AppConfig& config_;
    std::string token_;
 
   public:
-    RestApi(SensorManager& s, FilterManager& f, DBSCAN2D& d, NngBus& b, std::shared_ptr<LiveWs> w, AppConfig& cfg)
-     : sensors_(s), filters_(f), dbscan_(d), bus_(b), ws_(std::move(w)), config_(cfg), token_(cfg.security.api_token) {}
+    RestApi(SensorManager& s, FilterManager& f, DBSCAN2D& d, NngBus& b, OscPublisher& o, std::shared_ptr<LiveWs> w, AppConfig& cfg)
+     : sensors_(s), filters_(f), dbscan_(d), bus_(b), osc_(o), ws_(std::move(w)), config_(cfg), token_(cfg.security.api_token) {}
 
   METHOD_LIST_BEGIN
     // Sensors
@@ -58,6 +60,9 @@ class RestApi : public drogon::HttpController<RestApi, false> { // ★ AutoCreat
     ADD_METHOD_TO(RestApi::postConfigsSave, "/api/v1/configs/save", drogon::Post);
     ADD_METHOD_TO(RestApi::getConfigsExport, "/api/v1/configs/export", drogon::Get);
   METHOD_LIST_END
+
+  // Sink runtime management (public for main.cpp access)
+  void applySinksRuntime();
 
 private:
   bool authorize(const drogon::HttpRequestPtr& req) const;

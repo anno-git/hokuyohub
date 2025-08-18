@@ -318,7 +318,6 @@ void RestApi::deleteSensor(const drogon::HttpRequestPtr& req, std::function<void
   try {
     // This endpoint uses string sensor ID (cfg.id) for deletion
     std::string sensor_id = req->getRoutingParameters()[0];
-    std::cout << "Deleting sensor: " << sensor_id << std::endl;
 
     // Find sensor in configuration by string ID
     auto it = std::find_if(config_.sensors.begin(), config_.sensors.end(),
@@ -809,6 +808,9 @@ void RestApi::postSink(const drogon::HttpRequestPtr& req, std::function<void (co
     // Add to configuration
     config_.sinks.push_back(newSink);
     
+    // Apply sink configuration to runtime
+    applySinksRuntime();
+    
     // Notify all WebSocket clients
     if (ws_) {
       ws_->broadcastSnapshot();
@@ -843,8 +845,11 @@ void RestApi::patchSink(const drogon::HttpRequestPtr& req, std::function<void (c
   }
   
   try {
-    int index = std::stoi(req->getParameter("index"));
-    
+    for (const auto& param : req->getRoutingParameters()) {
+      std::cout << "Routing parameter: " << param << std::endl;
+    }
+    int index = std::stoi(req->getRoutingParameters()[0]);
+    std::cout << "Patching sink: " << index << std::endl;
     if (index < 0 || index >= static_cast<int>(config_.sinks.size())) {
       Json::Value error;
       error["error"] = "invalid_index";
@@ -902,18 +907,20 @@ void RestApi::patchSink(const drogon::HttpRequestPtr& req, std::function<void (c
       }
     }
     
-    if (sink.isNng() && patch.isMember("encoding")) {
-      std::string encoding = patch["encoding"].asString();
-      if (encoding != "msgpack" && encoding != "json") {
-        Json::Value error;
-        error["error"] = "invalid_encoding";
-        error["message"] = "Encoding must be 'msgpack' or 'json'";
-        auto resp = drogon::HttpResponse::newHttpJsonResponse(error);
-        resp->setStatusCode(drogon::k400BadRequest);
-        callback(resp);
-        return;
+    if (sink.isNng()) {
+      if (patch.isMember("encoding")) {
+        std::string encoding = patch["encoding"].asString();
+        if (encoding != "msgpack" && encoding != "json") {
+          Json::Value error;
+          error["error"] = "invalid_encoding";
+          error["message"] = "Encoding must be 'msgpack' or 'json'";
+          auto resp = drogon::HttpResponse::newHttpJsonResponse(error);
+          resp->setStatusCode(drogon::k400BadRequest);
+          callback(resp);
+          return;
+        }
+        sink.nng().encoding = encoding;
       }
-      sink.nng().encoding = encoding;
     }
     
     if (sink.isOsc()) {
@@ -924,6 +931,9 @@ void RestApi::patchSink(const drogon::HttpRequestPtr& req, std::function<void (c
         sink.osc().bundle_fragment_size = std::max(0ULL, static_cast<uint64_t>(patch["bundle_fragment_size"].asInt()));
       }
     }
+    
+    // Apply sink configuration to runtime
+    applySinksRuntime();
     
     // Notify all WebSocket clients
     if (ws_) {
@@ -963,7 +973,7 @@ void RestApi::deleteSink(const drogon::HttpRequestPtr& req, std::function<void (
   }
   
   try {
-    int index = std::stoi(req->getParameter("index"));
+    int index = std::stoi(req->getRoutingParameters()[0]);
     
     if (index < 0 || index >= static_cast<int>(config_.sinks.size())) {
       Json::Value error;
@@ -977,6 +987,9 @@ void RestApi::deleteSink(const drogon::HttpRequestPtr& req, std::function<void (
     
     // Remove sink from configuration
     config_.sinks.erase(config_.sinks.begin() + index);
+    
+    // Apply sink configuration to runtime
+    applySinksRuntime();
     
     // Notify all WebSocket clients
     if (ws_) {
@@ -1176,6 +1189,9 @@ void RestApi::postConfigsLoad(const drogon::HttpRequestPtr& req, std::function<v
       sensors_.reloadFromAppConfig();
       filters_.reloadFromAppConfig();
       
+      // Apply sink configuration to runtime
+      applySinksRuntime();
+      
       // Notify all WebSocket clients about the configuration change
       if (ws_) {
         ws_->broadcastSnapshot();
@@ -1227,6 +1243,9 @@ void RestApi::postConfigsImport(const drogon::HttpRequestPtr& req, std::function
       // Reload configurations in SensorManager and FilterManager
       sensors_.reloadFromAppConfig();
       filters_.reloadFromAppConfig();
+      
+      // Apply sink configuration to runtime
+      applySinksRuntime();
       
       // Notify all WebSocket clients about the configuration change
       if (ws_) {
@@ -1361,4 +1380,62 @@ void RestApi::getConfigsExport(const drogon::HttpRequestPtr&, std::function<void
     resp->setStatusCode(drogon::k500InternalServerError);
     callback(resp);
   }
+}
+
+// Sink runtime management
+void RestApi::applySinksRuntime() {
+  std::cout << "[RestApi] Applying sink configuration to runtime..." << std::endl;
+  
+  // Stop current publishers
+  bus_.stop();
+  osc_.stop();
+  
+  // Find active sinks (Phase 1: one per type)
+  const SinkConfig* active_nng = nullptr;
+  const SinkConfig* active_osc = nullptr;
+  int nng_count = 0;
+  int osc_count = 0;
+  
+  for (const auto& sink : config_.sinks) {
+    if (sink.isNng()) {
+      nng_count++;
+      if (!active_nng) {
+        active_nng = &sink;
+      }
+    } else if (sink.isOsc()) {
+      osc_count++;
+      if (!active_osc) {
+        active_osc = &sink;
+      }
+    }
+  }
+  
+  // Log warnings for multiple sinks of same type (Phase 1 limitation)
+  if (nng_count > 1) {
+    std::cout << "[RestApi] WARNING: " << nng_count << " NNG sinks configured, only first will be active (Phase 1 limitation)" << std::endl;
+  }
+  if (osc_count > 1) {
+    std::cout << "[RestApi] WARNING: " << osc_count << " OSC sinks configured, only first will be active (Phase 1 limitation)" << std::endl;
+  }
+  
+  // Start active publishers
+  if (active_nng) {
+    bus_.startPublisher(*active_nng);
+    std::cout << "[RestApi] Applied NNG sink: " << active_nng->nng().url
+              << " (topic: " << active_nng->topic
+              << ", rate_limit: " << active_nng->rate_limit << "Hz)" << std::endl;
+  } else {
+    std::cout << "[RestApi] No NNG sink configured" << std::endl;
+  }
+  
+  if (active_osc) {
+    osc_.start(*active_osc);
+    std::cout << "[RestApi] Applied OSC sink: " << active_osc->osc().url
+              << " (topic: " << active_osc->topic
+              << ", rate_limit: " << active_osc->rate_limit << "Hz)" << std::endl;
+  } else {
+    std::cout << "[RestApi] No OSC sink configured" << std::endl;
+  }
+  
+  std::cout << "[RestApi] Sink runtime configuration complete" << std::endl;
 }

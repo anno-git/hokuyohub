@@ -24,18 +24,9 @@ int main(int argc, char** argv) {
 
   AppConfig appcfg = load_app_config(cfgPath);
 
-  // Initialize publishers
+  // Initialize publishers (will be configured via RestApi)
   NngBus nng_bus;
   OscPublisher osc_publisher;
-  
-  for (const auto& s : appcfg.sinks) {
-    if (s.isNng()) {
-      nng_bus.startPublisher(s);
-    }
-    if (s.isOsc()) {
-      osc_publisher.start(s);
-    }
-  }
   
   // Detection pipeline with full configuration
   SensorManager sensors(appcfg);
@@ -54,13 +45,16 @@ int main(int argc, char** argv) {
   FilterManager filterManager(appcfg.prefilter, appcfg.postfilter);
 
   auto ws = std::make_shared<LiveWs>(nng_bus);
-  auto rest = std::make_shared<RestApi>(sensors, filterManager, dbscan, nng_bus, ws, appcfg);
+  auto rest = std::make_shared<RestApi>(sensors, filterManager, dbscan, nng_bus, osc_publisher, ws, appcfg);
   app().registerController(ws);
   app().registerController(rest);
 
   ws->setSensorManager(&sensors);
   ws->setFilterManager(&filterManager);
   ws->setAppConfig(&appcfg);
+  
+  // Apply initial sink configuration to runtime
+  rest->applySinksRuntime();
 
   app().setUploadPath("/tmp");
   app().setDocumentRoot("./webui");
