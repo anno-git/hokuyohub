@@ -2,6 +2,7 @@
 #include <drogon/drogon.h>
 #include "core/sensor_manager.h"  // ★ SensorManager へ橋渡し
 #include "core/filter_manager.h"  // ★ FilterManager へ橋渡し
+#include "config/config.h"        // ★ AppConfig へ橋渡し
 
 std::mutex LiveWs::mtx_;
 std::unordered_set<drogon::WebSocketConnectionPtr> LiveWs::conns_;
@@ -64,6 +65,10 @@ void LiveWs::handleNewMessage(const drogon::WebSocketConnectionPtr& conn,
     }
     if(t == "filter.update"){
       handleFilterUpdate(conn, j);
+      return;
+    }
+    if(t == "world.update"){
+      handleWorldUpdate(conn, j);
       return;
     }
     // -----------------------------------
@@ -145,6 +150,37 @@ void LiveWs::sendSnapshotTo(const drogon::WebSocketConnectionPtr& conn){
   }else{
     out["sensors"] = Json::arrayValue;
   }
+  
+  // Add world mask data to snapshot
+  if(appConfig_){
+    out["world_mask"]["includes"] = Json::arrayValue;
+    out["world_mask"]["excludes"] = Json::arrayValue;
+    
+    // Convert include polygons to JSON
+    for (const auto& polygon : appConfig_->world_mask.include) {
+      Json::Value poly_json = Json::arrayValue;
+      for (const auto& point : polygon.points) {
+        Json::Value point_json = Json::arrayValue;
+        point_json.append(point.x);
+        point_json.append(point.y);
+        poly_json.append(point_json);
+      }
+      out["world_mask"]["includes"].append(poly_json);
+    }
+    
+    // Convert exclude polygons to JSON
+    for (const auto& polygon : appConfig_->world_mask.exclude) {
+      Json::Value poly_json = Json::arrayValue;
+      for (const auto& point : polygon.points) {
+        Json::Value point_json = Json::arrayValue;
+        point_json.append(point.x);
+        point_json.append(point.y);
+        poly_json.append(point_json);
+      }
+      out["world_mask"]["excludes"].append(poly_json);
+    }
+  }
+  
   if(conn && conn->connected()){
     conn->send(out.toStyledString());
   }
@@ -186,6 +222,118 @@ void LiveWs::handleSensorUpdate(const drogon::WebSocketConnectionPtr& conn, cons
     Json::Value res; res["type"]="error"; res["ref"]="sensor.update"; res["message"]=err;
     conn->send(res.toStyledString());
   }
+}
+
+void LiveWs::handleWorldUpdate(const drogon::WebSocketConnectionPtr& conn, const Json::Value& j){
+  const Json::Value patch = j.get("patch", Json::Value(Json::objectValue));
+  
+  Json::Value res;
+  res["type"] = "ok";
+  res["ref"] = "world.update";
+  
+  if (!appConfig_) {
+    res["type"] = "error";
+    res["message"] = "AppConfig not available";
+    conn->send(res.toStyledString());
+    return;
+  }
+  
+  // Extract world_mask from patch
+  if (!patch.isMember("world_mask")) {
+    res["type"] = "error";
+    res["message"] = "Missing world_mask in patch";
+    conn->send(res.toStyledString());
+    return;
+  }
+  
+  const Json::Value world_mask = patch["world_mask"];
+  
+  try {
+    // Clear existing world mask
+    appConfig_->world_mask.include.clear();
+    appConfig_->world_mask.exclude.clear();
+    
+    // Parse include regions
+    if (world_mask.isMember("includes") && world_mask["includes"].isArray()) {
+      for (const auto& polygon_json : world_mask["includes"]) {
+        if (polygon_json.isArray()) {
+          core::Polygon polygon;
+          for (const auto& point_json : polygon_json) {
+            if (point_json.isArray() && point_json.size() >= 2) {
+              double x = point_json[0].asDouble();
+              double y = point_json[1].asDouble();
+              polygon.points.emplace_back(x, y);
+            }
+          }
+          if (!polygon.points.empty()) {
+            appConfig_->world_mask.include.push_back(std::move(polygon));
+          }
+        }
+      }
+    }
+    
+    // Parse exclude regions
+    if (world_mask.isMember("excludes") && world_mask["excludes"].isArray()) {
+      for (const auto& polygon_json : world_mask["excludes"]) {
+        if (polygon_json.isArray()) {
+          core::Polygon polygon;
+          for (const auto& point_json : polygon_json) {
+            if (point_json.isArray() && point_json.size() >= 2) {
+              double x = point_json[0].asDouble();
+              double y = point_json[1].asDouble();
+              polygon.points.emplace_back(x, y);
+            }
+          }
+          if (!polygon.points.empty()) {
+            appConfig_->world_mask.exclude.push_back(std::move(polygon));
+          }
+        }
+      }
+    }
+    
+    res["message"] = "World mask updated successfully";
+    std::cout << "[WorldUpdate] World mask updated successfully. Include regions: " 
+              << appConfig_->world_mask.include.size() 
+              << ", Exclude regions: " << appConfig_->world_mask.exclude.size() << std::endl;
+    
+    // Broadcast the update to all connected clients
+    Json::Value broadcast_msg;
+    broadcast_msg["type"] = "world.updated";
+    broadcast_msg["world_mask"]["includes"] = Json::arrayValue;
+    broadcast_msg["world_mask"]["excludes"] = Json::arrayValue;
+    
+    // Convert back to JSON for broadcasting
+    for (const auto& polygon : appConfig_->world_mask.include) {
+      Json::Value poly_json = Json::arrayValue;
+      for (const auto& point : polygon.points) {
+        Json::Value point_json = Json::arrayValue;
+        point_json.append(point.x);
+        point_json.append(point.y);
+        poly_json.append(point_json);
+      }
+      broadcast_msg["world_mask"]["includes"].append(poly_json);
+    }
+    
+    for (const auto& polygon : appConfig_->world_mask.exclude) {
+      Json::Value poly_json = Json::arrayValue;
+      for (const auto& point : polygon.points) {
+        Json::Value point_json = Json::arrayValue;
+        point_json.append(point.x);
+        point_json.append(point.y);
+        poly_json.append(point_json);
+      }
+      broadcast_msg["world_mask"]["excludes"].append(poly_json);
+    }
+    
+    broadcast(broadcast_msg.toStyledString());
+    
+  } catch (const std::exception& e) {
+    res["type"] = "error";
+    res["message"] = std::string("Failed to update world mask: ") + e.what();
+    std::cout << "[WorldUpdate] Failed to update world mask: " << e.what() << std::endl;
+  }
+  
+  conn->send(res.toStyledString());
 }
 
 void LiveWs::handleFilterUpdate(const drogon::WebSocketConnectionPtr& conn, const Json::Value& j){

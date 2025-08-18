@@ -15,6 +15,33 @@
     <span id="last-seq-age"></span>
     <span id="fps-info"></span>
   </div>
+  
+  <!-- Viewport and ROI Controls -->
+  <div id="viewport-controls" class="viewport-controls">
+    <div class="control-group">
+      <label>Viewport:</label>
+      <button id="btn-reset-viewport" type="button" title="Reset View (Double-click canvas)">Reset View</button>
+      <span id="viewport-info">Scale: 60px/m</span>
+    </div>
+    <div class="control-group">
+      <label>ROI:</label>
+      <button id="btn-create-include" type="button" class="roi-btn">+ Include Region</button>
+      <button id="btn-create-exclude" type="button" class="roi-btn">+ Exclude Region</button>
+      <button id="btn-clear-roi" type="button" class="roi-btn">Clear All ROI</button>
+    </div>
+    <div class="control-group">
+      <label>Config:</label>
+      <button id="btn-save-config" type="button" class="roi-btn">Save</button>
+      <button id="btn-load-config" type="button" class="roi-btn">Load</button>
+      <button id="btn-export-config" type="button" class="roi-btn">Export</button>
+      <button id="btn-import-config" type="button" class="roi-btn">Import</button>
+    </div>
+    <div class="control-group">
+      <label>Instructions:</label>
+      <span id="roi-instructions">Pan: Drag | Zoom: Wheel | Sensors: Drag to move, R to rotate | ROI: Click points, Enter to finish</span>
+    </div>
+  </div>
+  
   <canvas id="cv"></canvas>
   <section id="panel">
  <div class="panel-header">
@@ -235,6 +262,10 @@
     <button id="sensor-modal-save" class="btn btn-primary">Save</button>
   </div>
 </div>
+
+<!-- Hidden file input for config import -->
+<input type="file" id="config-file-input" accept=".yaml,.yml,text/yaml,text/plain" style="display: none;">
+
 <script src="app.js"></script>
 </body>
 </html>

@@ -9,7 +9,7 @@
 
 class FilterManager {
 public:
-    FilterManager(const PrefilterConfig& prefilter_config, const PostfilterConfig& postfilter_config);
+    FilterManager(const PrefilterConfig& prefilter_config, const PostfilterConfig& postfilter_config, AppConfig& app_config);
     
     // Update filter configurations from JSON
     bool updatePrefilterConfig(const Json::Value& config);
@@ -37,6 +37,7 @@ private:
     PostfilterConfig postfilter_config_;
     std::unique_ptr<Prefilter> prefilter_;
     std::unique_ptr<Postfilter> postfilter_;
+    AppConfig& app_config_;  // Reference to main config for immediate updates
     
     void recreatePrefilter();
     void recreatePostfilter();

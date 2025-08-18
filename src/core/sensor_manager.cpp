@@ -58,6 +58,9 @@ State& S() {
 
 //------------------------------------------------------------------------------
 
+SensorManager::SensorManager(AppConfig& app_config) : app_config_(app_config) {
+}
+
 void SensorManager::configure(const std::vector<SensorConfig>& cfgs) {
   auto& st = S();
   if (st.running.load()) {
@@ -103,6 +106,13 @@ void SensorManager::setPose(int id, float tx, float ty, float theta_deg) {
   sl.cfg.pose.tx   = tx;
   sl.cfg.pose.ty   = ty;
   sl.cfg.pose.theta_deg = theta_deg; // pose.theta_deg は [deg] 想定
+  
+  // Update app_config_ immediately
+  if (id < static_cast<int>(app_config_.sensors.size())) {
+    app_config_.sensors[id].pose.tx = tx;
+    app_config_.sensors[id].pose.ty = ty;
+    app_config_.sensors[id].pose.theta_deg = theta_deg;
+  }
 }
 
 void SensorManager::setSensorMask(int id, const SensorMaskLocal& m) {
@@ -110,6 +120,12 @@ void SensorManager::setSensorMask(int id, const SensorMaskLocal& m) {
   if (id < 0 || id >= static_cast<int>(st.slots.size())) return;
   auto& sl = *st.slots[id];
   sl.cfg.mask = m;
+  
+  // Update app_config_ immediately
+  if (id < static_cast<int>(app_config_.sensors.size())) {
+    app_config_.sensors[id].mask = m;
+  }
+  
   // 動的にISensorへ渡す必要があれば、ISensor拡張で対応
 }
 
@@ -193,6 +209,13 @@ bool SensorManager::applyPatch(int id, const Json::Value& patch, Json::Value& ap
     }
     Json::Value out(Json::objectValue); out["host"]=sl.cfg.host; out["port"]=sl.cfg.port;
     applied["endpoint"] = out;
+    
+    // Update app_config_ immediately
+    if (id < static_cast<int>(app_config_.sensors.size())) {
+      app_config_.sensors[id].host = sl.cfg.host;
+      app_config_.sensors[id].port = sl.cfg.port;
+    }
+    
     need_restart = true;
   }
 
@@ -201,6 +224,12 @@ bool SensorManager::applyPatch(int id, const Json::Value& patch, Json::Value& ap
     const std::string m = patch["mode"].asString();
     sl.cfg.mode = m;
     applied["mode"] = sl.cfg.mode;
+    
+    // Update app_config_ immediately
+    if (id < static_cast<int>(app_config_.sensors.size())) {
+      app_config_.sensors[id].mode = m;
+    }
+    
     if (!sl.dev || !sl.dev->applyMode(m)) need_restart = true;
   }
 
@@ -210,6 +239,12 @@ bool SensorManager::applyPatch(int id, const Json::Value& patch, Json::Value& ap
     if (v < 1){ err = "skip_step must be >= 1"; return false; }
     sl.cfg.skip_step = v;
     applied["skip_step"]=v;
+    
+    // Update app_config_ immediately
+    if (id < static_cast<int>(app_config_.sensors.size())) {
+      app_config_.sensors[id].skip_step = v;
+    }
+    
     if (!sl.dev || !sl.dev->applySkipStep(v)) need_restart = true;
   }
   if (patch.isMember("ignore_checksum_error")){
@@ -217,6 +252,12 @@ bool SensorManager::applyPatch(int id, const Json::Value& patch, Json::Value& ap
     if (v!=0 && v!=1){ err = "ignore_checksum_error must be 0 or 1"; return false; }
     sl.cfg.ignore_checksum_error = v;
     applied["ignore_checksum_error"]=v;
+    
+    // Update app_config_ immediately
+    if (id < static_cast<int>(app_config_.sensors.size())) {
+      app_config_.sensors[id].ignore_checksum_error = v;
+    }
+    
     need_restart = true;
   }
 
@@ -287,6 +328,10 @@ void SensorManager::start(FrameCallback cb) {
           const float r_m = static_cast<float>(d_mm) * 0.001f;
           const float ang = step_to_angle_rad(step, rs.front_step, rs.ang_res_deg);
 
+          auto pass_local_mask = [&](float ang, float r_m, const SensorMaskLocal& m) {
+            return (m.angle.min_deg <= ang && ang <= m.angle.max_deg) &&
+                   (m.range.near_m <= r_m && r_m <= m.range.far_m);
+          };
           if (!pass_local_mask(ang, r_m, m)) continue;
 
           float x = r_m * std::cos(ang);

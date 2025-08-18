@@ -1,8 +1,8 @@
 #include "filter_manager.h"
 #include <iostream>
 
-FilterManager::FilterManager(const PrefilterConfig& prefilter_config, const PostfilterConfig& postfilter_config)
-    : prefilter_config_(prefilter_config), postfilter_config_(postfilter_config) {
+FilterManager::FilterManager(const PrefilterConfig& prefilter_config, const PostfilterConfig& postfilter_config, AppConfig& app_config)
+    : prefilter_config_(prefilter_config), postfilter_config_(postfilter_config), app_config_(app_config) {
     recreatePrefilter();
     recreatePostfilter();
 }
@@ -12,6 +12,10 @@ bool FilterManager::updatePrefilterConfig(const Json::Value& config) {
     try {
         PrefilterConfig new_config = jsonToPrefilterConfig(config);
         prefilter_config_ = new_config;
+        
+        // Update app_config_ immediately
+        app_config_.prefilter = new_config;
+        
         recreatePrefilter();
         std::cout << "[FilterManager] Prefilter configuration updated" << std::endl;
         return true;
@@ -26,6 +30,10 @@ bool FilterManager::updatePostfilterConfig(const Json::Value& config) {
     try {
         PostfilterConfig new_config = jsonToPostfilterConfig(config);
         postfilter_config_ = new_config;
+        
+        // Update app_config_ immediately
+        app_config_.postfilter = new_config;
+        
         recreatePostfilter();
         std::cout << "[FilterManager] Postfilter configuration updated" << std::endl;
         return true;
@@ -43,12 +51,20 @@ bool FilterManager::updateFilterConfig(const Json::Value& config) {
         if (config.isMember("prefilter")) {
             PrefilterConfig new_prefilter_config = jsonToPrefilterConfig(config["prefilter"]);
             prefilter_config_ = new_prefilter_config;
+            
+            // Update app_config_ immediately
+            app_config_.prefilter = new_prefilter_config;
+            
             recreatePrefilter();
         }
         
         if (config.isMember("postfilter")) {
             PostfilterConfig new_postfilter_config = jsonToPostfilterConfig(config["postfilter"]);
             postfilter_config_ = new_postfilter_config;
+            
+            // Update app_config_ immediately
+            app_config_.postfilter = new_postfilter_config;
+            
             recreatePostfilter();
         }
         

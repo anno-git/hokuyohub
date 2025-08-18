@@ -15,6 +15,10 @@ struct ScanFrame {
 class SensorManager {
 public:
   using FrameCallback = std::function<void(const ScanFrame&)>;
+  
+  // Constructor to accept AppConfig reference
+  SensorManager(AppConfig& app_config);
+  
   void configure(const std::vector<SensorConfig>& cfgs);
   void start(FrameCallback cb);
   void setSensorPower(int id, bool on);
@@ -28,4 +32,7 @@ public:
 
   bool applyPatch(int id, const Json::Value& patch, Json::Value& applied, std::string& err);
   bool restartSensor(int id);
+
+private:
+  AppConfig& app_config_;  // Reference to main config for immediate updates
 };

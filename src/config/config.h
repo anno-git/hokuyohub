@@ -1,6 +1,7 @@
 #pragma once
 #include <string>
 #include <vector>
+#include "core/mask.h"
 
 struct PoseDeg {
   float tx{0.0f};
@@ -126,6 +127,10 @@ struct PostfilterConfig {
     // } future_strategy;
 };
 
+struct SecurityConfig {
+  std::string api_token; // empty => auth disabled
+};
+
 struct AppConfig {
   std::vector<SensorConfig> sensors;
 
@@ -138,6 +143,9 @@ struct AppConfig {
   PostfilterConfig postfilter{};
   UiConfig ui{};
   std::vector<SinkConfig> sinks;
+  SecurityConfig security{};
+  core::WorldMask world_mask{};
 };
 
 AppConfig load_app_config(const std::string& path);
+std::string dump_app_config(const AppConfig& cfg);

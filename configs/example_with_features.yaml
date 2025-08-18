@@ -1,0 +1,138 @@
+# HokuyoHub Configuration Example with All Features
+# This demonstrates REST API, ROI filtering, NNG/OSC publishers, and security
+
+sensors:
+  - id: "hokuyo_01"
+    type: "hokuyo_urg_eth"
+    name: "Front Scanner"
+    endpoint: "192.168.1.10:10940"
+    enabled: true
+    mode: "ME"
+    interval: 0
+    skip_step: 0
+    ignore_checkSumError: 1
+    pose:
+      tx: 0.0
+      ty: 0.0
+      theta: 0.0
+    mask:
+      angle:
+        min: -90.0
+        max: 90.0
+      range:
+        near: 0.1
+        far: 10.0
+
+  - id: "hokuyo_02"
+    type: "hokuyo_urg_eth"
+    name: "Side Scanner"
+    endpoint: "192.168.1.11:10940"
+    enabled: true
+    mode: "ME"
+    interval: 0
+    skip_step: 0
+    ignore_checkSumError: 1
+    pose:
+      tx: 1.0
+      ty: 0.5
+      theta: 45.0
+    mask:
+      angle:
+        min: -135.0
+        max: 135.0
+      range:
+        near: 0.1
+        far: 8.0
+
+# DBSCAN clustering configuration
+dbscan:
+  eps: 0.12
+  eps_norm: 2.5
+  minPts: 5
+  k_scale: 1.0
+  h_min: 0.01
+  h_max: 0.20
+  R_max: 5
+  M_max: 600
+
+# Prefilter configuration
+prefilter:
+  enabled: true
+  neighborhood:
+    enabled: true
+    k: 5
+    r_base: 0.05
+    r_scale: 1.0
+  spike_removal:
+    enabled: true
+    dr_threshold: 0.3
+    window_size: 3
+  outlier_removal:
+    enabled: true
+    median_window: 5
+    outlier_threshold: 2.0
+    use_robust_regression: false
+  intensity_filter:
+    enabled: false
+    min_intensity: 0.0
+    min_reliability: 0.0
+  isolation_removal:
+    enabled: true
+    min_cluster_size: 3
+    isolation_radius: 0.1
+
+# Postfilter configuration
+postfilter:
+  enabled: true
+  isolation_removal:
+    enabled: true
+    min_points_size: 3
+    isolation_radius: 0.15
+    required_neighbors: 2
+
+# UI configuration
+ui:
+  ws_listen: "0.0.0.0:8080"
+  rest_listen: "0.0.0.0:8080"
+
+# Security configuration
+security:
+  api_token: "your_secret_token_here"
+
+# World mask (ROI) configuration
+# Define regions of interest for cluster detection
+world_mask:
+  # Include regions - only detect clusters in these areas
+  include:
+    # Rectangular area in front of sensors
+    - [ [0.0, 0.0], [5.0, 0.0], [5.0, 3.0], [0.0, 3.0] ]
+    # Triangular area on the side
+    - [ [1.0, 3.0], [3.0, 3.0], [2.0, 5.0] ]
+  
+  # Exclude regions - ignore clusters in these areas (holes in include regions)
+  exclude:
+    # Small obstacle area to ignore
+    - [ [2.0, 1.0], [2.5, 1.0], [2.5, 1.5], [2.0, 1.5] ]
+
+# Publisher/sink configuration
+sinks:
+  # NNG publisher for external applications
+  - type: "nng"
+    url: "tcp://0.0.0.0:5555"
+    topic: "clusters"
+    encoding: "msgpack"
+    rate_limit: 30  # 30 Hz max
+
+  # OSC publisher for creative applications
+  - type: "osc"
+    url: "osc://127.0.0.1:7000/hokuyohub/cluster"
+    topic: "clusters"
+    encoding: "osc"
+    rate_limit: 60  # 60 Hz max
+
+  # Additional NNG publisher for different consumers
+  - type: "nng"
+    url: "tcp://0.0.0.0:5556"
+    topic: "raw_clusters"
+    encoding: "json"
+    rate_limit: 10  # 10 Hz for slower consumers

@@ -320,3 +320,163 @@ button#btn-refresh:hover {
 .filter-section.disabled .filter-strategies {
   /* pointer-events: none; */
 }
+
+/* ====== Viewport Controls ====== */
+.viewport-controls {
+  padding: 8px 12px;
+  background: #f8f9fa;
+  border-bottom: 1px solid #dee2e6;
+  display: flex;
+  gap: 20px;
+  align-items: center;
+  flex-wrap: wrap;
+  font-size: 14px;
+}
+
+.control-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.control-group label {
+  font-weight: 600;
+  color: #495057;
+  min-width: 60px;
+}
+
+.roi-btn {
+  padding: 4px 8px;
+  border: 1px solid #6c757d;
+  border-radius: 4px;
+  background: #fff;
+  color: #495057;
+  cursor: pointer;
+  font-size: 12px;
+  transition: all 0.2s;
+}
+
+.roi-btn:hover {
+  background: #e9ecef;
+  border-color: #495057;
+}
+
+.roi-btn.active {
+  background: #007bff;
+  border-color: #007bff;
+  color: #fff;
+}
+
+.roi-btn.include {
+  background: #28a745;
+  border-color: #28a745;
+  color: #fff;
+}
+
+.roi-btn.exclude {
+  background: #dc3545;
+  border-color: #dc3545;
+  color: #fff;
+}
+
+#btn-reset-viewport {
+  padding: 4px 8px;
+  border: 1px solid #6c757d;
+  border-radius: 4px;
+  background: #fff;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+#btn-reset-viewport:hover {
+  background: #e9ecef;
+}
+
+#viewport-info {
+  font-family: monospace;
+  color: #6c757d;
+  font-size: 12px;
+}
+
+#roi-instructions {
+  color: #6c757d;
+  font-size: 11px;
+  font-style: italic;
+  max-width: 400px;
+}
+
+/* Canvas cursor states */
+.canvas-pan { cursor: grab; }
+.canvas-pan:active { cursor: grabbing; }
+.canvas-sensor { cursor: move; }
+.canvas-roi { cursor: crosshair; }
+
+/* ROI editing states */
+.roi-creating {
+  background: #fff3cd !important;
+  border-color: #ffeaa7 !important;
+}
+
+.roi-creating::after {
+  content: " (Click points, Enter to finish, Esc to cancel)";
+  font-size: 10px;
+  color: #856404;
+}
+
+/* ====== Notifications ====== */
+.notification {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  padding: 12px 16px;
+  border-radius: 6px;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 500;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  z-index: 1000;
+  max-width: 400px;
+  word-wrap: break-word;
+  animation: slideIn 0.3s ease-out;
+}
+
+.notification-success {
+  background-color: #28a745;
+  border-left: 4px solid #1e7e34;
+}
+
+.notification-error {
+  background-color: #dc3545;
+  border-left: 4px solid #c82333;
+}
+
+.notification-info {
+  background-color: #17a2b8;
+  border-left: 4px solid #138496;
+}
+
+.notification-warning {
+  background-color: #ffc107;
+  color: #212529;
+  border-left: 4px solid #e0a800;
+}
+
+@keyframes slideIn {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+/* ====== Configuration Controls ====== */
+.control-group .roi-btn {
+  margin-right: 4px;
+}
+
+.control-group .roi-btn:last-child {
+  margin-right: 0;
+}

@@ -4,6 +4,18 @@
 
 static float clampf(float v, float lo, float hi){ return std::max(lo, std::min(hi, v)); }
 
+static std::vector<core::Point2D> parsePointList(const YAML::Node& pts) {
+  std::vector<core::Point2D> out;
+  if (!pts || !pts.IsSequence()) return out;
+  out.reserve(pts.size());
+  for (const auto& n : pts) {
+    if (n.IsSequence() && n.size() >= 2) {
+      out.push_back({n[0].as<double>(), n[1].as<double>()});
+    }
+  }
+  return out;
+}
+
 AppConfig load_app_config(const std::string& path){
   AppConfig cfg;
   YAML::Node y = YAML::LoadFile(path);
@@ -67,12 +79,6 @@ AppConfig load_app_config(const std::string& path){
   }
 
   if (auto d = y["dbscan"]) {
-    // Legacy fields for backward compatibility
-    if (d["eps"])    cfg.dbscan_eps    = d["eps"].as<float>(cfg.dbscan_eps);
-    if (d["minPts"]) cfg.dbscan_minPts = d["minPts"].as<int>(cfg.dbscan_minPts);
-    
-    // New structured config
-    if (d["eps"])      cfg.dbscan.eps      = d["eps"].as<float>(cfg.dbscan.eps);
     if (d["eps_norm"]) cfg.dbscan.eps_norm = d["eps_norm"].as<float>(cfg.dbscan.eps_norm);
     if (d["minPts"])   cfg.dbscan.minPts   = std::max(1, d["minPts"].as<int>(cfg.dbscan.minPts));
     if (d["k_scale"])  cfg.dbscan.k_scale  = std::max(0.1f, d["k_scale"].as<float>(cfg.dbscan.k_scale));
@@ -82,11 +88,6 @@ AppConfig load_app_config(const std::string& path){
     if (d["h_max"])    cfg.dbscan.h_max    = std::max(cfg.dbscan.h_min, d["h_max"].as<float>(cfg.dbscan.h_max));
     if (d["R_max"])    cfg.dbscan.R_max    = std::max(1, d["R_max"].as<int>(cfg.dbscan.R_max));
     if (d["M_max"])    cfg.dbscan.M_max    = std::max(10, d["M_max"].as<int>(cfg.dbscan.M_max));
-    
-    // If eps_norm not explicitly set, use eps as eps_norm for backward compatibility
-    if (!d["eps_norm"] && d["eps"]) {
-      cfg.dbscan.eps_norm = cfg.dbscan.eps;
-    }
   }
 
   // Prefilter configuration
@@ -149,6 +150,35 @@ AppConfig load_app_config(const std::string& path){
     if (u["rest_listen"]) cfg.ui.rest_listen = u["rest_listen"].as<std::string>(cfg.ui.rest_listen);
   }
 
+  // Security configuration
+  if (auto sec = y["security"]) {
+    if (sec["api_token"]) {
+      cfg.security.api_token = sec["api_token"].as<std::string>("");
+    }
+  }
+
+  // World mask configuration
+  if (auto wm = y["world_mask"]) {
+    if (auto inc = wm["include"]) {
+      for (const auto& polyNode : inc) {
+        core::Polygon poly;
+        poly.points = parsePointList(polyNode);
+        if (!poly.points.empty()) {
+          cfg.world_mask.include.push_back(std::move(poly));
+        }
+      }
+    }
+    if (auto exc = wm["exclude"]) {
+      for (const auto& polyNode : exc) {
+        core::Polygon poly;
+        poly.points = parsePointList(polyNode);
+        if (!poly.points.empty()) {
+          cfg.world_mask.exclude.push_back(std::move(poly));
+        }
+      }
+    }
+  }
+
   if (y["sinks"] && y["sinks"].IsSequence()) {
     for (const auto& sn : y["sinks"]) {
       SinkConfig sc;
@@ -162,4 +192,153 @@ AppConfig load_app_config(const std::string& path){
   }
 
   return cfg;
+}
+
+std::string dump_app_config(const AppConfig& cfg) {
+  YAML::Emitter out;
+  out << YAML::BeginMap;
+
+  // Sensors
+  out << YAML::Key << "sensors" << YAML::Value << YAML::BeginSeq;
+  for (const auto& s : cfg.sensors) {
+    out << YAML::BeginMap;
+    out << YAML::Key << "id" << YAML::Value << s.id;
+    out << YAML::Key << "type" << YAML::Value << s.type;
+    out << YAML::Key << "name" << YAML::Value << s.name;
+    out << YAML::Key << "endpoint" << YAML::Value << (s.host + ":" + std::to_string(s.port));
+    out << YAML::Key << "enabled" << YAML::Value << s.enabled;
+    out << YAML::Key << "mode" << YAML::Value << s.mode;
+    out << YAML::Key << "interval" << YAML::Value << s.interval;
+    out << YAML::Key << "skip_step" << YAML::Value << s.skip_step;
+    out << YAML::Key << "ignore_checkSumError" << YAML::Value << s.ignore_checksum_error;
+    
+    out << YAML::Key << "pose" << YAML::Value << YAML::BeginMap;
+    out << YAML::Key << "tx" << YAML::Value << s.pose.tx;
+    out << YAML::Key << "ty" << YAML::Value << s.pose.ty;
+    out << YAML::Key << "theta" << YAML::Value << s.pose.theta_deg;
+    out << YAML::EndMap;
+    
+    out << YAML::Key << "mask" << YAML::Value << YAML::BeginMap;
+    out << YAML::Key << "angle" << YAML::Value << YAML::BeginMap;
+    out << YAML::Key << "min" << YAML::Value << s.mask.angle.min_deg;
+    out << YAML::Key << "max" << YAML::Value << s.mask.angle.max_deg;
+    out << YAML::EndMap;
+    out << YAML::Key << "range" << YAML::Value << YAML::BeginMap;
+    out << YAML::Key << "near" << YAML::Value << s.mask.range.near_m;
+    out << YAML::Key << "far" << YAML::Value << s.mask.range.far_m;
+    out << YAML::EndMap;
+    out << YAML::EndMap;
+    
+    out << YAML::EndMap;
+  }
+  out << YAML::EndSeq;
+
+  // DBSCAN
+  out << YAML::Key << "dbscan" << YAML::Value << YAML::BeginMap;
+  out << YAML::Key << "eps_norm" << YAML::Value << cfg.dbscan.eps_norm;
+  out << YAML::Key << "minPts" << YAML::Value << cfg.dbscan.minPts;
+  out << YAML::Key << "k_scale" << YAML::Value << cfg.dbscan.k_scale;
+  out << YAML::Key << "h_min" << YAML::Value << cfg.dbscan.h_min;
+  out << YAML::Key << "h_max" << YAML::Value << cfg.dbscan.h_max;
+  out << YAML::Key << "R_max" << YAML::Value << cfg.dbscan.R_max;
+  out << YAML::Key << "M_max" << YAML::Value << cfg.dbscan.M_max;
+  out << YAML::EndMap;
+
+  // Prefilter
+  out << YAML::Key << "prefilter" << YAML::Value << YAML::BeginMap;
+  out << YAML::Key << "enabled" << YAML::Value << cfg.prefilter.enabled;
+  
+  out << YAML::Key << "neighborhood" << YAML::Value << YAML::BeginMap;
+  out << YAML::Key << "enabled" << YAML::Value << cfg.prefilter.neighborhood.enabled;
+  out << YAML::Key << "k" << YAML::Value << cfg.prefilter.neighborhood.k;
+  out << YAML::Key << "r_base" << YAML::Value << cfg.prefilter.neighborhood.r_base;
+  out << YAML::Key << "r_scale" << YAML::Value << cfg.prefilter.neighborhood.r_scale;
+  out << YAML::EndMap;
+  
+  out << YAML::Key << "spike_removal" << YAML::Value << YAML::BeginMap;
+  out << YAML::Key << "enabled" << YAML::Value << cfg.prefilter.spike_removal.enabled;
+  out << YAML::Key << "dr_threshold" << YAML::Value << cfg.prefilter.spike_removal.dr_threshold;
+  out << YAML::Key << "window_size" << YAML::Value << cfg.prefilter.spike_removal.window_size;
+  out << YAML::EndMap;
+  
+  out << YAML::Key << "outlier_removal" << YAML::Value << YAML::BeginMap;
+  out << YAML::Key << "enabled" << YAML::Value << cfg.prefilter.outlier_removal.enabled;
+  out << YAML::Key << "median_window" << YAML::Value << cfg.prefilter.outlier_removal.median_window;
+  out << YAML::Key << "outlier_threshold" << YAML::Value << cfg.prefilter.outlier_removal.outlier_threshold;
+  out << YAML::Key << "use_robust_regression" << YAML::Value << cfg.prefilter.outlier_removal.use_robust_regression;
+  out << YAML::EndMap;
+  
+  out << YAML::Key << "intensity_filter" << YAML::Value << YAML::BeginMap;
+  out << YAML::Key << "enabled" << YAML::Value << cfg.prefilter.intensity_filter.enabled;
+  out << YAML::Key << "min_intensity" << YAML::Value << cfg.prefilter.intensity_filter.min_intensity;
+  out << YAML::Key << "min_reliability" << YAML::Value << cfg.prefilter.intensity_filter.min_reliability;
+  out << YAML::EndMap;
+  
+  out << YAML::Key << "isolation_removal" << YAML::Value << YAML::BeginMap;
+  out << YAML::Key << "enabled" << YAML::Value << cfg.prefilter.isolation_removal.enabled;
+  out << YAML::Key << "min_cluster_size" << YAML::Value << cfg.prefilter.isolation_removal.min_cluster_size;
+  out << YAML::Key << "isolation_radius" << YAML::Value << cfg.prefilter.isolation_removal.isolation_radius;
+  out << YAML::EndMap;
+  
+  out << YAML::EndMap;
+
+  // Postfilter
+  out << YAML::Key << "postfilter" << YAML::Value << YAML::BeginMap;
+  out << YAML::Key << "enabled" << YAML::Value << cfg.postfilter.enabled;
+  
+  out << YAML::Key << "isolation_removal" << YAML::Value << YAML::BeginMap;
+  out << YAML::Key << "enabled" << YAML::Value << cfg.postfilter.isolation_removal.enabled;
+  out << YAML::Key << "min_points_size" << YAML::Value << cfg.postfilter.isolation_removal.min_points_size;
+  out << YAML::Key << "isolation_radius" << YAML::Value << cfg.postfilter.isolation_removal.isolation_radius;
+  out << YAML::Key << "required_neighbors" << YAML::Value << cfg.postfilter.isolation_removal.required_neighbors;
+  out << YAML::EndMap;
+  
+  out << YAML::EndMap;
+
+  // UI
+  out << YAML::Key << "ui" << YAML::Value << YAML::BeginMap;
+  out << YAML::Key << "ws_listen" << YAML::Value << cfg.ui.ws_listen;
+  out << YAML::Key << "rest_listen" << YAML::Value << cfg.ui.rest_listen;
+  out << YAML::EndMap;
+
+  // Security
+  out << YAML::Key << "security" << YAML::Value << YAML::BeginMap;
+  out << YAML::Key << "api_token" << YAML::Value << cfg.security.api_token;
+  out << YAML::EndMap;
+
+  // World mask
+  out << YAML::Key << "world_mask" << YAML::Value << YAML::BeginMap;
+  
+  auto emitPolygons = [&](const char* key, const std::vector<core::Polygon>& polys) {
+    out << YAML::Key << key << YAML::Value << YAML::BeginSeq;
+    for (const auto& poly : polys) {
+      out << YAML::BeginSeq;
+      for (const auto& pt : poly.points) {
+        out << YAML::Flow << YAML::BeginSeq << pt.x << pt.y << YAML::EndSeq;
+      }
+      out << YAML::EndSeq;
+    }
+    out << YAML::EndSeq;
+  };
+  
+  emitPolygons("include", cfg.world_mask.include);
+  emitPolygons("exclude", cfg.world_mask.exclude);
+  
+  out << YAML::EndMap;
+
+  // Sinks
+  out << YAML::Key << "sinks" << YAML::Value << YAML::BeginSeq;
+  for (const auto& sink : cfg.sinks) {
+    out << YAML::BeginMap;
+    out << YAML::Key << "type" << YAML::Value << sink.type;
+    out << YAML::Key << "url" << YAML::Value << sink.url;
+    out << YAML::Key << "topic" << YAML::Value << sink.topic;
+    out << YAML::Key << "encoding" << YAML::Value << sink.encoding;
+    out << YAML::Key << "rate_limit" << YAML::Value << sink.rate_limit;
+    out << YAML::EndMap;
+  }
+  out << YAML::EndSeq;
+
+  out << YAML::EndMap;
+  return std::string(out.c_str());
 }

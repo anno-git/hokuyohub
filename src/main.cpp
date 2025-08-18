@@ -3,6 +3,7 @@
 #include "io/rest_handlers.h"
 #include "io/ws_handlers.h"
 #include "io/nng_bus.h"
+#include "io/osc_publisher.h"
 #include "core/sensor_manager.h"
 #include "detect/dbscan.h"
 #include "detect/prefilter.h"
@@ -25,18 +26,25 @@ int main(int argc, char** argv) {
 
   AppConfig appcfg = load_app_config(cfgPath);
 
+  // Initialize publishers
+  NngBus nng_bus;
+  OscPublisher osc_publisher;
+  
   for (const auto& s : appcfg.sinks) {
     if (s.type == "nng" && !s.url.empty()) {
-      pubUrl = s.url;
-      break;
+      nng_bus.startPublisher(s);
+    } else if (s.type == "osc" && !s.url.empty()) {
+      osc_publisher.start(s);
     }
   }
-
-  // NNG publisher（存在しない場合は NO-OP）
-  NngBus bus; bus.startPublisher(pubUrl);
+  
+  // Fallback for legacy pubUrl parameter
+  if (!nng_bus.isEnabled() && !pubUrl.empty()) {
+    nng_bus.startPublisher(pubUrl);
+  }
 
   // Detection pipeline with full configuration
-  SensorManager sensors;
+  SensorManager sensors(appcfg);
   sensors.configure(appcfg.sensors);
   
   // Initialize DBSCAN with new structured config (fallback to legacy for compatibility)
@@ -49,15 +57,16 @@ int main(int argc, char** argv) {
   dbscan.setPerformanceParams(dcfg.h_min, dcfg.h_max, dcfg.R_max, dcfg.M_max);
 
   // Initialize filter manager with configuration
-  FilterManager filterManager(appcfg.prefilter, appcfg.postfilter);
+  FilterManager filterManager(appcfg.prefilter, appcfg.postfilter, appcfg);
 
-  auto ws = std::make_shared<LiveWs>(bus);
-  auto rest = std::make_shared<RestApi>(sensors, dbscan, bus, ws);
+  auto ws = std::make_shared<LiveWs>(nng_bus);
+  auto rest = std::make_shared<RestApi>(sensors, filterManager, dbscan, nng_bus, ws, appcfg);
   app().registerController(ws);
   app().registerController(rest);
 
   ws->setSensorManager(&sensors);
   ws->setFilterManager(&filterManager);
+  ws->setAppConfig(&appcfg);
 
   app().setUploadPath("/tmp");
   app().setDocumentRoot("./webui");
@@ -114,6 +123,31 @@ int main(int argc, char** argv) {
       }
     }
     
+    // Apply ROI world_mask filtering after prefilter and before DBSCAN
+    if (!appcfg.world_mask.empty()) {
+      std::vector<float> roi_filtered_xy;
+      std::vector<uint8_t> roi_filtered_sid;
+      
+      roi_filtered_xy.reserve(filtered_xy.size());
+      roi_filtered_sid.reserve(filtered_sid.size());
+      
+      for (size_t i = 0; i < filtered_xy.size(); i += 2) {
+        if (i + 1 < filtered_xy.size()) {
+          core::Point2D point(filtered_xy[i], filtered_xy[i + 1]);
+          if (appcfg.world_mask.allows(point)) {
+            roi_filtered_xy.push_back(filtered_xy[i]);
+            roi_filtered_xy.push_back(filtered_xy[i + 1]);
+            roi_filtered_sid.push_back(filtered_sid[i / 2]);
+          }
+        }
+      }
+      
+      filtered_xy = std::move(roi_filtered_xy);
+      filtered_sid = std::move(roi_filtered_sid);
+      
+      std::cout << "[ROI] Applied world_mask filtering, points after ROI: " << (filtered_xy.size() / 2) << std::endl;
+    }
+    
     // Push filtered points to WebUI
     ws->pushFilteredLite(f.t_ns, f.seq, filtered_xy, filtered_sid);
     
@@ -151,7 +185,8 @@ int main(int argc, char** argv) {
     }
     
     ws->pushClustersLite(f.t_ns, f.seq, final_clusters);
-    bus.publishClusters(f.t_ns, f.seq, final_clusters);
+    nng_bus.publishClusters(f.t_ns, f.seq, final_clusters);
+    osc_publisher.publishClusters(f.t_ns, f.seq, final_clusters);
   });
 
   app().run();

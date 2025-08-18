@@ -16,6 +16,25 @@ option(ENABLE_NNG "Enable NNG publisher" ON)
 find_package(Drogon REQUIRED)
 find_package(yaml-cpp CONFIG REQUIRED)
 
+# Optional features
+option(USE_NNG "Enable NNG publisher support" OFF)
+option(USE_OSC "Enable OSC publisher support" ON)
+
+if(USE_NNG)
+  find_package(nng QUIET)
+  if(nng_FOUND)
+    add_definitions(-DUSE_NNG)
+    message(STATUS "NNG support enabled")
+  else()
+    message(WARNING "NNG requested but not found, disabling NNG support")
+  endif()
+endif()
+
+if(USE_OSC)
+  add_definitions(-DUSE_OSC)
+  message(STATUS "OSC support enabled")
+endif()
+
 if(ENABLE_NNG)
   find_path(NNG_INCLUDE_DIR nng/nng.h)
   find_library(NNG_LIBRARY nng)
@@ -101,8 +120,10 @@ add_executable(hokuyo_hub
   src/detect/prefilter.cpp
   src/detect/postfilter.cpp
   src/io/nng_bus.cpp
+  src/io/osc_publisher.cpp
   src/io/rest_handlers.cpp
   src/io/ws_handlers.cpp
+  src/core/mask.cpp
 )
 
 target_include_directories(hokuyo_hub PRIVATE src)
