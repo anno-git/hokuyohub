@@ -152,7 +152,7 @@ std::string OscPublisher::encodeOscMessage(const std::string& address, uint32_t 
   pad4(ss);
 
   // Type tag string (i,t,i,f,f,f,f,f,f,i) => ",itiffffffi"
-  ss << ",itiffffffi" << '\0';
+  ss << ",ihiffffffi" << '\0';
   pad4(ss);
 
   // Writers
