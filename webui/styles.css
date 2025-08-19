@@ -469,6 +469,203 @@ button#btn-refresh:hover {
   margin-right: 4px;
 }
 
+/* ====== Accordion Container Styles ====== */
+.accordion-container {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+/* ====== Accordion Item Styles ====== */
+.accordion-item {
+  border: 1px solid #dee2e6;
+  border-radius: 6px;
+  background: #fff;
+  overflow: hidden;
+}
+
+.accordion-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  cursor: pointer;
+  user-select: none;
+  transition: background-color 0.2s;
+  background: #f8f9fa;
+  border-bottom: 1px solid #dee2e6;
+}
+
+.accordion-header:hover {
+  background: #e9ecef;
+}
+
+.accordion-header:focus {
+  outline: 2px solid #3498db;
+  outline-offset: -2px;
+}
+
+.accordion-header-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+}
+
+.accordion-header-title {
+  font-weight: 600;
+  color: #495057;
+}
+
+.accordion-header-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.accordion-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.accordion-toggle-caret {
+  font-size: 12px;
+  opacity: 0.7;
+  transition: transform 0.2s;
+  margin-left: 8px;
+}
+
+.accordion-item.collapsed .accordion-toggle-caret {
+  transform: rotate(-90deg);
+}
+
+.accordion-content {
+  padding: 12px;
+  background: #fff;
+  border-top: 1px solid #f1f3f4;
+}
+
+.accordion-item.collapsed .accordion-content {
+  display: none;
+}
+
+/* ====== Accordion Form Styles ====== */
+.accordion-form {
+  display: grid;
+  gap: 12px;
+}
+
+.accordion-form-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.accordion-form-row label {
+  min-width: 80px;
+  font-size: 13px;
+  color: #555;
+  font-weight: 500;
+}
+
+.accordion-form-row input,
+.accordion-form-row select {
+  flex: 1;
+  min-width: 120px;
+  padding: 4px 6px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 13px;
+}
+
+.accordion-form-row input:focus,
+.accordion-form-row select:focus {
+  outline: none;
+  border-color: #3498db;
+  box-shadow: 0 0 3px rgba(52, 152, 219, 0.3);
+}
+
+.accordion-form-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  padding-top: 8px;
+  border-top: 1px solid #f1f3f4;
+}
+
+/* ====== Status Badge Styles ====== */
+.status-badge {
+  display: inline-block;
+  padding: 2px 6px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.status-enabled {
+  background-color: #d4edda;
+  color: #155724;
+  border: 1px solid #c3e6cb;
+}
+
+.status-disabled {
+  background-color: #f8d7da;
+  color: #721c24;
+  border: 1px solid #f5c6cb;
+}
+
+/* ====== Toggle Switch Styles ====== */
+.toggle-switch {
+  position: relative;
+  display: inline-block;
+  width: 44px;
+  height: 24px;
+}
+
+.toggle-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.toggle-slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: #ccc;
+  transition: 0.2s;
+  border-radius: 24px;
+}
+
+.toggle-slider:before {
+  position: absolute;
+  content: "";
+  height: 18px;
+  width: 18px;
+  left: 3px;
+  bottom: 3px;
+  background-color: white;
+  transition: 0.2s;
+  border-radius: 50%;
+}
+
+.toggle-switch input:checked + .toggle-slider {
+  background-color: #28a745;
+}
+
+.toggle-switch input:checked + .toggle-slider:before {
+  transform: translateX(20px);
+}
+
 /* ====== Canvas Overlay ====== */
 .canvas-overlay {
   position: absolute;

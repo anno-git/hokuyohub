@@ -19,6 +19,13 @@ let perSensorColor = false;
 
 let sensors = new Map();
 
+// Client identification for optimistic updates
+const clientId = 'client_' + Math.random().toString(36).substr(2, 9) + '_' + Date.now();
+
+// State preservation for UI consistency
+let accordionStates = new Map();
+let focusState = null;
+
 // Connection stats
 let connectionCount = 0;
 let disconnectionCount = 0;
@@ -769,71 +776,304 @@ function setPanelMsg(text, ok=true){
 }
 
 function renderSensors(){
-  tbody.innerHTML = '';
-  const rows = Array.from(sensors.values()).sort((a,b)=>{
+  const container = document.getElementById('sensors-accordion');
+  if (!container) return;
+  
+  // Preserve UI state before re-rendering
+  preserveFocusState();
+  preserveAccordionStates();
+  
+  container.innerHTML = '';
+  const sensors_array = Array.from(sensors.values()).sort((a,b)=>{
     // Sort by slot index (id field in JSON response)
     return a.id - b.id;
   });
-  console.log('Rendering sensors:', rows.map(s => ({
+  
+  console.log('Rendering sensors:', sensors_array.map(s => ({
     ...s
   })));
-  for(const s of rows){
-    const tr = document.createElement('tr');
-    // Display config ID but use slot index for operations
-    tr.innerHTML = `
-      <td style="padding:6px 8px; border-bottom:1px solid #eee;">${s.id}</td>
-      <td style="padding:6px 8px; border-bottom:1px solid #eee;">
-        <label class="toggle">
-          <input type="checkbox" ${s.enabled ? 'checked' : ''} data-sensor-id="${s.id}" />
-          <span>${s.enabled ? 'ON' : 'OFF'}</span>
-        </label>
-      </td>
-      <td style="padding:6px 8px; border-bottom:1px solid #eee;">
-        <input class="pose-tx" type="number" step="0.01" value="${Number(s.pose?.tx ?? s.tx ?? 0)}" data-sensor-id="${s.id}" style="width:100px" />
-      </td>
-      <td style="padding:6px 8px; border-bottom:1px solid #eee;">
-        <input class="pose-ty" type="number" step="0.01" value="${Number(s.pose?.ty ?? s.ty ?? 0)}" data-sensor-id="${s.id}" style="width:100px" />
-      </td>
-      <td style="padding:6px 8px; border-bottom:1px solid #eee;">
-        <input class="pose-theta" type="number" step="0.1" value="${Number(s.pose?.theta_deg ?? s.theta_deg ?? 0)}" data-sensor-id="${s.id}" style="width:100px" />
-      </td>
-      <td style="padding:6px 8px; border-bottom:1px solid #eee; text-align:right;">
-        <button class="btn" data-open-modal="${s.id}">Details…</button>
-        <button class="btn" data-delete-sensor="${s.id}" style="margin-left: 4px; background-color: #dc3545; color: white;">Delete</button>
-      </td>
+  
+  for(const s of sensors_array){
+    const item = document.createElement('div');
+    item.className = 'accordion-item';
+    item.setAttribute('data-sensor-id', s.id);
+    
+    // Create header with key info
+    const header = document.createElement('div');
+    header.className = 'accordion-header';
+    header.setAttribute('tabindex', '0');
+    header.setAttribute('role', 'button');
+    header.setAttribute('aria-expanded', 'false');
+    header.setAttribute('aria-controls', `sensor-content-${s.id}`);
+    
+    header.innerHTML = `
+      <div class="accordion-header-info">
+        <div class="accordion-header-title">${s.id}</div>
+        <div class="accordion-header-status">
+          <label class="toggle-switch">
+            <input type="checkbox" ${s.enabled ? 'checked' : ''} data-sensor-id="${s.id}" />
+            <span class="toggle-slider"></span>
+          </label>
+          <span class="status-badge ${s.enabled ? 'status-enabled' : 'status-disabled'}">
+            ${s.enabled ? 'ON' : 'OFF'}
+          </span>
+        </div>
+      </div>
+      <div class="accordion-header-actions">
+        <button class="btn" data-delete-sensor="${s.id}" style="background-color: #dc3545; color: white; font-size: 11px; padding: 2px 6px;">Delete</button>
+        <span class="accordion-toggle-caret">▼</span>
+      </div>
     `;
-
-    // Enabled → sensor.enable (use slot index)
-    const chk = tr.querySelector('input[type=checkbox]');
-    const lbl = tr.querySelector('span');
-    chk.addEventListener('change', () => {
-      lbl.textContent = chk.checked ? 'ON' : 'OFF';
-      try { ws.send(JSON.stringify({ type:'sensor.enable', id: Number(chk.dataset.slotIndex), enabled: chk.checked })); }
+    
+    // Create content with detailed controls
+    const content = document.createElement('div');
+    content.className = 'accordion-content';
+    content.id = `sensor-content-${s.id}`;
+    content.setAttribute('role', 'region');
+    
+    content.innerHTML = `
+      <div class="accordion-form">
+        <div class="accordion-form-row">
+          <label>Position X:</label>
+          <input class="pose-tx" type="number" step="0.01" value="${Number(s.pose?.tx ?? s.tx ?? 0)}" data-sensor-id="${s.id}" />
+        </div>
+        <div class="accordion-form-row">
+          <label>Position Y:</label>
+          <input class="pose-ty" type="number" step="0.01" value="${Number(s.pose?.ty ?? s.ty ?? 0)}" data-sensor-id="${s.id}" />
+        </div>
+        <div class="accordion-form-row">
+          <label>Rotation (°):</label>
+          <input class="pose-theta" type="number" step="0.1" value="${Number(s.pose?.theta_deg ?? s.theta_deg ?? 0)}" data-sensor-id="${s.id}" />
+        </div>
+        <div class="accordion-form-actions">
+          <button class="btn" data-open-modal="${s.id}">Advanced Settings…</button>
+        </div>
+      </div>
+    `;
+    
+    // Add accordion toggle functionality
+    const toggleAccordion = () => {
+      const isCollapsed = item.classList.toggle('collapsed');
+      header.setAttribute('aria-expanded', isCollapsed ? 'false' : 'true');
+      const caret = header.querySelector('.accordion-toggle-caret');
+      if (caret) {
+        caret.textContent = isCollapsed ? '▶' : '▼';
+      }
+    };
+    
+    // Initially collapsed
+    item.classList.add('collapsed');
+    header.setAttribute('aria-expanded', 'false');
+    
+    // Header click handler
+    header.addEventListener('click', (e) => {
+      // Don't toggle if clicking on toggle switch or delete button
+      if (e.target.closest('.toggle-switch') || e.target.closest('[data-delete-sensor]')) {
+        return;
+      }
+      toggleAccordion();
+    });
+    
+    // Keyboard handler
+    header.addEventListener('keydown', (e) => {
+      if (e.key === ' ' || e.key === 'Enter') {
+        e.preventDefault();
+        toggleAccordion();
+      }
+    });
+    
+    // Enable/disable toggle
+    const toggleSwitch = header.querySelector('input[type=checkbox]');
+    const statusBadge = header.querySelector('.status-badge');
+    toggleSwitch.addEventListener('change', () => {
+      const enabled = toggleSwitch.checked;
+      statusBadge.textContent = enabled ? 'ON' : 'OFF';
+      statusBadge.className = `status-badge ${enabled ? 'status-enabled' : 'status-disabled'}`;
+      try {
+        ws.send(JSON.stringify({ type:'sensor.enable', id: Number(toggleSwitch.dataset.sensorId), enabled }));
+      }
       catch(e){ setPanelMsg('send failed', false); }
     });
-
-    // tx/ty/theta → blurで {pose:{...}} patch (use slot index)
+    
+    // Pose input handlers with optimistic updates
     const onPoseBlur = (cls, key) => {
-      const input = tr.querySelector(cls);
+      const input = content.querySelector(cls);
+      
+      // Send to server on blur (when user finishes editing)
       input.addEventListener('blur', () => {
         const sensorId = Number(input.dataset.sensorId);
         const v = Number(input.value || 0);
+        
+        // Optimistic update: immediately update local sensor state
+        const sensor = sensors.get(sensorId);
+        if (sensor && sensor.pose) {
+          sensor.pose[key] = v;
+          redrawCanvas(); // Immediately reflect in canvas
+        }
+        
         const patch = { pose: {} };
         patch.pose[key] = v;
-        ws.send(JSON.stringify({ type:'sensor.update', id: sensorId, patch }));
+        
+        // Send with client ID for sender identification
+        ws.send(JSON.stringify({
+          type: 'sensor.update',
+          id: sensorId,
+          patch: patch,
+          clientId: clientId
+        }));
       });
     };
     onPoseBlur('.pose-tx', 'tx');
     onPoseBlur('.pose-ty', 'ty');
     onPoseBlur('.pose-theta', 'theta_deg');
+    
+    // Modal and delete handlers
+    content.querySelector('[data-open-modal]').addEventListener('click', () => openSensorModal(s.id));
+    header.querySelector('[data-delete-sensor]').addEventListener('click', () => deleteSensor(s.id));
+    
+    // Prevent toggle switch clicks from bubbling
+    toggleSwitch.addEventListener('click', (e) => {
+      e.stopPropagation();
+    });
+    
+    item.appendChild(header);
+    item.appendChild(content);
+    container.appendChild(item);
+  }
+  
+  // Restore UI state after re-rendering
+  restoreAccordionStates();
+  restoreFocusState();
+}
 
-    // モーダル起動 (use slot index)
-    tr.querySelector('[data-open-modal]').addEventListener('click', () => openSensorModal(s.id));
+// State preservation functions
+function preserveFocusState() {
+  const activeElement = document.activeElement;
+  if (activeElement && (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA')) {
+    focusState = {
+      element: activeElement,
+      sensorId: activeElement.dataset.sensorId,
+      selectionStart: activeElement.selectionStart,
+      selectionEnd: activeElement.selectionEnd,
+      value: activeElement.value
+    };
+  } else {
+    focusState = null;
+  }
+}
 
-    // Delete sensor (use slot index)
-    tr.querySelector('[data-delete-sensor]').addEventListener('click', () => deleteSensor(s.id));
+function restoreFocusState() {
+  if (!focusState) return;
+  
+  // Find the element again (it might have been re-rendered)
+  const element = focusState.sensorId ?
+    document.querySelector(`[data-sensor-id="${focusState.sensorId}"]`)?.querySelector(`.${focusState.element.className.split(' ')[0]}`) :
+    focusState.element;
+    
+  if (element && element.value === focusState.value) {
+    setTimeout(() => {
+      element.focus();
+      if (focusState.selectionStart !== undefined) {
+        element.setSelectionRange(focusState.selectionStart, focusState.selectionEnd);
+      }
+    }, 0);
+  }
+}
 
-    tbody.appendChild(tr);
+function preserveAccordionStates() {
+  accordionStates.clear();
+  document.querySelectorAll('.accordion-item').forEach(item => {
+    const sensorId = item.dataset.sensorId;
+    if (sensorId) {
+      const isExpanded = !item.classList.contains('collapsed');
+      accordionStates.set(sensorId, isExpanded);
+    }
+  });
+}
+
+function restoreAccordionStates() {
+  accordionStates.forEach((isExpanded, sensorId) => {
+    const item = document.querySelector(`[data-sensor-id="${sensorId}"]`);
+    if (item) {
+      const header = item.querySelector('.accordion-header');
+      const caret = header?.querySelector('.accordion-toggle-caret');
+      
+      item.classList.toggle('collapsed', !isExpanded);
+      if (header) {
+        header.setAttribute('aria-expanded', isExpanded ? 'true' : 'false');
+      }
+      if (caret) {
+        caret.textContent = isExpanded ? '▼' : '▶';
+      }
+    }
+  });
+}
+
+// Enhanced sensor state management with optimistic updates
+function updateSensorState(sensorId, newState, source = 'local') {
+  const sensor = sensors.get(sensorId);
+  if (!sensor) return;
+  
+  // Update the sensor state
+  Object.assign(sensor, newState);
+  
+  if (source === 'local') {
+    // Optimistic update: immediately reflect in both DOM and Canvas
+    updateSensorDOM(sensorId, false); // Don't preserve focus for local updates
+    redrawCanvas();
+  } else if (source === 'remote') {
+    // Remote update: preserve user interaction state
+    preserveFocusState();
+    preserveAccordionStates();
+    updateSensorDOM(sensorId, true); // Preserve focus for remote updates
+    restoreFocusState();
+    restoreAccordionStates();
+    redrawCanvas();
+  }
+}
+
+// Function to update DOM form inputs when sensor pose changes from canvas interactions
+function updateSensorFormInputs(sensorId, preserveFocus = true) {
+  updateSensorDOM(sensorId, preserveFocus);
+}
+
+function updateSensorDOM(sensorId, preserveFocus = true) {
+  const sensorAccordion = document.querySelector(`[data-sensor-id="${sensorId}"]`);
+  if (!sensorAccordion) return;
+  
+  const sensor = sensors.get(sensorId);
+  if (!sensor || !sensor.pose) return;
+  
+  // Preserve focus state if requested
+  let currentFocus = null;
+  if (preserveFocus) {
+    const activeElement = document.activeElement;
+    if (activeElement && activeElement.dataset.sensorId === sensorId.toString()) {
+      currentFocus = {
+        element: activeElement,
+        selectionStart: activeElement.selectionStart,
+        selectionEnd: activeElement.selectionEnd
+      };
+    }
+  }
+  
+  // Update the form inputs in the accordion
+  const txInput = sensorAccordion.querySelector('.pose-tx');
+  const tyInput = sensorAccordion.querySelector('.pose-ty');
+  const thetaInput = sensorAccordion.querySelector('.pose-theta');
+  
+  if (txInput) txInput.value = Number(sensor.pose.tx || 0).toFixed(2);
+  if (tyInput) tyInput.value = Number(sensor.pose.ty || 0).toFixed(2);
+  if (thetaInput) thetaInput.value = Number(sensor.pose.theta_deg || 0).toFixed(1);
+  
+  // Restore focus if it was preserved
+  if (currentFocus && currentFocus.element) {
+    setTimeout(() => {
+      currentFocus.element.focus();
+      if (currentFocus.selectionStart !== undefined) {
+        currentFocus.element.setSelectionRange(currentFocus.selectionStart, currentFocus.selectionEnd);
+      }
+    }, 0);
   }
 }
 
@@ -859,8 +1099,17 @@ ws.onmessage = (ev) => {
         applyFilterConfigToUI(m.filter_config);
         setFilterMessage('Filter configuration loaded from server');
       }
-    } else if (m.type === 'sensor.updated' && m.sensor && typeof m.sensor.id === 'number') {
-      sensors.set(m.sensor.id, m.sensor);
+    } else if (m.type === 'sensor.updated' && m.sensor) {
+      // Check if this update is from another client (not our own)
+      if (m.clientId && m.clientId !== clientId) {
+        // Remote update: use enhanced state management with focus preservation
+        updateSensorState(m.sensor.id, m.sensor, 'remote');
+      } else if (!m.clientId) {
+        // Legacy update without clientId: treat as remote to be safe
+        updateSensorState(m.sensor.id, m.sensor, 'remote');
+      }
+      // If it's our own update (m.clientId === clientId), ignore it since we already applied optimistically
+      
       renderSensors();
       maybeCloseModalOnAck(m);
     } else if (m.type === 'filter.config') {
@@ -1772,6 +2021,9 @@ cv.addEventListener('mouseup', (e) => {
     // Send sensor update to server
     const sensor = sensors.get(selectedSensor);
     if (sensor && sensor.pose) {
+      // Update DOM form inputs to reflect the new position
+      updateSensorFormInputs(selectedSensor);
+      
       const patch = {
         pose: {
           tx: sensor.pose.tx,
@@ -1784,7 +2036,8 @@ cv.addEventListener('mouseup', (e) => {
         ws.send(JSON.stringify({
           type: 'sensor.update',
           id: selectedSensor,
-          patch: patch
+          patch: patch,
+          clientId: clientId
         }));
       } catch (e) {
         console.error('Failed to send sensor update:', e);
@@ -1870,6 +2123,9 @@ document.addEventListener('keydown', (e) => {
           const newTheta = ((sensor.pose.theta_deg || 0) + 15) % 360;
           sensor.pose.theta_deg = newTheta;
           
+          // Update DOM form inputs to reflect the new rotation
+          updateSensorFormInputs(selectedSensor);
+          
           const patch = {
             pose: {
               tx: sensor.pose.tx || 0,
@@ -1882,7 +2138,8 @@ document.addEventListener('keydown', (e) => {
             ws.send(JSON.stringify({
               type: 'sensor.update',
               id: selectedSensor,
-              patch: patch
+              patch: patch,
+              clientId: clientId
             }));
           } catch (e) {
             console.error('Failed to send sensor rotation:', e);
@@ -2732,7 +2989,6 @@ function createSensorAddModal() {
 
 // ======== Sink Management ========
 const btnAddSink = document.getElementById('btn-add-sink');
-const sinksTbody = document.getElementById('sinks-tbody');
 const sinksMsg = document.getElementById('sinks-msg');
 
 function setSinksMessage(text, isError = false) {
@@ -2746,49 +3002,256 @@ function setSinksMessage(text, isError = false) {
 }
 
 function renderSinks(sinksArray) {
-  if (!sinksTbody) return;
+  const container = document.getElementById('sinks-accordion');
+  if (!container) return;
   
-  sinksTbody.innerHTML = '';
+  container.innerHTML = '';
   
   if (!Array.isArray(sinksArray) || sinksArray.length === 0) {
-    const tr = document.createElement('tr');
-    tr.innerHTML = '<td colspan="7" style="text-align: center; color: #666;">No sinks configured</td>';
-    sinksTbody.appendChild(tr);
+    const emptyMessage = document.createElement('div');
+    emptyMessage.style.textAlign = 'center';
+    emptyMessage.style.color = '#666';
+    emptyMessage.style.padding = '20px';
+    emptyMessage.textContent = 'No sinks configured';
+    container.appendChild(emptyMessage);
     return;
   }
   
+  console.log('Rendering sinks:', sinksArray.map(s => ({
+    ...s
+  })));
+  
   for (let i = 0; i < sinksArray.length; i++) {
     const sink = sinksArray[i];
-    const tr = document.createElement('tr');
+    const item = document.createElement('div');
+    item.className = 'accordion-item';
+    item.setAttribute('data-sink-id', i);
+    
+    // Create header with key info
+    const header = document.createElement('div');
+    header.className = 'accordion-header';
+    header.setAttribute('tabindex', '0');
+    header.setAttribute('role', 'button');
+    header.setAttribute('aria-expanded', 'false');
+    header.setAttribute('aria-controls', `sink-content-${i}`);
     
     const type = sink.type || 'unknown';
-    const enabled = sink.enabled ? 'Yes' : 'No';
+    const enabled = sink.enabled;
     const url = sink.url || '-';
-    const topic = sink.topic || '-';
-    const encoding = sink.encoding || '-';
-    const rateLimit = sink.rate_limit || 0;
     
-    tr.innerHTML = `
-      <td>${type}</td>
-      <td><span class="status-badge ${enabled === 'Yes' ? 'status-enabled' : 'status-disabled'}">${enabled}</span></td>
-      <td style="font-family: monospace; font-size: 0.9em;">${url}</td>
-      <td>${topic}</td>
-      <td>${encoding}</td>
-      <td style="text-align: right;">${rateLimit}</td>
-      <td style="text-align: right;">
-        <button class="btn" data-edit-sink="${i}">Edit</button>
-        <button class="btn" data-delete-sink="${i}" style="margin-left: 4px; background-color: #dc3545; color: white;">Delete</button>
-      </td>
+    header.innerHTML = `
+      <div class="accordion-header-info">
+        <div class="accordion-header-title">${type.toUpperCase()} Sink ${i}</div>
+        <div class="accordion-header-status">
+          <label class="toggle-switch">
+            <input type="checkbox" ${enabled ? 'checked' : ''} data-sink-id="${i}" />
+            <span class="toggle-slider"></span>
+          </label>
+          <span class="status-badge ${enabled ? 'status-enabled' : 'status-disabled'}">
+            ${enabled ? 'ON' : 'OFF'}
+          </span>
+        </div>
+      </div>
+      <div class="accordion-header-actions">
+        <button class="btn" data-delete-sink="${i}" style="background-color: #dc3545; color: white; font-size: 11px; padding: 2px 6px;">Delete</button>
+        <span class="accordion-toggle-caret">▼</span>
+      </div>
     `;
     
-    // Add event listeners
-    const editBtn = tr.querySelector('[data-edit-sink]');
-    const deleteBtn = tr.querySelector('[data-delete-sink]');
+    // Create content with detailed controls
+    const content = document.createElement('div');
+    content.className = 'accordion-content';
+    content.id = `sink-content-${i}`;
+    content.setAttribute('role', 'region');
     
-    editBtn.addEventListener('click', () => editSink(i));
-    deleteBtn.addEventListener('click', () => deleteSink(i));
+    const topic = sink.topic || '';
+    const encoding = sink.encoding || '';
+    const rateLimit = sink.rate_limit || 0;
+    const inBundle = sink.in_bundle || false;
+    const bundleFragmentSize = sink.bundle_fragment_size || 1024;
     
-    sinksTbody.appendChild(tr);
+    content.innerHTML = `
+      <div class="accordion-form">
+        <div class="accordion-form-row">
+          <label>URL:</label>
+          <input class="sink-url" type="text" value="${url}" data-sink-id="${i}" />
+        </div>
+        <div class="accordion-form-row">
+          <label>Topic:</label>
+          <input class="sink-topic" type="text" value="${topic}" data-sink-id="${i}" />
+        </div>
+        <div class="accordion-form-row">
+          <label>Rate Limit (Hz):</label>
+          <input class="sink-rate-limit" type="number" min="0" value="${rateLimit}" data-sink-id="${i}" />
+        </div>
+        ${type === 'nng' ? `
+        <div class="accordion-form-row">
+          <label>Encoding:</label>
+          <select class="sink-encoding" data-sink-id="${i}">
+            <option value="msgpack" ${encoding === 'msgpack' ? 'selected' : ''}>MessagePack</option>
+            <option value="json" ${encoding === 'json' ? 'selected' : ''}>JSON</option>
+          </select>
+        </div>
+        ` : ''}
+        ${type === 'osc' ? `
+        <div class="accordion-form-row">
+          <label>In Bundle:</label>
+          <input class="sink-in-bundle" type="checkbox" ${inBundle ? 'checked' : ''} data-sink-id="${i}" />
+        </div>
+        <div class="accordion-form-row">
+          <label>Bundle Fragment Size:</label>
+          <input class="sink-bundle-fragment-size" type="number" min="0" value="${bundleFragmentSize}" data-sink-id="${i}" />
+        </div>
+        ` : ''}
+      </div>
+    `;
+    
+    // Add accordion toggle functionality
+    const toggleAccordion = () => {
+      const isCollapsed = item.classList.toggle('collapsed');
+      header.setAttribute('aria-expanded', isCollapsed ? 'false' : 'true');
+      const caret = header.querySelector('.accordion-toggle-caret');
+      if (caret) {
+        caret.textContent = isCollapsed ? '▶' : '▼';
+      }
+    };
+    
+    // Initially collapsed
+    item.classList.add('collapsed');
+    header.setAttribute('aria-expanded', 'false');
+    
+    // Header click handler
+    header.addEventListener('click', (e) => {
+      // Don't toggle if clicking on toggle switch or delete button
+      if (e.target.closest('.toggle-switch') || e.target.closest('[data-delete-sink]')) {
+        return;
+      }
+      toggleAccordion();
+    });
+    
+    // Keyboard handler
+    header.addEventListener('keydown', (e) => {
+      if (e.key === ' ' || e.key === 'Enter') {
+        e.preventDefault();
+        toggleAccordion();
+      }
+    });
+    
+    // Enable/disable toggle
+    const toggleSwitch = header.querySelector('input[type=checkbox]');
+    const statusBadge = header.querySelector('.status-badge');
+    toggleSwitch.addEventListener('change', () => {
+      const enabled = toggleSwitch.checked;
+      statusBadge.textContent = enabled ? 'ON' : 'OFF';
+      statusBadge.className = `status-badge ${enabled ? 'status-enabled' : 'status-disabled'}`;
+      try {
+        // Update sink enabled status via API
+        fetch(`/api/v1/sinks/${i}`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ enabled })
+        }).then(response => {
+          if (response.ok) {
+            setSinksMessage(`Sink ${i} ${enabled ? 'enabled' : 'disabled'}`, false);
+          } else {
+            response.json().then(error => {
+              setSinksMessage(`Failed to update sink: ${error.message}`, true);
+            });
+          }
+        }).catch(e => {
+          setSinksMessage(`Failed to update sink: ${e.message}`, true);
+        });
+      }
+      catch(e){ setSinksMessage('Update failed', true); }
+    });
+    
+    // Input field handlers for real-time updates
+    const onInputBlur = (cls, key) => {
+      const input = content.querySelector(cls);
+      if (input) {
+        input.addEventListener('blur', () => {
+          const sinkId = Number(input.dataset.sinkId);
+          let value = input.value;
+          
+          // Convert to appropriate type
+          if (key === 'rate_limit' || key === 'bundle_fragment_size') {
+            value = Number(value) || 0;
+          } else if (key === 'in_bundle') {
+            value = input.checked;
+          }
+          
+          const patchData = {};
+          patchData[key] = value;
+          
+          fetch(`/api/v1/sinks/${sinkId}`, {
+            method: 'PATCH',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(patchData)
+          }).then(response => {
+            if (response.ok) {
+              setSinksMessage(`Sink ${sinkId} updated`, false);
+            } else {
+              response.json().then(error => {
+                setSinksMessage(`Failed to update sink: ${error.message}`, true);
+              });
+            }
+          }).catch(e => {
+            setSinksMessage(`Failed to update sink: ${e.message}`, true);
+          });
+        });
+      }
+    };
+    
+    onInputBlur('.sink-url', 'url');
+    onInputBlur('.sink-topic', 'topic');
+    onInputBlur('.sink-rate-limit', 'rate_limit');
+    if (type === 'nng') {
+      onInputBlur('.sink-encoding', 'encoding');
+    }
+    if (type === 'osc') {
+      const bundleInput = content.querySelector('.sink-in-bundle');
+      if (bundleInput) {
+        bundleInput.addEventListener('change', () => {
+          const sinkId = Number(bundleInput.dataset.sinkId);
+          const value = bundleInput.checked;
+          
+          fetch(`/api/v1/sinks/${sinkId}`, {
+            method: 'PATCH',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ in_bundle: value })
+          }).then(response => {
+            if (response.ok) {
+              setSinksMessage(`Sink ${sinkId} updated`, false);
+            } else {
+              response.json().then(error => {
+                setSinksMessage(`Failed to update sink: ${error.message}`, true);
+              });
+            }
+          }).catch(e => {
+            setSinksMessage(`Failed to update sink: ${e.message}`, true);
+          });
+        });
+      }
+      onInputBlur('.sink-bundle-fragment-size', 'bundle_fragment_size');
+    }
+    
+    // Delete handler
+    header.querySelector('[data-delete-sink]').addEventListener('click', () => deleteSink(i));
+    
+    // Prevent toggle switch clicks from bubbling
+    toggleSwitch.addEventListener('click', (e) => {
+      e.stopPropagation();
+    });
+    
+    item.appendChild(header);
+    item.appendChild(content);
+    container.appendChild(item);
   }
   
   setSinksMessage(`${sinksArray.length} sink(s) configured`);

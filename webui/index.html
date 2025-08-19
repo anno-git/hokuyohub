@@ -62,20 +62,8 @@
           <div id="legend-items" class="legend-items"></div>
         </div>
 
-        <div class="table-wrap">
-          <table id="sensor-table">
-            <thead>
-              <tr>
-                <th>Name</th>
-                <th>Enabled</th>
-                <th>tx</th>
-                <th>ty</th>
-                <th>theta</th>
-                <th style="text-align:right;">Actions</th>
-              </tr>
-            </thead>
-            <tbody id="sensor-tbody"></tbody>
-          </table>
+        <div id="sensors-accordion" class="accordion-container">
+          <!-- Sensor items will be dynamically generated here -->
         </div>
       </section>
 
@@ -87,21 +75,8 @@
           <span id="sinks-msg" class="panel-msg"></span>
         </div>
 
-        <div class="table-wrap">
-          <table id="sinks-table">
-            <thead>
-              <tr>
-                <th>Type</th>
-                <th>Enabled</th>
-                <th>URL</th>
-                <th>Topic</th>
-                <th>Encoding</th>
-                <th>Rate Limit (Hz)</th>
-                <th style="text-align:right;">Actions</th>
-              </tr>
-            </thead>
-            <tbody id="sinks-tbody"></tbody>
-          </table>
+        <div id="sinks-accordion" class="accordion-container">
+          <!-- Sink items will be dynamically generated here -->
         </div>
       </section>
     </aside>
