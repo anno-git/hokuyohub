@@ -707,3 +707,191 @@ button#btn-refresh:hover {
 #sinks-msg.error {
   color: #e74c3c;
 }
+
+/* ====== Layout Overflow Fixes ====== */
+/* Prevent horizontal overflow and ensure content wraps nicely */
+html, body {
+  overflow-x: hidden;
+}
+
+.sidebar-left, .sidebar-right {
+  overflow-x: hidden;
+  word-wrap: break-word;
+}
+
+/* Fix table overflow issues */
+table {
+  table-layout: fixed;
+  width: 100%;
+}
+
+th, td {
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  max-width: 0; /* Allow flex distribution */
+}
+
+/* URL and code text wrapping */
+code, .monospace {
+  word-break: break-all;
+  overflow-wrap: anywhere;
+}
+
+/* Parameter rows: keep inputs within container */
+.param-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+.param-row label {
+  flex: 0 1 auto;
+  min-width: 100px;
+  max-width: 150px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.param-row input,
+.param-row select,
+.param-row textarea {
+  flex: 1 1 auto;
+  min-width: 80px;
+  max-width: 100%;
+}
+
+/* DBSCAN config specific fixes */
+.dbscan-config .param-row input[type="number"] {
+  max-width: 120px;
+  min-width: 60px;
+}
+
+/* Filter config specific fixes */
+.strategy-params .param-row input[type="number"] {
+  max-width: 100px;
+  min-width: 60px;
+}
+
+/* Modal row treatment */
+.modal__row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+.modal__row label {
+  flex: 0 0 180px;
+  max-width: 180px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.modal__row input,
+.modal__row select,
+.modal__row textarea {
+  flex: 1 1 220px;
+  min-width: 0;
+  max-width: 100%;
+}
+
+/* Table container fixes */
+.table-wrap {
+  overflow-x: auto;
+  overflow-y: auto;
+  max-width: 100%;
+}
+
+/* Sensor table specific fixes */
+#sensor-table td:nth-child(1) { /* Name column */
+  max-width: 120px;
+}
+
+#sensor-table td:nth-child(3), /* tx */
+#sensor-table td:nth-child(4), /* ty */
+#sensor-table td:nth-child(5) { /* theta */
+  max-width: 80px;
+}
+
+/* Sinks table specific fixes */
+#sinks-table td:nth-child(3) { /* URL column */
+  max-width: 200px;
+  font-family: monospace;
+  font-size: 0.85em;
+}
+
+/* Publishers table specific fixes */
+#publishers-table td:nth-child(3) { /* URL column */
+  max-width: 200px;
+  font-family: monospace;
+  font-size: 0.85em;
+}
+
+/* Narrow screens: stack label/input vertically */
+@media (max-width: 600px) {
+  .param-row,
+  .modal__row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .param-row label,
+  .modal__row label {
+    flex: 0 0 auto;
+    max-width: 100%;
+    white-space: normal;
+    text-align: left;
+  }
+
+  .param-row input,
+  .param-row select,
+  .param-row textarea,
+  .modal__row input,
+  .modal__row select,
+  .modal__row textarea {
+    flex: 1 1 auto;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  /* Stack sidebar sections vertically on mobile */
+  .main-container {
+    flex-direction: column;
+    height: auto;
+  }
+  
+  .sidebar-left, .sidebar-right {
+    width: 100%;
+    max-height: 400px;
+    order: 1;
+  }
+  
+  .center-canvas {
+    order: 0;
+    height: 50vh;
+    min-height: 300px;
+  }
+}
+
+/* Very narrow screens */
+@media (max-width: 400px) {
+  .control-group {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 4px;
+  }
+  
+  .control-group label {
+    min-width: auto;
+  }
+  
+  .roi-btn {
+    width: 100%;
+    margin: 2px 0;
+  }
+}

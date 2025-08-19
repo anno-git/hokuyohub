@@ -597,6 +597,17 @@ void LiveWs::handleDbscanUpdate(const drogon::WebSocketConnectionPtr& conn, cons
     }
     
     if (updated) {
+      // Apply the updated configuration to the DBSCAN instance
+      if (dbscan_) {
+        dbscan_->setParams(appConfig_->dbscan.eps_norm, appConfig_->dbscan.minPts);
+        dbscan_->setAngularScale(appConfig_->dbscan.k_scale);
+        dbscan_->setPerformanceParams(appConfig_->dbscan.h_min, appConfig_->dbscan.h_max,
+                                     appConfig_->dbscan.R_max, appConfig_->dbscan.M_max);
+        
+        std::cout << "[DBSCAN] Configuration updated via WebSocket: eps_norm=" << appConfig_->dbscan.eps_norm
+                  << " minPts=" << appConfig_->dbscan.minPts << " k_scale=" << appConfig_->dbscan.k_scale << std::endl;
+      }
+      
       res["message"] = "DBSCAN configuration updated successfully";
       
       // Broadcast the update to all connected clients

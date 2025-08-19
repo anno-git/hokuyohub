@@ -207,11 +207,17 @@ log_info "=== Testing Config Endpoints ==="
 # Test config list
 test_endpoint "GET" "/api/v1/configs/list" "" true
 
-# Test config save by name
+# Test config save by name (SaveAs functionality)
 test_endpoint "POST" "/api/v1/configs/save" '{"name": "smoke_test"}' true
+
+# Test config save to default (Save functionality)
+test_endpoint "POST" "/api/v1/configs/save" '{"name": "default"}' true
 
 # Test config load by name
 test_endpoint "POST" "/api/v1/configs/load" '{"name": "smoke_test"}' true
+
+# Test config load default
+test_endpoint "POST" "/api/v1/configs/load" '{"name": "default"}' true
 
 # Test invalid name validation
 test_endpoint "POST" "/api/v1/configs/save" '{"name": "invalid/name"}' true

@@ -651,6 +651,15 @@ void RestApi::putDbscan(const drogon::HttpRequestPtr& req, std::function<void (c
     }
     
     if (updated) {
+      // Apply the updated configuration to the DBSCAN instance
+      dbscan_.setParams(config_.dbscan.eps_norm, config_.dbscan.minPts);
+      dbscan_.setAngularScale(config_.dbscan.k_scale);
+      dbscan_.setPerformanceParams(config_.dbscan.h_min, config_.dbscan.h_max,
+                                   config_.dbscan.R_max, config_.dbscan.M_max);
+      
+      std::cout << "[DBSCAN] Configuration updated via REST API: eps_norm=" << config_.dbscan.eps_norm
+                << " minPts=" << config_.dbscan.minPts << " k_scale=" << config_.dbscan.k_scale << std::endl;
+      
       // Notify all WebSocket clients about the configuration change
       if (ws_) {
         ws_->broadcastSnapshot();
@@ -1189,11 +1198,34 @@ void RestApi::postConfigsLoad(const drogon::HttpRequestPtr& req, std::function<v
       sensors_.reloadFromAppConfig();
       filters_.reloadFromAppConfig();
       
+      // Apply DBSCAN configuration to runtime
+      dbscan_.setParams(config_.dbscan.eps_norm, config_.dbscan.minPts);
+      dbscan_.setAngularScale(config_.dbscan.k_scale);
+      dbscan_.setPerformanceParams(config_.dbscan.h_min, config_.dbscan.h_max,
+                                   config_.dbscan.R_max, config_.dbscan.M_max);
+      
+      std::cout << "[DBSCAN] Configuration loaded from file: eps_norm=" << config_.dbscan.eps_norm
+                << " minPts=" << config_.dbscan.minPts << " k_scale=" << config_.dbscan.k_scale << std::endl;
+      
       // Apply sink configuration to runtime
       applySinksRuntime();
       
       // Notify all WebSocket clients about the configuration change
       if (ws_) {
+        // Broadcast DBSCAN config update specifically
+        Json::Value broadcast_msg;
+        broadcast_msg["type"] = "dbscan.updated";
+        broadcast_msg["config"]["eps_norm"] = config_.dbscan.eps_norm;
+        broadcast_msg["config"]["minPts"] = config_.dbscan.minPts;
+        broadcast_msg["config"]["k_scale"] = config_.dbscan.k_scale;
+        broadcast_msg["config"]["h_min"] = config_.dbscan.h_min;
+        broadcast_msg["config"]["h_max"] = config_.dbscan.h_max;
+        broadcast_msg["config"]["R_max"] = config_.dbscan.R_max;
+        broadcast_msg["config"]["M_max"] = config_.dbscan.M_max;
+        
+        ws_->broadcast(broadcast_msg.toStyledString());
+        
+        // Also broadcast full snapshot
         ws_->broadcastSnapshot();
       }
       
@@ -1244,11 +1276,34 @@ void RestApi::postConfigsImport(const drogon::HttpRequestPtr& req, std::function
       sensors_.reloadFromAppConfig();
       filters_.reloadFromAppConfig();
       
+      // Apply DBSCAN configuration to runtime
+      dbscan_.setParams(config_.dbscan.eps_norm, config_.dbscan.minPts);
+      dbscan_.setAngularScale(config_.dbscan.k_scale);
+      dbscan_.setPerformanceParams(config_.dbscan.h_min, config_.dbscan.h_max,
+                                   config_.dbscan.R_max, config_.dbscan.M_max);
+      
+      std::cout << "[DBSCAN] Configuration imported: eps_norm=" << config_.dbscan.eps_norm
+                << " minPts=" << config_.dbscan.minPts << " k_scale=" << config_.dbscan.k_scale << std::endl;
+      
       // Apply sink configuration to runtime
       applySinksRuntime();
       
       // Notify all WebSocket clients about the configuration change
       if (ws_) {
+        // Broadcast DBSCAN config update specifically
+        Json::Value broadcast_msg;
+        broadcast_msg["type"] = "dbscan.updated";
+        broadcast_msg["config"]["eps_norm"] = config_.dbscan.eps_norm;
+        broadcast_msg["config"]["minPts"] = config_.dbscan.minPts;
+        broadcast_msg["config"]["k_scale"] = config_.dbscan.k_scale;
+        broadcast_msg["config"]["h_min"] = config_.dbscan.h_min;
+        broadcast_msg["config"]["h_max"] = config_.dbscan.h_max;
+        broadcast_msg["config"]["R_max"] = config_.dbscan.R_max;
+        broadcast_msg["config"]["M_max"] = config_.dbscan.M_max;
+        
+        ws_->broadcast(broadcast_msg.toStyledString());
+        
+        // Also broadcast full snapshot
         ws_->broadcastSnapshot();
       }
       

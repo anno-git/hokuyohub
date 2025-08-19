@@ -50,6 +50,7 @@ int main(int argc, char** argv) {
   ws->setSensorManager(&sensors);
   ws->setFilterManager(&filterManager);
   ws->setAppConfig(&appcfg);
+  ws->setDbscan(&dbscan);
   
   // Apply initial sink configuration to runtime
   rest->applySinksRuntime();

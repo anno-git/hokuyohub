@@ -16,12 +16,14 @@ class LiveWs : public drogon::WebSocketController<LiveWs, false> { // ★ AutoCr
    SensorManager* sensorManager_{nullptr};
    FilterManager* filterManager_{nullptr};
    AppConfig* appConfig_{nullptr};
+   DBSCAN2D* dbscan_{nullptr};
  public:
    explicit LiveWs(PublisherManager& pm) : publisher_manager_(pm) {}
 
    void setSensorManager(SensorManager* sm) { sensorManager_ = sm; }
    void setFilterManager(FilterManager* fm) { filterManager_ = fm; }
    void setAppConfig(AppConfig* cfg) { appConfig_ = cfg; }
+   void setDbscan(DBSCAN2D* dbscan) { dbscan_ = dbscan; }
 
    void handleNewConnection(const drogon::HttpRequestPtr&,
                             const drogon::WebSocketConnectionPtr&) override;

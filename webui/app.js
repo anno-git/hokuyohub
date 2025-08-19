@@ -1930,6 +1930,11 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // Configuration buttons
+  const btnSaveDefault = document.getElementById('btn-save-default');
+  btnSaveDefault?.addEventListener('click', () => {
+    saveDefaultConfiguration();
+  });
+
   btnSaveConfig?.addEventListener('click', () => {
     saveCurrentConfiguration();
   });
@@ -2036,6 +2041,36 @@ async function saveCurrentConfiguration() {
       const result = await response.json();
       setPanelMsg(`Configuration saved: ${result.name}`, true);
       showNotification(`Configuration saved successfully as ${result.name}`, 'success');
+    } else {
+      const error = await response.json();
+      setPanelMsg(`Save failed: ${error.message}`, false);
+      showNotification(`Save failed: ${error.message}`, 'error');
+    }
+  } catch (e) {
+    setPanelMsg(`Save failed: ${e.message}`, false);
+    showNotification(`Save failed: ${e.message}`, 'error');
+  }
+}
+
+async function saveDefaultConfiguration() {
+  try {
+    // Save current server state to default.yaml
+    const response = await fetch('/api/v1/configs/save', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        // Add auth header if needed
+        // 'Authorization': 'Bearer ' + getAuthToken()
+      },
+      body: JSON.stringify({
+        name: 'default'
+      })
+    });
+    
+    if (response.ok) {
+      const result = await response.json();
+      setPanelMsg(`Configuration saved to default.yaml`, true);
+      showNotification(`Configuration saved successfully to default.yaml`, 'success');
     } else {
       const error = await response.json();
       setPanelMsg(`Save failed: ${error.message}`, false);
