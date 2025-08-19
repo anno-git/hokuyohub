@@ -59,6 +59,7 @@ header {
   background: #111;
   border-radius: 6px;
   overflow: hidden;
+  position: relative; /* Required for absolute positioning of overlay */
 }
 
 canvas {
@@ -370,16 +371,170 @@ button#btn-refresh:hover {
   /* pointer-events: none; */
 }
 
-/* ====== Viewport Controls ====== */
+/* ====== Accordion Styles ====== */
+.filter-section > h3 {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  user-select: none;
+  transition: background-color 0.2s;
+  padding: 4px 8px;
+  border-radius: 4px;
+}
+
+.filter-section > h3:hover {
+  background-color: rgba(0, 0, 0, 0.05);
+}
+
+.filter-section > h3:focus {
+  outline: 2px solid #3498db;
+  outline-offset: 2px;
+}
+
+.filter-section > h3 .toggle-caret {
+  margin-left: 8px;
+  font-size: 12px;
+  opacity: 0.7;
+  transition: transform 0.2s;
+}
+
+.filter-section.collapsed > h3 .toggle-caret {
+  transform: rotate(-90deg);
+}
+
+.filter-content {
+  margin-top: 8px;
+  transition: opacity 0.2s;
+}
+
+.filter-section.collapsed .filter-content {
+  display: none;
+}
+
+/* Ensure enable checkboxes remain accessible when collapsed */
+.filter-section > h3 .control-item {
+  pointer-events: auto;
+}
+
+.filter-section > h3 .control-item input[type="checkbox"] {
+  margin-right: 6px;
+}
+
+/* ====== Strategy Group Accordion Styles ====== */
+.strategy-group > h4 {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  user-select: none;
+  transition: background-color 0.2s;
+  padding: 2px 4px;
+  border-radius: 3px;
+  margin: 0 0 8px 0;
+  font-size: 14px;
+}
+
+.strategy-group > h4:hover {
+  background-color: rgba(0, 0, 0, 0.03);
+}
+
+.strategy-group > h4:focus {
+  outline: 2px solid #3498db;
+  outline-offset: 1px;
+}
+
+.strategy-group > h4 .toggle-caret {
+  margin-left: 6px;
+  font-size: 10px;
+  opacity: 0.6;
+  transition: transform 0.2s;
+}
+
+.strategy-group.collapsed > h4 .toggle-caret {
+  transform: rotate(-90deg);
+}
+
+.strategy-group.collapsed .strategy-params {
+  display: none;
+}
+
+/* Ensure strategy group enable checkboxes remain accessible when collapsed */
+.strategy-group > h4 .control-item {
+  pointer-events: auto;
+  flex: 1;
+}
+
+.strategy-group > h4 .control-item input[type="checkbox"] {
+  margin-right: 4px;
+}
+
+/* ====== Canvas Overlay ====== */
+.canvas-overlay {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  display: grid;
+  gap: 6px;
+  z-index: 5;
+  pointer-events: none; /* Allow canvas interactions underneath */
+}
+
+.canvas-overlay .overlay-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  background: rgba(248, 249, 250, 0.95);
+  border: 1px solid rgba(222, 226, 230, 0.8);
+  border-radius: 6px;
+  padding: 6px 8px;
+  pointer-events: auto; /* Enable interactions for controls */
+  backdrop-filter: blur(2px);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.canvas-overlay .overlay-row.help {
+  font-size: 11px;
+  color: #6c757d;
+  font-style: italic;
+  max-width: 400px;
+}
+
+/* Responsive overlay behavior */
+@media (max-width: 768px) {
+  .canvas-overlay {
+    position: static;
+    background: rgba(248, 249, 250, 0.95);
+    border-radius: 6px;
+    padding: 8px;
+    margin: 8px;
+  }
+  
+  .canvas-overlay .overlay-row {
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+}
+
+/* ====== Viewport Controls (Legacy - Hidden by default) ====== */
 .viewport-controls {
   padding: 8px 12px;
   background: #f8f9fa;
   border-bottom: 1px solid #dee2e6;
-  display: flex;
+  display: none; /* Hidden by default, can be re-enabled for rollback */
   gap: 20px;
   align-items: center;
   flex-wrap: wrap;
   font-size: 14px;
+}
+
+/* Rollback utility class */
+.use-legacy-controls .viewport-controls {
+  display: flex;
+}
+
+.use-legacy-controls .canvas-overlay {
+  display: none;
 }
 
 .control-group {

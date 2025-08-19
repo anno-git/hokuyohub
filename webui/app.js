@@ -1407,11 +1407,127 @@ function setupFilterEventListeners() {
   }
 }
 
-// Initialize filter controls
+// Initialize filter controls and accordion
 document.addEventListener('DOMContentLoaded', () => {
   setupFilterEventListeners();
   updateFilterUIState();
+  setupFilterAccordion();
 });
+
+// Setup accordion functionality for filter sections
+function setupFilterAccordion() {
+  // Setup section-level accordion (Prefilter/Postfilter)
+  const filterSections = document.querySelectorAll('#filter-panel .filter-section');
+  
+  filterSections.forEach((section, index) => {
+    const header = section.querySelector('h3');
+    const content = section.querySelector('.filter-content');
+    
+    if (!header || !content) return;
+    
+    // Ensure content has an ID for aria-controls
+    if (!content.id) {
+      content.id = `filter-content-${index}`;
+    }
+    
+    // Set up ARIA attributes
+    header.setAttribute('aria-controls', content.id);
+    content.setAttribute('role', 'region');
+    
+    // Toggle function
+    const toggleSection = () => {
+      const isCollapsed = section.classList.toggle('collapsed');
+      header.setAttribute('aria-expanded', isCollapsed ? 'false' : 'true');
+      
+      // Update caret direction
+      const caret = header.querySelector('.toggle-caret');
+      if (caret) {
+        caret.textContent = isCollapsed ? '▶' : '▼';
+      }
+    };
+    
+    // Click handler
+    header.addEventListener('click', (e) => {
+      // Don't toggle if clicking on the checkbox
+      if (e.target.type === 'checkbox' || e.target.closest('.control-item input[type="checkbox"]')) {
+        return;
+      }
+      toggleSection();
+    });
+    
+    // Keyboard handler
+    header.addEventListener('keydown', (e) => {
+      if (e.key === ' ' || e.key === 'Enter') {
+        e.preventDefault();
+        toggleSection();
+      }
+    });
+    
+    // Prevent checkbox clicks from bubbling to header
+    const checkbox = header.querySelector('input[type="checkbox"]');
+    if (checkbox) {
+      checkbox.addEventListener('click', (e) => {
+        e.stopPropagation();
+      });
+    }
+  });
+
+  // Setup strategy-group level accordion (Neighborhood Filter, Spike Removal, etc.)
+  const strategyGroups = document.querySelectorAll('#filter-panel .strategy-group');
+  
+  strategyGroups.forEach((group, index) => {
+    const header = group.querySelector('h4');
+    const params = group.querySelector('.strategy-params');
+    
+    if (!header || !params) return;
+    
+    // Ensure params has an ID for aria-controls
+    if (!params.id) {
+      params.id = `strategy-params-${index}`;
+    }
+    
+    // Set up ARIA attributes
+    header.setAttribute('aria-controls', params.id);
+    params.setAttribute('role', 'region');
+    
+    // Toggle function
+    const toggleGroup = () => {
+      const isCollapsed = group.classList.toggle('collapsed');
+      header.setAttribute('aria-expanded', isCollapsed ? 'false' : 'true');
+      
+      // Update caret direction
+      const caret = header.querySelector('.toggle-caret');
+      if (caret) {
+        caret.textContent = isCollapsed ? '▶' : '▼';
+      }
+    };
+    
+    // Click handler
+    header.addEventListener('click', (e) => {
+      // Don't toggle if clicking on the checkbox
+      if (e.target.type === 'checkbox' || e.target.closest('.control-item input[type="checkbox"]')) {
+        return;
+      }
+      toggleGroup();
+    });
+    
+    // Keyboard handler
+    header.addEventListener('keydown', (e) => {
+      if (e.key === ' ' || e.key === 'Enter') {
+        e.preventDefault();
+        toggleGroup();
+      }
+    });
+    
+    // Prevent checkbox clicks from bubbling to header
+    const checkbox = header.querySelector('input[type="checkbox"]');
+    if (checkbox) {
+      checkbox.addEventListener('click', (e) => {
+        e.stopPropagation();
+      });
+    }
+  });
+}
 
 // Mouse and touch interaction handlers
 function getMousePos(e) {

@@ -4,28 +4,16 @@
 作業担当者は実装計画を日本語でdocs/plansディレクトリにmdファイルで作成し、管理者の承認を得てから作業を開始してください。
 
 TODO項目
-- ブラウザでdbscanの設定
-- ブラウザ画面のレイアウト崩れ
-- Save機能の変更とSaveAsの追加
+- レイアウト修正
+
 
 ---
 
-ブラウザでdbscanの設定
+レイアウト修正
 
-- ブラウザ上では編集できているように見える
-- 実際の動作に反映されていないバグあり
-
----
-
-ブラウザ画面のレイアウト崩れ
-
-- サイドバーの要素が横幅をはみ出している
-
----
-
-Save機能の変更とSaveAsの追加
-
-- 従来のSaveをSaveAsに名称変更
-- Save機能を新たに追加
-    - 現在のブラウザ上の設定をdefault.yamlに書き込む
-    - SaveAsでdefaultという名前を指定するのと同じ動作
+- 以下のものをCanvasの上部に重ねて表示
+   - Show Raw Points, Show Filtered Data, Per-sensor Colors
+   - Viewport: Reset View, Scale
+   - ROI: + Include Region, + Exclude Region, Clear All ROI
+- Filter Configurationの各グループをアコーディオン式に畳めるようにする
+   - その際、enable/disableの操作は畳んだ状態でもできるようにする
