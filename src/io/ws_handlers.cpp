@@ -260,7 +260,6 @@ void LiveWs::sendSnapshotTo(const drogon::WebSocketConnectionPtr& conn){
   if(conn && conn->connected()){
     conn->send(out.toStyledString());
   }
-  std::cout << out.toStyledString() << std::endl;
 }
 
 void LiveWs::broadcastSnapshot(){

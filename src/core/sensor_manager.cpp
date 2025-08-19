@@ -403,7 +403,7 @@ void SensorManager::start(FrameCallback cb) {
   // 集約スレッド：直近Rawを統合してScanFrameに
   st.th = std::thread([cb]{
     auto& st2 = S();
-    // TODO:　アプリ設定によって可変にする
+    // TODO: アプリ設定によって可変にする
     const double target_fps = 30.0;
 
     const auto period = std::chrono::duration_cast<clock_mono::duration>(

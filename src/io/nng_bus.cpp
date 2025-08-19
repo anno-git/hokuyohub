@@ -22,6 +22,8 @@ void NngBus::startPublisher(const std::string& url) {
   url_ = url;
   enabled_ = !url.empty();
   
+  // TODO: map localhost to 127.0.0.1 if necessary
+
 #ifdef USE_NNG
   if (!enabled_) return;
   
@@ -41,11 +43,6 @@ void NngBus::startPublisher(const std::string& url) {
     enabled_ = false;
     return;
   }
-  
-  std::cout << "[NngBus] Publisher started on " << url_ << std::endl;
-#else
-  std::cout << "[NngBus] NNG support not compiled, publisher disabled" << std::endl;
-  enabled_ = false;
 #endif
 }
 
@@ -75,11 +72,6 @@ void NngBus::startPublisher(const SinkConfig& config) {
     enabled_ = false;
     return;
   }
-  
-  std::cout << "[NngBus] Publisher started on " << url_ << " with rate_limit=" << rate_limit_ << "Hz" << std::endl;
-#else
-  std::cout << "[NngBus] NNG support not compiled, publisher disabled" << std::endl;
-  enabled_ = false;
 #endif
 }
 

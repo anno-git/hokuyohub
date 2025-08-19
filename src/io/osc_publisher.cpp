@@ -54,7 +54,7 @@ void OscPublisher::start(const SinkConfig& config) {
     host_ = host_port;
     port_ = 7000; // Default OSC port
   }
-  
+  // TODO: map localhost to 127.0.0.1
   rate_limit_ = config.rate_limit;
   bundle_fragment_size_ = config.osc().bundle_fragment_size;
   in_bundle_ = config.osc().in_bundle;
@@ -80,11 +80,6 @@ void OscPublisher::start(const SinkConfig& config) {
   }
 
   enabled_ = true;
-  std::cout << "[OscPublisher] Started on " << host_ << ":" << port_ << path_
-            << " with rate_limit=" << rate_limit_ << "Hz" << std::endl;
-#else
-  std::cout << "[OscPublisher] OSC support not compiled, publisher disabled" << std::endl;
-  enabled_ = false;
 #endif
 }
 
