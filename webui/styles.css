@@ -758,20 +758,10 @@ button#btn-refresh:hover {
   padding: 8px 12px;
   background: #f8f9fa;
   border-bottom: 1px solid #dee2e6;
-  display: none; /* Hidden by default, can be re-enabled for rollback */
   gap: 20px;
   align-items: center;
   flex-wrap: wrap;
   font-size: 14px;
-}
-
-/* Rollback utility class */
-.use-legacy-controls .viewport-controls {
-  display: flex;
-}
-
-.use-legacy-controls .canvas-overlay {
-  display: none;
 }
 
 .control-group {
