@@ -60,7 +60,7 @@ bool HokuyoSensorUrg::openAndConfigure() {
     last_  = last;
 
     // ダウンサンプル（cluster=1ならskip=0）
-    skip_step_ = std::max(0, cfg_.skip_step);
+    skip_step_ = std::max(1, cfg_.skip_step);
 
     if (urg_set_scanning_parameter(&urg_, first_, last_, skip_step_) < 0) {
         std::cerr << "[HokuyoSensorUrg] set_scanning_parameter failed: " << urg_error(&urg_) << std::endl;
@@ -157,14 +157,9 @@ void HokuyoSensorUrg::rxLoop(urg_measurement_type_t mtype) {
             out.intensities.clear();
         }
 
-        out.start_step = first_;
-        // 1+skip_step_ ごとにサンプルされている前提でend_stepを近似
-        out.end_step   = first_ + (n - 1) * (1 + skip_step_);
-        const double deg0 = urg_step2deg(&urg_, first_);
-        const double deg1 = urg_step2deg(&urg_, first_ + 1 + skip_step_);
-        out.ang_res_deg = deg1 - deg0;
-        out.front_step  = urg_deg2step(&urg_, 0.0);
-        out.sensor_id   = cfg_.id;
+        out.start_angle = urg_index2deg(&urg_, 0);
+        out.angle_res = urg_index2deg(&urg_, 1) - out.start_angle;
+        out.sensor_id = cfg_.id;
 
         // 4) コールバックのスレッド安全な呼び出し
         Callback cb_copy;

@@ -25,11 +25,15 @@ using std::chrono::nanoseconds;
 
 namespace {
 
-// step -> angle [rad]; 0 rad is front_step, positive CCW
-inline float step_to_angle_rad(int step, int front_step, double ang_res_deg) {
-  const double ddeg = (static_cast<double>(step) - static_cast<double>(front_step)) * ang_res_deg;
-  return static_cast<float>(ddeg * (M_PI / 180.0));
-}
+  inline float deg2rad(float deg) {
+    return deg * (M_PI / 180.0f);
+  }
+
+  // step -> angle [rad]; 0 rad is front_step, positive CCW
+  inline float step_to_angle_deg(int step, int front_step, double ang_res_deg) {
+    const double ddeg = (static_cast<double>(step) - static_cast<double>(front_step)) * ang_res_deg;
+    return static_cast<float>(ddeg);
+  }
 
 struct Slot {
   SensorConfig cfg;                    // pose/mask/connection 等を保持（動的更新もここ）
@@ -432,13 +436,12 @@ void SensorManager::start(FrameCallback cb) {
         const auto& pose = sl.cfg.pose;
         const auto& m    = sl.cfg.mask;
 
-        int step = rs.start_step;
+        double ang = rs.start_angle;
         const int N = static_cast<int>(rs.ranges_mm.size());
-        for (int i = 0; i < N; ++i, ++step) {
+        for (int i = 0; i < N; ++i, ang += rs.angle_res) {
           const uint16_t d_mm = rs.ranges_mm[i];
           if (d_mm == 0) continue; // 欠測
           const float r_m = static_cast<float>(d_mm) * 0.001f;
-          const float ang = step_to_angle_rad(step, rs.front_step, rs.ang_res_deg);
 
           auto pass_local_mask = [&](float ang, float r_m, const SensorMaskLocal& m) {
             return (m.angle.min_deg <= ang && ang <= m.angle.max_deg) &&
@@ -446,8 +449,9 @@ void SensorManager::start(FrameCallback cb) {
           };
           if (!pass_local_mask(ang, r_m, m)) continue;
 
-          float x = r_m * std::cos(ang);
-          float y = r_m * std::sin(ang);
+          double angle_rad = deg2rad(ang);
+          float x = r_m * std::cos(angle_rad);
+          float y = r_m * std::sin(angle_rad);
           apply_pose(x, y, pose.tx, pose.ty, pose.theta_deg * (M_PI / 180.0f));
 
           xy.push_back(x);

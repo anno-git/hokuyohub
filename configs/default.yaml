@@ -6,7 +6,7 @@ sensors:
     pose: { tx: 0.0, ty: 0.0, theta: 0.0 }
     enabled: true
     mode: "ME"          # "MD"=距離のみ / "ME"=距離+強度
-    skip_step: 0          # 0ならダウンサンプリング無し
+    skip_step: 1          # 1ならダウンサンプリング無し
     interval: 0         # 0=既定（ms）
     mask:
       angle: { min: -135.0, max: 135.0 }  # degree
