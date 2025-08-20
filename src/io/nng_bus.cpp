@@ -50,6 +50,7 @@ void NngBus::startPublisher(const SinkConfig& config) {
   if (!config.isNng()) return;
 
   url_ = config.nng().url;
+  encoding_ = config.nng().encoding.empty() ? "msgpack" : config.nng().encoding;
   rate_limit_ = config.rate_limit;
   enabled_ = !url_.empty();
   
@@ -106,12 +107,17 @@ void NngBus::publishClusters(uint64_t t_ns, uint32_t seq, const std::vector<Clus
 #ifdef USE_NNG
   std::string data;
   
-  // Try MessagePack first, fallback to JSON
-  try {
-    data = serializeToMessagePack(t_ns, seq, items);
-  } catch (const std::exception& e) {
-    std::cerr << "[NngBus] MessagePack serialization failed, using JSON: " << e.what() << std::endl;
+  // Use the configured encoding
+  if (encoding_ == "json") {
     data = serializeToJson(t_ns, seq, items);
+  } else {
+    // Default to MessagePack, with JSON fallback on error
+    try {
+      data = serializeToMessagePack(t_ns, seq, items);
+    } catch (const std::exception& e) {
+      std::cerr << "[NngBus] MessagePack serialization failed, using JSON: " << e.what() << std::endl;
+      data = serializeToJson(t_ns, seq, items);
+    }
   }
   
   if (data.empty()) return;

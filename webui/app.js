@@ -13,8 +13,8 @@ const legend = document.getElementById('legend');
 const legendItems = document.getElementById('legend-items');
 
 // Display state
-let showRaw = false;
-let showFiltered = false;
+let showRaw = true;
+let showFiltered = true;
 let perSensorColor = false;
 
 let sensors = new Map();
@@ -766,7 +766,6 @@ setInterval(() => {
 
 // ======== 追加：センサー状態 管理/描画/操作 ========
 const tbody = document.getElementById('sensor-tbody');
-const btnRefresh = document.getElementById('btn-refresh');
 const panelMsg = document.getElementById('panel-msg');
 
 function setPanelMsg(text, ok=true){
@@ -1142,13 +1141,6 @@ ws.onmessage = (ev) => {
 };
 
 // 接続時に snapshot 要求（サーバが自動送信しない環境でも取得できるように）
-btnRefresh?.addEventListener('click', ()=>{
-  try {
-    ws.send(JSON.stringify({ type:'sensor.requestSnapshot' }));
-    ws.send(JSON.stringify({ type:'filter.requestConfig' }));
-  }
-  catch(e){ setPanelMsg('send failed', false); }
-});
 ws.addEventListener('open', ()=>{
   try {
     ws.send(JSON.stringify({ type:'sensor.requestSnapshot' }));
@@ -1421,11 +1413,10 @@ const filterElements = {
   postfilterIsolationRequiredNeighbors: document.getElementById('postfilter-isolation-required-neighbors'),
 
   // Control elements
-  resetFiltersBtn: document.getElementById('btn-reset-filters'),
   filterMsg: document.getElementById('filter-msg')
 };
 
-// Filter configuration state
+// Filter configuration state (暫定値 - 接続直後にサーバの filter.config で上書きされる)
 let currentFilterConfig = {
   prefilter: {
     enabled: true,
@@ -1569,25 +1560,6 @@ function sendFilterConfig() {
   }
 }
 
-function resetFilterConfig() {
-  const defaultConfig = {
-    prefilter: {
-      enabled: true,
-      neighborhood: { enabled: true, k: 5, r_base: 0.05, r_scale: 1.0 },
-      spike_removal: { enabled: true, dr_threshold: 0.3, window_size: 3 },
-      outlier_removal: { enabled: true, median_window: 5, outlier_threshold: 2.0 },
-      intensity_filter: { enabled: false, min_intensity: 0, min_reliability: 0 },
-      isolation_removal: { enabled: true, min_cluster_size: 3, isolation_radius: 0.1 }
-    },
-    postfilter: {
-      enabled: true,
-      isolation_removal: { enabled: true, min_points_size: 3, isolation_radius: 0.2, required_neighbors: 2 }
-    }
-  };
-  
-  applyFilterConfigToUI(defaultConfig);
-  sendFilterConfig();
-}
 
 // Event listeners for filter controls
 function setupFilterEventListeners() {
@@ -1650,10 +1622,6 @@ function setupFilterEventListeners() {
     }
   });
   
-  // Reset button
-  if (filterElements.resetFiltersBtn) {
-    filterElements.resetFiltersBtn.addEventListener('click', resetFilterConfig);
-  }
 }
 
 // Initialize filter controls and accordion
@@ -2876,6 +2844,42 @@ function setupDbscanEventListeners() {
   });
 }
 
+// Setup DBSCAN accordion functionality
+function setupDbscanAccordion() {
+  const dbscanPanel = document.getElementById('dbscan-panel');
+  if (!dbscanPanel) return;
+  
+  const header = dbscanPanel.querySelector('h3[role="button"]');
+  const content = document.getElementById('dbscan-content');
+  
+  if (!header || !content) return;
+  
+  // Toggle function
+  const toggleAccordion = () => {
+    const isCollapsed = content.classList.toggle('collapsed');
+    header.setAttribute('aria-expanded', isCollapsed ? 'false' : 'true');
+    
+    // Update caret direction
+    const caret = header.querySelector('.toggle-caret');
+    if (caret) {
+      caret.textContent = isCollapsed ? '▶' : '▼';
+    }
+  };
+  
+  // Click handler
+  header.addEventListener('click', (e) => {
+    toggleAccordion();
+  });
+  
+  // Keyboard handler
+  header.addEventListener('keydown', (e) => {
+    if (e.key === ' ' || e.key === 'Enter') {
+      e.preventDefault();
+      toggleAccordion();
+    }
+  });
+}
+
 // ======== Sensor Addition Management ========
 const btnAddSensor = document.getElementById('btn-add-sensor');
 let sensorAddModal = null;
@@ -3037,11 +3041,14 @@ function renderSinks(sinksArray) {
     
     const type = sink.type || 'unknown';
     const enabled = sink.enabled;
-    const url = sink.url || '-';
+    const url = sink.url || '';
+    
+    // Create title with type and URL
+    const title = url && url !== '-' && url !== '' ? `${type.toUpperCase()}(${url})` : `${type.toUpperCase()}`;
     
     header.innerHTML = `
       <div class="accordion-header-info">
-        <div class="accordion-header-title">${type.toUpperCase()} Sink ${i}</div>
+        <div class="accordion-header-title">${title}</div>
         <div class="accordion-header-status">
           <label class="toggle-switch">
             <input type="checkbox" ${enabled ? 'checked' : ''} data-sink-id="${i}" />
@@ -3563,6 +3570,7 @@ function deleteSink(index) {
 // Initialize DBSCAN and other UI components
 document.addEventListener('DOMContentLoaded', () => {
   setupDbscanEventListeners();
+  setupDbscanAccordion();
   
   // Add sensor button
   if (btnAddSensor) {

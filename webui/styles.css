@@ -517,6 +517,10 @@ button#btn-refresh:hover {
 .accordion-header-title {
   font-weight: 600;
   color: #495057;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 200px;
 }
 
 .accordion-header-status {
@@ -546,10 +550,46 @@ button#btn-refresh:hover {
   padding: 12px;
   background: #fff;
   border-top: 1px solid #f1f3f4;
+  max-height: none;
 }
 
 .accordion-item.collapsed .accordion-content {
   display: none;
+}
+
+/* OSC Sink specific height adjustments */
+.accordion-content .accordion-form {
+  display: grid;
+  grid-template-columns: 1fr;
+  row-gap: 8px;
+}
+
+.accordion-form-row {
+  display: grid;
+  grid-template-columns: 120px 1fr;
+  align-items: center;
+  column-gap: 8px;
+}
+
+.accordion-form-row input[type=text],
+.accordion-form-row input[type=number],
+.accordion-form-row select {
+  width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Small screen adjustments */
+@media (max-width: 1024px) {
+  .accordion-form-row {
+    grid-template-columns: 1fr;
+    row-gap: 4px;
+  }
+  
+  .accordion-form-row label {
+    margin-bottom: 2px;
+  }
 }
 
 /* ====== Accordion Form Styles ====== */
@@ -992,6 +1032,40 @@ button#btn-refresh:hover {
 
 #dbscan-msg.error {
   color: #e74c3c;
+}
+
+/* ====== DBSCAN Accordion Styles ====== */
+#dbscan-panel h3[role="button"] {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  user-select: none;
+  transition: background-color 0.2s;
+  padding: 4px 8px;
+  border-radius: 4px;
+  margin: 0;
+  font-size: 16px;
+}
+
+#dbscan-panel h3[role="button"]:hover {
+  background-color: rgba(0, 0, 0, 0.05);
+}
+
+#dbscan-panel h3[role="button"]:focus {
+  outline: 2px solid #3498db;
+  outline-offset: 2px;
+}
+
+#dbscan-panel h3[role="button"] .toggle-caret {
+  margin-left: 8px;
+  font-size: 12px;
+  opacity: 0.7;
+  transition: transform 0.2s;
+}
+
+.dbscan-config.collapsed {
+  display: none;
 }
 
 /* ====== Sidebar Panel Styles ====== */

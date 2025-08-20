@@ -10,6 +10,7 @@
 #endif
 class NngBus {
   std::string url_;
+  std::string encoding_{"msgpack"}; // Default to msgpack
   bool enabled_{false};
   int rate_limit_{0};
   std::chrono::steady_clock::time_point last_publish_;

@@ -50,7 +50,6 @@
       <section id="sensors-panel">
         <div class="panel-header">
           <h2>Sensors</h2>
-          <button id="btn-refresh" type="button">Refresh</button>
           <button id="btn-add-sensor" type="button" class="btn-primary">Add Sensor</button>
           <span id="panel-msg" class="panel-msg"></span>
         </div>
@@ -87,11 +86,11 @@
       <div class="canvas-overlay">
         <div class="overlay-row">
           <label class="control-item">
-            <input type="checkbox" id="show-raw-points">
+            <input type="checkbox" id="show-raw-points" checked>
             <span>Show Raw Points</span>
           </label>
           <label class="control-item">
-            <input type="checkbox" id="show-filtered-data">
+            <input type="checkbox" id="show-filtered-data" checked>
             <span>Show Filtered Data</span>
           </label>
           <label class="control-item">
@@ -120,11 +119,14 @@
       <!-- DBSCAN Configuration Section -->
       <section id="dbscan-panel">
         <div class="panel-header">
-          <h2>DBSCAN Configuration</h2>
+          <h3 tabindex="0" role="button" aria-expanded="false" aria-controls="dbscan-content">
+            DBSCAN Configuration
+            <span class="toggle-caret">▶</span>
+          </h3>
           <span id="dbscan-msg" class="panel-msg"></span>
         </div>
 
-        <div class="dbscan-config">
+        <div class="dbscan-config collapsed" id="dbscan-content" role="region">
           <div class="param-row">
             <label>eps_norm:</label>
             <input type="number" id="dbscan-eps-norm" min="0.1" max="10.0" step="0.1" value="2.5">
@@ -160,7 +162,6 @@
       <section id="filter-panel">
         <div class="panel-header">
           <h2>Filter Configuration</h2>
-          <button id="btn-reset-filters" type="button">Reset to Default</button>
           <span id="filter-msg" class="panel-msg"></span>
         </div>
 
