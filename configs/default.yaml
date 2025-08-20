@@ -36,7 +36,7 @@ prefilter:
     r_scale: 1.0            # Distance-based radius scaling factor
   
   spike_removal:
-    enabled: true
+    enabled: false
     dr_threshold: 0.3       # |dR/dθ| threshold for spike detection
     window_size: 3          # Window size for derivative calculation
   
