@@ -11,6 +11,10 @@ let ctx = null;
 let animationFrameId = null;
 let needsRedraw = false;
 
+const zoomDefault = 120;
+const zoomMax = 2000;
+const zoomMin = 50;
+
 /**
  * Initialize canvas module
  */
@@ -34,6 +38,8 @@ export function init() {
   
   // Start render loop
   startRenderLoop();
+
+  resetViewport();
   
   // Import ROI module dynamically to avoid circular dependency
   import('./roi.js').then(module => {
@@ -113,7 +119,7 @@ export function resetViewport() {
   store.set('viewport', {
     x: 0,
     y: 0,
-    scale: 60
+    scale: zoomDefault
   });
   requestRedraw();
 }
@@ -828,7 +834,7 @@ function handleWheel(e) {
   const viewport = store.get('viewport');
   
   const zoomFactor = e.deltaY > 0 ? 0.9 : 1.1;
-  const newScale = clamp(viewport.scale * zoomFactor, 10, 200);
+  const newScale = clamp(viewport.scale * zoomFactor, zoomMin, zoomMax);
   
   // Zoom towards mouse position
   const scaleDelta = newScale - viewport.scale;
@@ -866,10 +872,10 @@ function handleKeyDown(e) {
       break;
     case '+':
     case '=':
-      store.set('viewport', { ...viewport, scale: Math.min(200, viewport.scale * 1.1) });
+      store.set('viewport', { ...viewport, scale: Math.min(zoomMax, viewport.scale * 1.1) });
       break;
     case '-':
-      store.set('viewport', { ...viewport, scale: Math.max(10, viewport.scale * 0.9) });
+      store.set('viewport', { ...viewport, scale: Math.max(zoomMin, viewport.scale * 0.9) });
       break;
     case 'p':
     case 'P':

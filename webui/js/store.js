@@ -48,7 +48,7 @@ let state = {
   viewport: {
     x: 0,      // pan offset x
     y: 0,      // pan offset y
-    scale: 60  // pixels per meter (zoom)
+    scale: 120  // pixels per meter (zoom)
   },
   
   // Interaction state
