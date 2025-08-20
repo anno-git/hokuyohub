@@ -2,6 +2,7 @@
 #include <string>
 #include <vector>
 #include "core/mask.h"
+#include <variant>
 
 struct PoseDeg {
   float tx{0.0f};

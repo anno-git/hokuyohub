@@ -5,6 +5,7 @@
 #include <iostream>
 #include <filesystem>
 #include <regex>
+#include <algorithm>
 
 bool RestApi::authorize(const drogon::HttpRequestPtr& req) const {
   if (token_.empty()) return true; // Auth disabled if no token
@@ -809,7 +810,7 @@ void RestApi::postSink(const drogon::HttpRequestPtr& req, std::function<void (co
       OscConfig oscCfg;
       oscCfg.url = url;
       oscCfg.in_bundle = sinkData.get("in_bundle", false).asBool();
-      oscCfg.bundle_fragment_size = std::max(0ULL, static_cast<uint64_t>(sinkData.get("bundle_fragment_size", 0).asInt()));
+      oscCfg.bundle_fragment_size = std::max<uint64_t>(0, sinkData.get("bundle_fragment_size", 0).asInt64());
       
       newSink.cfg = oscCfg;
     }
@@ -937,7 +938,7 @@ void RestApi::patchSink(const drogon::HttpRequestPtr& req, std::function<void (c
         sink.osc().in_bundle = patch["in_bundle"].asBool();
       }
       if (patch.isMember("bundle_fragment_size")) {
-        sink.osc().bundle_fragment_size = std::max(0ULL, static_cast<uint64_t>(patch["bundle_fragment_size"].asInt()));
+        sink.osc().bundle_fragment_size = std::max<uint64_t>(0, patch["bundle_fragment_size"].asInt64());
       }
     }
     
