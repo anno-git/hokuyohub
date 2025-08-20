@@ -1,5 +1,5 @@
 sensors:
-  - id: 0
+  - id: "sensor1"
     name: "hokuyo-a"
     type: "hokuyo_urg_eth"
     endpoint: "192.168.104.202:10940"

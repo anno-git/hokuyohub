@@ -28,8 +28,6 @@ private:
     SensorConfig cfg_{};
     urg_t urg_{};
     std::atomic<bool> opened_{false};
-    int first_{0}, last_{0};
-    int skip_step_{0};
 
     std::atomic<bool> running_{false};
     std::thread th_;

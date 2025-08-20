@@ -56,13 +56,11 @@ bool HokuyoSensorUrg::openAndConfigure() {
     int first = urg_deg2step(&urg_, cfg_.mask.angle.min_deg);
     int last  = urg_deg2step(&urg_, cfg_.mask.angle.max_deg);
     if (first > last) std::swap(first, last);
-    first_ = first;
-    last_  = last;
 
     // ダウンサンプル（cluster=1ならskip=0）
-    skip_step_ = std::max(1, cfg_.skip_step);
+    int skip_step = std::max(1, cfg_.skip_step);
 
-    if (urg_set_scanning_parameter(&urg_, first_, last_, skip_step_) < 0) {
+    if (urg_set_scanning_parameter(&urg_, first, last, skip_step) < 0) {
         std::cerr << "[HokuyoSensorUrg] set_scanning_parameter failed: " << urg_error(&urg_) << std::endl;
         closeDevice();
         return false;
@@ -88,11 +86,22 @@ urg_measurement_type_t HokuyoSensorUrg::toUrgMode(const std::string& mode) {
 }
 
 void HokuyoSensorUrg::rxLoop(urg_measurement_type_t mtype) {
+    auto start_measurement = [&]() {
+        double msec = urg_scan_usec(&urg_) / 1000.0;
+        int skip_scan = cfg_.interval/msec;
+        const int max_skips = 9; // TODO: may different for sensors?
+        if(skip_scan < 0 || skip_scan > max_skips) {
+            std::cerr << "[HokuyoSensorUrg] invalid interval: " << cfg_.interval << std::endl
+            << "    must be between 0 and " << (int)(max_skips*msec) << "[ms] for this sensor" << std::endl;
+        }
+        skip_scan = std::min<int>(std::max<int>(0, skip_scan), max_skips);
+        return urg_start_measurement(&urg_, mtype, URG_SCAN_INFINITY, skip_scan, cfg_.ignore_checksum_error) == 0;
+    };
     // 3) 起動時のエラーハンドリング＋ワンショット再試行
-    if (urg_start_measurement(&urg_, mtype, URG_SCAN_INFINITY, cfg_.interval, cfg_.ignore_checksum_error) < 0) {
+    if (!start_measurement()) {
         std::cerr << "[HokuyoSensorUrg] start_measurement failed: " << urg_error(&urg_) << std::endl;
         closeDevice();
-        if (!openAndConfigure() || urg_start_measurement(&urg_, mtype, URG_SCAN_INFINITY, cfg_.interval, cfg_.ignore_checksum_error) < 0) {
+        if (!openAndConfigure() || !start_measurement()) {
             std::cerr << "[HokuyoSensorUrg] start_measurement retry failed: " << urg_error(&urg_) << std::endl;
             running_ = false;
             return;
@@ -124,8 +133,7 @@ void HokuyoSensorUrg::rxLoop(urg_measurement_type_t mtype) {
                 urg_stop_measurement(&urg_);
                 closeDevice();
                 std::this_thread::sleep_for(std::chrono::milliseconds(200));
-                if (!openAndConfigure() ||
-                    urg_start_measurement(&urg_, mtype, URG_SCAN_INFINITY, cfg_.interval, cfg_.ignore_checksum_error) < 0) {
+                if (!openAndConfigure() || !start_measurement()) {
                     std::cerr << "[HokuyoSensorUrg] reconnect failed: " << urg_error(&urg_) << std::endl;
                     std::this_thread::sleep_for(std::chrono::milliseconds(500));
                     continue;
