@@ -85,7 +85,7 @@ RUN cd build/linux-arm64 && \
     -DDEPS_URG=bundled \
     -DHOKUYO_NNG_ENABLE=ON \
     -DUSE_OSC=ON \
-    -DCMAKE_INSTALL_PREFIX=/opt/hokuyo-hub \
+    -DCMAKE_INSTALL_PREFIX=/opt/hokuyohub \
     -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
 
 # Build the application

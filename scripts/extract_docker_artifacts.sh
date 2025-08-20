@@ -15,7 +15,7 @@ set -e
 
 # Configuration
 IMAGE_NAME="${1:-hokuyo-hub:build-rebuild}"
-DIST_DIR="./dist"
+DIST_DIR="./dist/linux-arm64"
 TEMP_CONTAINER="hokuyo-extract-temp"
 
 # Colors for output
@@ -56,6 +56,7 @@ extract_artifacts() {
     log_info "Starting Docker artifact extraction..."
     log_info "Image: $IMAGE_NAME"
     log_info "Destination: $DIST_DIR"
+    log_info "Platform-specific directory structure: dist/linux-arm64/"
     
     # Check if image exists
     if ! docker image inspect "$IMAGE_NAME" >/dev/null 2>&1; then
@@ -65,8 +66,8 @@ extract_artifacts() {
         exit 1
     fi
     
-    # Create dist directory
-    log_info "Creating dist directory structure..."
+    # Create dist directory structure
+    log_info "Creating platform-specific dist directory structure..."
     rm -rf "$DIST_DIR"
     mkdir -p "$DIST_DIR"
     
@@ -125,6 +126,12 @@ extract_artifacts() {
 
 This directory contains the compiled Hokuyo Hub application for ARM64 Linux (Raspberry Pi 5).
 
+## Directory Structure
+
+This follows the platform-specific directory structure pattern:
+- `dist/darwin-arm64/` - macOS ARM64 builds
+- `dist/linux-arm64/` - Linux ARM64 builds (this directory)
+
 ## Contents
 
 - `hokuyo_hub` - Main application binary (ARM64 Linux)
@@ -150,6 +157,7 @@ This directory contains the compiled Hokuyo Hub application for ARM64 Linux (Ras
 - Build date: $(date -u +"%Y-%m-%d %H:%M:%S UTC")
 - URG library: Rebuilt from source for ARM64 Linux
 - Drogon framework: Built from source (v1.9.1)
+- Platform-specific output: dist/linux-arm64/
 
 EOF
     
@@ -248,7 +256,8 @@ main() {
     show_results
     
     log_success "Artifact extraction completed successfully!"
-    log_info "The dist folder is ready for deployment to ARM64 Linux systems."
+    log_info "The dist/linux-arm64/ folder is ready for deployment to ARM64 Linux systems."
+    log_info "This follows the established platform-specific directory structure pattern."
 }
 
 # Run main function

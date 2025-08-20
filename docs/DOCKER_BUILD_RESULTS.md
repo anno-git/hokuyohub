@@ -111,7 +111,7 @@ Features:
 
 ### Expected Dist Folder Structure
 ```
-dist/
+dist/linux-arm64/          # Platform-specific directory structure
 ├── hokuyo_hub              # ARM64 Linux binary (~2-5MB)
 ├── config/                 # Configuration files
 │   └── default.yaml
@@ -123,6 +123,11 @@ dist/
 ├── MANIFEST.txt            # Complete file listing
 └── CHECKSUMS.txt           # Binary verification
 ```
+
+### Platform-Specific Directory Structure
+Following the established pattern:
+- `dist/darwin-arm64/` - macOS ARM64 builds
+- `dist/linux-arm64/` - Linux ARM64 builds (Docker output)
 
 ## Technical Achievements
 
@@ -185,8 +190,8 @@ Required System Libraries (Debian/Ubuntu ARM64):
 
 ### 2. Installation Process
 ```bash
-# 1. Copy dist folder to target system
-scp -r dist/ pi@raspberrypi:~/hokuyo-hub/
+# 1. Copy platform-specific dist folder to target system
+scp -r dist/linux-arm64/ pi@raspberrypi:~/hokuyo-hub/
 
 # 2. Install runtime dependencies
 sudo apt update

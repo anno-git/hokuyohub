@@ -238,6 +238,7 @@ install_project() {
     if cmake "${cmake_args[@]}"; then
         print_success "Installation completed successfully"
         print_status "$GREEN" "Binaries installed to: dist/linux-arm64/"
+        print_status "$BLUE" "Following platform-specific directory structure pattern"
         return 0
     else
         print_error "Installation failed"

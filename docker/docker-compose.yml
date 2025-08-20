@@ -36,6 +36,7 @@ services:
     container_name: hokuyo-hub-build
     volumes:
       - build-artifacts:/build/build/linux-arm64
+      - ../dist/linux-arm64:/host-dist
     command: ["echo", "Build completed successfully"]
 
   # =============================================================================
@@ -58,10 +59,10 @@ services:
       - "8080:8080"  # REST API
       - "8081:8081"  # WebSocket
     volumes:
-      - ./test-config:/opt/hokuyo-hub/config:ro
+      - ./test-config:/opt/hokuyohub/config:ro
       - hokuyo-data:/var/lib/hokuyo-hub
     environment:
-      - HOKUYO_CONFIG_PATH=/opt/hokuyo-hub/config
+      - HOKUYO_CONFIG_PATH=/opt/hokuyohub/config
       - HOKUYO_LOG_LEVEL=INFO
     restart: unless-stopped
     healthcheck:
@@ -87,11 +88,11 @@ services:
       - "8080:8080"
       - "8081:8081"
     volumes:
-      - ../configs:/opt/hokuyo-hub/config:ro
-      - ../webui:/opt/hokuyo-hub/webui:ro
+      - ../configs:/opt/hokuyohub/config:ro
+      - ../webui:/opt/hokuyohub/webui:ro
       - hokuyo-data:/var/lib/hokuyo-hub
     environment:
-      - HOKUYO_CONFIG_PATH=/opt/hokuyo-hub/config
+      - HOKUYO_CONFIG_PATH=/opt/hokuyohub/config
       - HOKUYO_LOG_LEVEL=DEBUG
     restart: "no"
 

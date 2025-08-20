@@ -244,6 +244,9 @@ show_help() {
     echo "  $0 test-build"
     echo "  IMAGE_TAG=v1.0.0 $0 build-runtime"
     echo "  PLATFORM=linux/amd64 $0 build-all"
+    echo ""
+    echo "Artifact Extraction:"
+    echo "  Use './scripts/extract_docker_artifacts.sh' to extract artifacts to dist/linux-arm64/"
 }
 
 # Main script logic
