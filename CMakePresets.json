@@ -9,48 +9,101 @@
     {
       "name": "mac-base",
       "displayName": "macOS (Homebrew, Unix Makefiles)",
-      "description": "macOSでHomebrew依存を使う標準設定",
+      "description": "macOSでHomebrew依存を使う標準設定 - Phase 1 Host Build",
       "generator": "Unix Makefiles",
-      "binaryDir": "${sourceDir}/build",
+      "binaryDir": "${sourceDir}/build/darwin-arm64",
       "cacheVariables": {
         "CMAKE_PREFIX_PATH": "/opt/homebrew",
-        "ENABLE_NNG": "ON",
-        "CMAKE_INSTALL_PREFIX": "${sourceDir}/dist"
+        "HOKUYO_NNG_ENABLE": "ON",
+        "USE_OSC": "ON",
+        "CMAKE_INSTALL_PREFIX": "${sourceDir}/dist/darwin-arm64",
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
       },
       "condition": {
         "type": "equals",
         "lhs": "${hostSystemName}",
         "rhs": "Darwin"
+      },
+      "environment": {
+        "PKG_CONFIG_PATH": "/opt/homebrew/lib/pkgconfig"
       }
     },
     {
       "name": "mac-debug",
       "displayName": "macOS Debug",
+      "description": "macOS Debug build with development flags",
       "inherits": "mac-base",
       "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Debug"
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_CXX_FLAGS_DEBUG": "-g -O0 -DDEBUG"
       }
     },
     {
       "name": "mac-release",
       "displayName": "macOS Release",
+      "description": "macOS Release build optimized for production",
       "inherits": "mac-base",
       "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Release"
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_CXX_FLAGS_RELEASE": "-O3 -DNDEBUG"
+      }
+    },
+    {
+      "name": "mac-relwithdebinfo",
+      "displayName": "macOS RelWithDebInfo",
+      "description": "macOS Release with debug info for profiling",
+      "inherits": "mac-base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo"
       }
     },
 
     {
       "name": "rpi-base",
-      "displayName": "Raspberry Pi (cross, placeholder)",
-      "description": "将来用のRaspberry Piクロスビルド。toolchainを実環境に合わせて編集してください。",
+      "displayName": "Raspberry Pi 5 (Linux ARM64 Cross-Compilation Base)",
+      "description": "Base preset for cross-compiling to Raspberry Pi 5 (linux-arm64) - Phase 2 Cross Build",
       "generator": "Unix Makefiles",
-      "binaryDir": "${sourceDir}/build-rpi",
-      "toolchainFile": "cmake/toolchains/rpi.cmake",
+      "binaryDir": "${sourceDir}/build/linux-arm64",
+      "toolchainFile": "${sourceDir}/cmake/toolchains/linux-arm64.cmake",
       "cacheVariables": {
-        "ENABLE_NNG": "ON",
+        "HOKUYO_NNG_ENABLE": "ON",
+        "USE_OSC": "ON",
+        "CMAKE_INSTALL_PREFIX": "${sourceDir}/dist/linux-arm64",
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
+      },
+      "environment": {
+        "CROSS_COMPILE_PREFIX": "aarch64-linux-musl-",
+        "PKG_CONFIG_PATH": "",
+        "PKG_CONFIG_LIBDIR": ""
+      }
+    },
+    {
+      "name": "rpi-debug",
+      "displayName": "Raspberry Pi 5 Debug",
+      "description": "Debug build for Raspberry Pi 5 with development flags",
+      "inherits": "rpi-base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_CXX_FLAGS_DEBUG": "-g -O0 -DDEBUG"
+      }
+    },
+    {
+      "name": "rpi-release",
+      "displayName": "Raspberry Pi 5 Release",
+      "description": "Release build for Raspberry Pi 5 optimized for production",
+      "inherits": "rpi-base",
+      "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
-        "CMAKE_INSTALL_PREFIX": "${sourceDir}/dist-rpi"
+        "CMAKE_CXX_FLAGS_RELEASE": "-O3 -DNDEBUG"
+      }
+    },
+    {
+      "name": "rpi-relwithdebinfo",
+      "displayName": "Raspberry Pi 5 RelWithDebInfo",
+      "description": "Release with debug info for Raspberry Pi 5 profiling",
+      "inherits": "rpi-base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo"
       }
     }
   ],
@@ -59,20 +112,118 @@
     {
       "name": "build-mac-debug",
       "displayName": "Build (mac Debug)",
+      "description": "Build macOS Debug configuration",
       "configurePreset": "mac-debug",
-      "targets": [ "hokuyo_hub" ]
+      "targets": [ "hokuyo_hub" ],
+      "jobs": 0
     },
     {
       "name": "build-mac-release",
       "displayName": "Build (mac Release)",
+      "description": "Build macOS Release configuration",
       "configurePreset": "mac-release",
-      "targets": [ "hokuyo_hub" ]
+      "targets": [ "hokuyo_hub" ],
+      "jobs": 0
     },
     {
-      "name": "build-rpi",
-      "displayName": "Build (Raspberry Pi)",
-      "configurePreset": "rpi-base",
-      "targets": [ "hokuyo_hub" ]
+      "name": "build-mac-relwithdebinfo",
+      "displayName": "Build (mac RelWithDebInfo)",
+      "description": "Build macOS RelWithDebInfo configuration",
+      "configurePreset": "mac-relwithdebinfo",
+      "targets": [ "hokuyo_hub" ],
+      "jobs": 0
+    },
+    {
+      "name": "build-rpi-debug",
+      "displayName": "Build (Raspberry Pi 5 Debug)",
+      "description": "Build Raspberry Pi 5 Debug cross-compilation",
+      "configurePreset": "rpi-debug",
+      "targets": [ "hokuyo_hub" ],
+      "jobs": 0
+    },
+    {
+      "name": "build-rpi-release",
+      "displayName": "Build (Raspberry Pi 5 Release)",
+      "description": "Build Raspberry Pi 5 Release cross-compilation",
+      "configurePreset": "rpi-release",
+      "targets": [ "hokuyo_hub" ],
+      "jobs": 0
+    },
+    {
+      "name": "build-rpi-relwithdebinfo",
+      "displayName": "Build (Raspberry Pi 5 RelWithDebInfo)",
+      "description": "Build Raspberry Pi 5 RelWithDebInfo cross-compilation",
+      "configurePreset": "rpi-relwithdebinfo",
+      "targets": [ "hokuyo_hub" ],
+      "jobs": 0
+    },
+    {
+      "name": "build-all-rpi",
+      "displayName": "Build All (Raspberry Pi 5)",
+      "description": "Build all targets for Raspberry Pi 5 Release",
+      "configurePreset": "rpi-release",
+      "jobs": 0
+    },
+    {
+      "name": "build-all-mac",
+      "displayName": "Build All (macOS)",
+      "description": "Build all targets for macOS Release",
+      "configurePreset": "mac-release",
+      "jobs": 0
+    }
+  ],
+
+  "testPresets": [
+    {
+      "name": "test-mac-debug",
+      "displayName": "Test (mac Debug)",
+      "description": "Run tests for macOS Debug build",
+      "configurePreset": "mac-debug",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "test-mac-release",
+      "displayName": "Test (mac Release)",
+      "description": "Run tests for macOS Release build",
+      "configurePreset": "mac-release",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "test-rpi-debug",
+      "displayName": "Test (Raspberry Pi 5 Debug)",
+      "description": "Run tests for Raspberry Pi 5 Debug build (requires target hardware)",
+      "configurePreset": "rpi-debug",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "test-rpi-release",
+      "displayName": "Test (Raspberry Pi 5 Release)",
+      "description": "Run tests for Raspberry Pi 5 Release build (requires target hardware)",
+      "configurePreset": "rpi-release",
+      "output": {
+        "outputOnFailure": true
+      }
+    }
+  ],
+
+  "packagePresets": [
+    {
+      "name": "package-mac-release",
+      "displayName": "Package (mac Release)",
+      "description": "Create distribution package for macOS",
+      "configurePreset": "mac-release"
+    },
+    {
+      "name": "package-rpi-release",
+      "displayName": "Package (Raspberry Pi 5 Release)",
+      "description": "Create distribution package for Raspberry Pi 5",
+      "configurePreset": "rpi-release"
     }
   ]
 }

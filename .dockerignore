@@ -1,0 +1,148 @@
+# =============================================================================
+# Docker Ignore File for Hokuyo Hub
+# =============================================================================
+# This file specifies which files and directories should be excluded from
+# the Docker build context to optimize build performance and security.
+
+# Build artifacts and directories
+build/
+dist/
+dist-traditional/
+.cmake/
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+*.make
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Version control
+.git/
+.gitignore
+.gitmodules
+.github/
+
+# Documentation (not needed in container)
+docs/
+*.md
+LICENSE
+CHANGELOG*
+
+# Test and validation files
+validation/
+test/
+tests/
+*.test
+*.spec
+
+# Temporary files
+*.tmp
+*.temp
+*.log
+*.pid
+*.lock
+
+# macOS specific
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon?
+._*
+
+# Windows specific
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Linux specific
+*~
+.fuse_hidden*
+.directory
+.Trash-*
+
+# Node.js (if any)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Python (if any)
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+
+# Rust (if any)
+target/
+Cargo.lock
+
+# Go (if any)
+vendor/
+
+# Docker files (avoid recursion)
+docker/build.sh
+docker/docker-compose.yml
+docker/*.md
+
+# CI/CD files
+.github/
+.gitlab-ci.yml
+.travis.yml
+Jenkinsfile
+
+# Package managers
+*.deb
+*.rpm
+*.pkg
+*.dmg
+
+# Archives
+*.zip
+*.tar
+*.tar.gz
+*.tar.bz2
+*.tar.xz
+*.rar
+*.7z
+
+# Backup files
+*.bak
+*.backup
+*.old
+*.orig
+
+# Local configuration that shouldn't be in container
+.env
+.env.local
+.env.*.local
+local.properties
+
+# IDE project files
+*.pro.user
+*.pro.user.*
+*.vcxproj.user
+*.sln.docstates
+
+# Keep these files (explicitly include important ones)
+!CMakeLists.txt
+!CMakePresets.json
+!cmake/
+!src/
+!external/
+!third_party/
+!configs/
+!webui/
+!scripts/

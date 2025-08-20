@@ -10,86 +10,21 @@ if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
   set(CMAKE_INSTALL_PREFIX "${CMAKE_SOURCE_DIR}/dist" CACHE PATH "Install path prefix" FORCE)
 endif()
 
-option(ENABLE_NNG "Enable NNG publisher" ON)
+# =========================
+# Phase 3: Unified Dependency Management
+# =========================
+include(cmake/Dependencies.cmake)
 
-# 依存：Drogon, yaml-cpp, (optional) nng
-find_package(Drogon REQUIRED)
-find_package(yaml-cpp CONFIG REQUIRED)
-
-# Optional features
-option(USE_NNG "Enable NNG publisher support" OFF)
+# Optional features (non-dependency related)
 option(USE_OSC "Enable OSC publisher support" ON)
-
-if(USE_NNG)
-  find_package(nng QUIET)
-  if(nng_FOUND)
-    add_definitions(-DUSE_NNG)
-    message(STATUS "NNG support enabled")
-  else()
-    message(WARNING "NNG requested but not found, disabling NNG support")
-  endif()
-endif()
 
 if(USE_OSC)
   add_definitions(-DUSE_OSC)
   message(STATUS "OSC support enabled")
 endif()
 
-if(ENABLE_NNG)
-  find_path(NNG_INCLUDE_DIR nng/nng.h)
-  find_library(NNG_LIBRARY nng)
-  if(NOT NNG_INCLUDE_DIR OR NOT NNG_LIBRARY)
-    message(FATAL_ERROR "NNG enabled but not found. Set -DENABLE_NNG=OFF or install nng.")
-  endif()
-endif()
-
-# =========================
-# urg_library (Makefile系) を ExternalProject でビルド
-# =========================
-include(ExternalProject)
-
-set(URG_SRC_DIR ${CMAKE_SOURCE_DIR}/external/urg_library/release/urg_library-1.2.7)
-set(URG_INSTALL_DIR ${CMAKE_SOURCE_DIR}/third_party/urg_library)
-set(URG_INCLUDE_DIR ${URG_INSTALL_DIR}/include)
-set(URG_LIB_DIR     ${URG_INSTALL_DIR}/lib)
-
-# 事前に作成（IMPORTEDの存在チェックでコケないように）
-file(MAKE_DIRECTORY ${URG_INSTALL_DIR})
-file(MAKE_DIRECTORY ${URG_INCLUDE_DIR})
-file(MAKE_DIRECTORY ${URG_LIB_DIR})
-
-# 1) Cライブラリだけビルド（installは呼ばない）
-ExternalProject_Add(urg_library_proj
-  SOURCE_DIR        ${URG_SRC_DIR}
-  CONFIGURE_COMMAND ""
-  BUILD_COMMAND     ${CMAKE_MAKE_PROGRAM} -C ${URG_SRC_DIR}/src
-  INSTALL_COMMAND   ""   # installは呼ばない
-  BUILD_IN_SOURCE   1
-  LOG_BUILD         1
-)
-
-# 2) ビルド後、必要ファイルだけコピー
-ExternalProject_Add_Step(urg_library_proj copy_headers
-  COMMAND ${CMAKE_COMMAND} -E copy_directory
-          ${URG_SRC_DIR}/include/c ${URG_INCLUDE_DIR}
-  DEPENDEES build
-  ALWAYS 1
-)
-
-ExternalProject_Add_Step(urg_library_proj copy_library
-  COMMAND ${CMAKE_COMMAND} -E copy_if_different
-          ${URG_SRC_DIR}/src/liburg_c.a ${URG_LIB_DIR}/liburg_c.a
-  DEPENDEES build
-  ALWAYS 1
-)
-
-# 3) IMPORTEDライブラリとして宣言（このパスを指す）
-add_library(urg_c STATIC IMPORTED GLOBAL)
-set_target_properties(urg_c PROPERTIES
-  IMPORTED_LOCATION             ${URG_LIB_DIR}/liburg_c.a
-  INTERFACE_INCLUDE_DIRECTORIES ${URG_INCLUDE_DIR}
-)
-add_dependencies(urg_c urg_library_proj)
+# Resolve all dependencies using unified system
+resolve_all_dependencies()
 
 # =========================
 # センサー層ライブラリ（urg_c に依存）
@@ -102,10 +37,7 @@ add_library(sensor_core
   src/sensors/hokuyo/HokuyoSensorUrg.cpp
 )
 
-target_include_directories(sensor_core PUBLIC
-  src
-  ${URG_INCLUDE_DIR}
-)
+target_include_directories(sensor_core PUBLIC src)
 target_link_libraries(sensor_core PUBLIC urg_c)
 
 # =========================
@@ -128,17 +60,10 @@ add_executable(hokuyo_hub
 )
 
 target_include_directories(hokuyo_hub PRIVATE src)
-target_link_libraries(hokuyo_hub PRIVATE
-  Drogon::Drogon
-  yaml-cpp::yaml-cpp
-  sensor_core
-)
+target_link_libraries(hokuyo_hub PRIVATE sensor_core)
 
-if(ENABLE_NNG)
-  target_compile_definitions(hokuyo_hub PRIVATE USE_NNG)
-  target_include_directories(hokuyo_hub PRIVATE ${NNG_INCLUDE_DIR})
-  target_link_libraries(hokuyo_hub PRIVATE ${NNG_LIBRARY})
-endif()
+# Link all dependencies using unified system
+link_hokuyo_dependencies(hokuyo_hub)
 
 # =========================
 # install（配布レイアウト）

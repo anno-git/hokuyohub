@@ -1,0 +1,106 @@
+# =============================================================================
+# Docker Compose Configuration for Hokuyo Hub - Raspberry Pi Testing
+# =============================================================================
+# This compose file provides different configurations for testing the Docker
+# build system and running the Hokuyo Hub application.
+#
+# Usage:
+#   # Build and test
+#   docker-compose -f docker/docker-compose.yml build
+#   docker-compose -f docker/docker-compose.yml up
+#
+#   # Build only (for testing build process)
+#   docker-compose -f docker/docker-compose.yml build hokuyo-hub-build
+#
+#   # Run with custom config
+#   docker-compose -f docker/docker-compose.yml up -d hokuyo-hub
+
+version: '3.8'
+
+services:
+  # =============================================================================
+  # Build-only service for testing build process
+  # =============================================================================
+  hokuyo-hub-build:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.rpi.rebuild
+      target: build-app
+      platforms:
+        - linux/arm64
+      args:
+        - DEPS_MODE=system
+        - HOKUYO_NNG_ENABLE=ON
+        - USE_OSC=ON
+    image: hokuyo-hub:build-arm64
+    container_name: hokuyo-hub-build
+    volumes:
+      - build-artifacts:/build/build/linux-arm64
+    command: ["echo", "Build completed successfully"]
+
+  # =============================================================================
+  # Runtime service for testing application execution
+  # =============================================================================
+  hokuyo-hub:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.rpi.rebuild
+      target: runtime
+      platforms:
+        - linux/arm64
+      args:
+        - DEPS_MODE=system
+        - HOKUYO_NNG_ENABLE=ON
+        - USE_OSC=ON
+    image: hokuyo-hub:runtime-arm64
+    container_name: hokuyo-hub-runtime
+    ports:
+      - "8080:8080"  # REST API
+      - "8081:8081"  # WebSocket
+    volumes:
+      - ./test-config:/opt/hokuyo-hub/config:ro
+      - hokuyo-data:/var/lib/hokuyo-hub
+    environment:
+      - HOKUYO_CONFIG_PATH=/opt/hokuyo-hub/config
+      - HOKUYO_LOG_LEVEL=INFO
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # =============================================================================
+  # Development service with bind mounts for testing
+  # =============================================================================
+  hokuyo-hub-dev:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.rpi.rebuild
+      target: runtime
+      platforms:
+        - linux/arm64
+    image: hokuyo-hub:dev-arm64
+    container_name: hokuyo-hub-dev
+    ports:
+      - "8080:8080"
+      - "8081:8081"
+    volumes:
+      - ../configs:/opt/hokuyo-hub/config:ro
+      - ../webui:/opt/hokuyo-hub/webui:ro
+      - hokuyo-data:/var/lib/hokuyo-hub
+    environment:
+      - HOKUYO_CONFIG_PATH=/opt/hokuyo-hub/config
+      - HOKUYO_LOG_LEVEL=DEBUG
+    restart: "no"
+
+volumes:
+  build-artifacts:
+    driver: local
+  hokuyo-data:
+    driver: local
+
+networks:
+  default:
+    name: hokuyo-network

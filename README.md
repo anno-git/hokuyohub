@@ -161,13 +161,53 @@ git clone https://github.com/nanomsg/nng.git && cd nng && mkdir build && cd buil
 
 ### ビルド
 
+#### 従来の方法（引き続き利用可能）
+
 ```bash
 mkdir -p build && cd build
 cmake -DCMAKE_BUILD_TYPE=Release -DENABLE_NNG=ON ..
 make -j$(nproc)
 ```
 
+#### CMake Presets を使用した方法（Phase 1 - 推奨）
+
+```bash
+# リリースビルド（推奨）
+cmake --preset mac-release
+cmake --build --preset build-mac-release
+
+# デバッグビルド
+cmake --preset mac-debug
+cmake --build --preset build-mac-debug
+
+# RelWithDebInfo ビルド（プロファイリング用）
+cmake --preset mac-relwithdebinfo
+cmake --build --preset build-mac-relwithdebinfo
+
+# 利用可能なプリセット一覧
+cmake --list-presets
+cmake --list-presets=build
+```
+
+#### 便利スクリプトを使用した方法
+
+```bash
+# リリースビルド + インストール
+./scripts/build_with_presets.sh release --install
+
+# デバッグビルド + インストール
+./scripts/build_with_presets.sh debug --install
+
+# 簡単なラッパー
+./scripts/preset_build.sh release  # または debug, clean
+
+# ヘルプ表示
+./scripts/build_with_presets.sh --help
+```
+
 ### インストール
+
+#### 従来の方法
 
 ```bash
 # デフォルトでは ./dist にインストール
@@ -176,6 +216,16 @@ make install
 # システムワイドインストール
 cmake -DCMAKE_INSTALL_PREFIX=/usr/local ..
 make install
+```
+
+#### CMake Presets を使用した方法
+
+```bash
+# プリセットビルド後のインストール
+cmake --install build/darwin-arm64
+
+# または便利スクリプトで一括実行
+./scripts/build_with_presets.sh release --install
 ```
 
 ## 使用方法

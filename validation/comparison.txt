@@ -1,0 +1,7 @@
+Preset build:
+Size: 748952 bytes
+MD5: 3baea913fcd87c8616847f7b1bf1072c
+
+Traditional build:
+Size: 748952 bytes
+MD5: 3baea913fcd87c8616847f7b1bf1072c
