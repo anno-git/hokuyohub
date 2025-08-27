@@ -26,6 +26,7 @@ RUN apt-get update && apt-get install -y \
     ninja-build \
     pkg-config \
     git \
+    file \
     # C++ dependencies available in Debian Bookworm
     # Note: libdrogon-dev is NOT available in Debian Bookworm
     # We'll use DEPS_MODE=fetch to build Drogon from source
@@ -70,10 +71,20 @@ ENV DEPS_URG=bundled
 ENV HOKUYO_NNG_ENABLE=ON
 ENV USE_OSC=ON
 
+# Rebuild URG library for Linux ARM64
+RUN echo "=== Rebuilding URG Library for Linux ARM64 ===" && \
+    cd external/urg_library/current && \
+    make clean && \
+    make && \
+    cp -r include/* /build/third_party/urg_library/include/ && \
+    cp src/liburg_c.a /build/third_party/urg_library/lib/ && \
+    echo "URG library rebuilt successfully"
+
 # Create build directory and configure
 RUN mkdir -p build/linux-arm64
 
 # Configure CMake with mixed dependency strategy
+# Add compiler flags to fix GCC restrict errors
 RUN cd build/linux-arm64 && \
     cmake ../.. \
     -G Ninja \
@@ -86,11 +97,13 @@ RUN cd build/linux-arm64 && \
     -DHOKUYO_NNG_ENABLE=ON \
     -DUSE_OSC=ON \
     -DCMAKE_INSTALL_PREFIX=/opt/hokuyohub \
-    -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+    -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
+    -DCMAKE_CXX_FLAGS="-Wno-error=restrict" \
+    -DCMAKE_C_FLAGS="-Wno-error=restrict"
 
-# Build the application
+# Build the application with reduced compiler strictness for Drogon examples
 RUN cd build/linux-arm64 && \
-    ninja -v
+    ninja -v -j$(nproc) hokuyo_hub
 
 # Install to staging area
 RUN cd build/linux-arm64 && \
@@ -100,7 +113,7 @@ RUN cd build/linux-arm64 && \
 RUN echo "=== Build Verification ===" && \
     file build/linux-arm64/hokuyo_hub && \
     ldd build/linux-arm64/hokuyo_hub && \
-    ls -la /staging/opt/hokuyo-hub/
+    ls -la /staging/opt/hokuyohub/
 
 # =============================================================================
 # Stage 3: Runtime Image
@@ -128,10 +141,10 @@ RUN apt-get update && apt-get install -y \
 RUN groupadd -r hokuyo && useradd -r -g hokuyo hokuyo
 
 # Copy application from build stage
-COPY --from=build-app /staging/opt/hokuyo-hub /opt/hokuyo-hub
+COPY --from=build-app /staging/opt/hokuyohub /opt/hokuyohub
 
 # Set ownership
-RUN chown -R hokuyo:hokuyo /opt/hokuyo-hub
+RUN chown -R hokuyo:hokuyo /opt/hokuyohub
 
 # Create data directory
 RUN mkdir -p /var/lib/hokuyo-hub && \
@@ -141,7 +154,7 @@ RUN mkdir -p /var/lib/hokuyo-hub && \
 USER hokuyo
 
 # Set working directory
-WORKDIR /opt/hokuyo-hub
+WORKDIR /opt/hokuyohub
 
 # Expose default ports
 EXPOSE 8080 8081

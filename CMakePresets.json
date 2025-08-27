@@ -84,7 +84,8 @@
       "inherits": "rpi-base",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
-        "CMAKE_CXX_FLAGS_DEBUG": "-g -O0 -DDEBUG"
+        "CMAKE_CXX_FLAGS_DEBUG": "-g -O0 -DDEBUG",
+        "DEPS_MODE": "auto"
       }
     },
     {
@@ -94,7 +95,8 @@
       "inherits": "rpi-base",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
-        "CMAKE_CXX_FLAGS_RELEASE": "-O3 -DNDEBUG"
+        "CMAKE_CXX_FLAGS_RELEASE": "-O3 -DNDEBUG",
+        "DEPS_MODE": "auto"
       }
     },
     {
@@ -103,7 +105,8 @@
       "description": "Release with debug info for Raspberry Pi 5 profiling",
       "inherits": "rpi-base",
       "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "RelWithDebInfo"
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo",
+        "DEPS_MODE": "auto"
       }
     }
   ],

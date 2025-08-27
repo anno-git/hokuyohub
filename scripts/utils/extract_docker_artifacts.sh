@@ -77,41 +77,56 @@ extract_artifacts() {
     
     # Extract main binary
     log_info "Extracting main binary..."
-    if docker cp "$TEMP_CONTAINER:/build/build/linux-arm64/hokuyo_hub" "$DIST_DIR/" 2>/dev/null; then
+    if docker cp "$TEMP_CONTAINER:/opt/hokuyohub/hokuyo_hub" "$DIST_DIR/" 2>/dev/null; then
         log_success "Main binary extracted successfully"
     else
-        log_warning "Failed to extract main binary from build directory, trying staging area..."
-        if docker cp "$TEMP_CONTAINER:/staging/opt/hokuyo-hub/hokuyo_hub" "$DIST_DIR/" 2>/dev/null; then
-            log_success "Main binary extracted from staging area"
+        log_warning "Failed to extract main binary from runtime directory, trying build directory..."
+        if docker cp "$TEMP_CONTAINER:/build/build/linux-arm64/hokuyo_hub" "$DIST_DIR/" 2>/dev/null; then
+            log_success "Main binary extracted from build directory"
         else
-            log_error "Failed to extract main binary"
-            return 1
+            log_warning "Failed to extract main binary from build directory, trying staging area..."
+            if docker cp "$TEMP_CONTAINER:/staging/opt/hokuyohub/hokuyo_hub" "$DIST_DIR/" 2>/dev/null; then
+                log_success "Main binary extracted from staging area"
+            else
+                log_error "Failed to extract main binary"
+                return 1
+            fi
         fi
     fi
     
     # Extract configuration files
     log_info "Extracting configuration files..."
-    if docker cp "$TEMP_CONTAINER:/staging/opt/hokuyo-hub/config" "$DIST_DIR/" 2>/dev/null; then
+    if docker cp "$TEMP_CONTAINER:/opt/hokuyohub/config" "$DIST_DIR/" 2>/dev/null; then
         log_success "Configuration files extracted successfully"
     else
-        log_warning "Failed to extract config from staging, trying source..."
-        if docker cp "$TEMP_CONTAINER:/build/configs" "$DIST_DIR/config" 2>/dev/null; then
-            log_success "Configuration files extracted from source"
+        log_warning "Failed to extract config from runtime directory, trying staging..."
+        if docker cp "$TEMP_CONTAINER:/staging/opt/hokuyohub/config" "$DIST_DIR/" 2>/dev/null; then
+            log_success "Configuration files extracted from staging area"
         else
-            log_warning "No configuration files found"
+            log_warning "Failed to extract config from staging, trying source..."
+            if docker cp "$TEMP_CONTAINER:/build/configs" "$DIST_DIR/config" 2>/dev/null; then
+                log_success "Configuration files extracted from source"
+            else
+                log_warning "No configuration files found"
+            fi
         fi
     fi
     
     # Extract WebUI files
     log_info "Extracting WebUI files..."
-    if docker cp "$TEMP_CONTAINER:/staging/opt/hokuyo-hub/webui" "$DIST_DIR/" 2>/dev/null; then
+    if docker cp "$TEMP_CONTAINER:/opt/hokuyohub/webui" "$DIST_DIR/" 2>/dev/null; then
         log_success "WebUI files extracted successfully"
     else
-        log_warning "Failed to extract webui from staging, trying source..."
-        if docker cp "$TEMP_CONTAINER:/build/webui" "$DIST_DIR/" 2>/dev/null; then
-            log_success "WebUI files extracted from source"
+        log_warning "Failed to extract webui from runtime directory, trying staging..."
+        if docker cp "$TEMP_CONTAINER:/staging/opt/hokuyohub/webui" "$DIST_DIR/" 2>/dev/null; then
+            log_success "WebUI files extracted from staging area"
         else
-            log_warning "No WebUI files found"
+            log_warning "Failed to extract webui from staging, trying source..."
+            if docker cp "$TEMP_CONTAINER:/build/webui" "$DIST_DIR/" 2>/dev/null; then
+                log_success "WebUI files extracted from source"
+            else
+                log_warning "No WebUI files found"
+            fi
         fi
     fi
     

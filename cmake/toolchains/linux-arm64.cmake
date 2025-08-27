@@ -70,6 +70,15 @@ find_cross_tool(CMAKE_AR "ar" "${TOOL_PREFIXES}")
 find_cross_tool(CMAKE_RANLIB "ranlib" "${TOOL_PREFIXES}")
 find_cross_tool(CMAKE_STRIP "strip" "${TOOL_PREFIXES}")
 find_cross_tool(CMAKE_NM "nm" "${TOOL_PREFIXES}")
+
+# Set make program for build system
+find_program(CMAKE_MAKE_PROGRAM NAMES make gmake)
+if(CMAKE_MAKE_PROGRAM)
+    message(STATUS "Found make program: ${CMAKE_MAKE_PROGRAM}")
+else()
+    message(FATAL_ERROR "Could not find make program")
+endif()
+
 # Find optional tools (don't fail if not found)
 find_program(CMAKE_OBJCOPY NAMES
     ${CROSS_COMPILE_PREFIX}objcopy
@@ -240,6 +249,13 @@ if(CMAKE_SYSROOT)
         "${CMAKE_SYSROOT}/usr/share/cmake"
     )
 endif()
+
+# =============================================================================
+# Cross-Compilation Dependency Support
+# =============================================================================
+
+# Include jsoncpp configuration for cross-compilation
+include(${CMAKE_CURRENT_LIST_DIR}/jsoncpp-config.cmake)
 
 # =============================================================================
 # Validation and Summary

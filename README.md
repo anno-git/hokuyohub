@@ -1,427 +1,411 @@
 # HokuyoHub
 
-HokuyoHubは、複数のHokuyo LiDARセンサーからのデータを統合し、リアルタイムでクラスタリング処理を行うC++アプリケーションです。WebUIによる可視化とREST APIによる設定管理を提供します。
+**Real-time LiDAR sensor data processing and visualization platform for Hokuyo sensors**
 
-## 主な機能
+HokuyoHub is a comprehensive solution for collecting, processing, and visualizing data from Hokuyo LiDAR sensors in real-time. It provides a powerful web-based interface for sensor management, advanced data filtering, clustering analysis, and multi-format data publishing - making it ideal for robotics applications, autonomous systems, and research environments.
 
-### センサー管理
-- 複数のHokuyo URG Ethernetセンサーの同時接続・制御
-- センサーごとの位置・姿勢設定（tx, ty, theta）
-- センサーごとの角度・距離マスク設定
-- リアルタイムでのセンサー有効/無効切り替え
+## 🚀 Key Features
 
-### データ処理パイプライン
-- **プリフィルター**: ノイズ除去、スパイク除去、外れ値除去、近傍フィルタリング
-- **DBSCAN クラスタリング**: 高性能な2Dクラスタリング（正規化距離、角度スケーリング対応）
-- **ポストフィルター**: クラスター分離除去、サイズフィルタリング
-- **ROI (Region of Interest)**: 包含・除外領域の設定
+- **Multi-Sensor Support**: Connect and manage multiple Hokuyo LiDAR sensors simultaneously
+- **Real-time Visualization**: Interactive web-based visualization with pan, zoom, and region-of-interest tools
+- **Advanced Data Processing**: Built-in DBSCAN clustering, noise filtering, and spike removal
+- **Flexible Data Publishing**: Export processed data via NNG, OSC, or REST API
+- **Interactive Configuration**: Live parameter tuning through the web interface
+- **ROI Management**: Create include/exclude regions for focused area monitoring
+- **Filter Pipeline**: Multi-stage filtering system (prefilter → clustering → postfilter)
+- **Cross-Platform**: Runs on Linux, macOS, and supports ARM64 architecture
 
-### データ配信
-- **NNG**: MessagePack形式でのリアルタイム配信
-- **OSC**: Open Sound Control プロトコル対応
-- **WebSocket**: WebUI向けJSON配信
-- レート制限、バンドル配信対応
+## 🎯 Quick Start
 
-#### NNG メッセージフォーマット
+### Prerequisites
 
-**MessagePack形式（推奨）:**
-```
-{
-  "v": 1,                    // プロトコルバージョン
-  "seq": 12345,              // フレームシーケンス番号
-  "t_ns": 1640995200000000000, // タイムスタンプ（ナノ秒）
-  "raw": false,              // 生データフラグ
-  "items": [                 // クラスター配列
-    {
-      "id": 0,               // クラスターID
-      "cx": 1.23,            // 中心X座標 [m]
-      "cy": 4.56,            // 中心Y座標 [m]
-      "minx": 1.0,           // バウンディングボックス最小X [m]
-      "miny": 4.0,           // バウンディングボックス最小Y [m]
-      "maxx": 1.5,           // バウンディングボックス最大X [m]
-      "maxy": 5.0,           // バウンディングボックス最大Y [m]
-      "n": 25                // クラスター内点数
-    }
-  ]
-}
+- **System Requirements**: Linux or macOS
+- **Build Tools**: CMake 3.18+, C++20 compatible compiler
+- **Network**: Access to Hokuyo sensors via Ethernet
+
+### Installation
+
+1. **Clone the repository**
+```bash
+git clone <repository-url>
+cd HokuyoHub
 ```
 
-**JSON形式（フォールバック）:**
-MessagePackエンコードに失敗した場合、同じ構造のJSONで配信されます。
+2. **Build the application**
+   
+   **For Development (macOS):**
+   ```bash
+   ./scripts/build/build_with_presets.sh
+   ```
+   
+   **For Production (Raspberry Pi 5):**
+   ```bash
+   ./scripts/build/docker_cross_build.sh --build-all
+   ```
 
-#### OSC メッセージフォーマット
-
-**個別メッセージ形式:**
-```
-Address: /hokuyohub/cluster
-Type Tags: ,itiffffffi
-Arguments:
-  - id (int32):     クラスターID
-  - t_ns (int64):   タイムスタンプ（ナノ秒）
-  - seq (int32):    フレームシーケンス番号
-  - cx (float32):   中心X座標 [m]
-  - cy (float32):   中心Y座標 [m]
-  - minx (float32): バウンディングボックス最小X [m]
-  - miny (float32): バウンディングボックス最小Y [m]
-  - maxx (float32): バウンディングボックス最大X [m]
-  - maxy (float32): バウンディングボックス最大Y [m]
-  - n (int32):      クラスター内点数
-```
-
-**バンドル形式（推奨）:**
-複数のクラスターを1つのOSCバンドルにまとめて送信。UDP MTU制限を考慮して自動分割されます。
-- NTPタイムタグ付き
-- 設定可能なフラグメントサイズ（デフォルト: 1200バイト）
-
-#### WebSocket メッセージフォーマット
-
-**クラスターデータ:**
-```json
-{
-  "type": "clusters-lite",
-  "seq": 12345,
-  "t": 1640995200000000000,
-  "items": [
-    {
-      "id": 0,
-      "cx": 1.23, "cy": 4.56,
-      "minx": 1.0, "miny": 4.0,
-      "maxx": 1.5, "maxy": 5.0
-    }
-  ]
-}
+4. **Configure your sensors**
+Edit `config/default.yaml` to match your sensor setup:
+```yaml
+sensors:
+  - id: "sensor1"
+    name: "front-lidar"
+    type: "hokuyo_urg_eth"
+    endpoint: "192.168.1.100:10940"
+    pose: { tx: 0.0, ty: 0.0, theta: 0.0 }
+    enabled: true
 ```
 
-**生データ:**
-```json
-{
-  "type": "raw-lite",
-  "seq": 12345,
-  "t": 1640995200000000000,
-  "xy": [1.0, 2.0, 1.1, 2.1, ...],  // [x0,y0,x1,y1,...]
-  "sid": [0, 0, 1, 1, ...]           // センサーID配列
-}
+5. **Launch HokuyoHub**
+```bash
+./hokuyo_hub --config ./config/default.yaml --listen 0.0.0.0:8080
 ```
 
-**フィルター済みデータ:**
-```json
-{
-  "type": "filtered-lite",
-  "seq": 12345,
-  "t": 1640995200000000000,
-  "xy": [1.0, 2.0, 1.1, 2.1, ...],
-  "sid": [0, 0, 1, 1, ...]
-}
+6. **Open the web interface**
+Navigate to `http://localhost:8080` in your browser
+
+## 📋 Installation Guide
+
+### System Dependencies
+
+**Ubuntu/Debian:**
+```bash
+sudo apt update
+sudo apt install build-essential cmake git
+sudo apt install libyaml-cpp-dev  # Optional: use system libraries
 ```
 
-### WebUI
-- リアルタイムLiDARデータ可視化（Canvas描画）
-- インタラクティブなセンサー配置・回転
-- ROI領域の作成・編集（ドラッグ&ドロップ）
-- フィルター設定のリアルタイム調整
-- 設定の保存・読み込み・インポート・エクスポート
+**macOS:**
+```bash
+# Install Homebrew dependencies
+brew install cmake yaml-cpp
 
-## システム要件
+# Or use built-in dependency management (recommended)
+```
 
-### 依存関係
-- **C++20** 対応コンパイラ
-- **CMake** 3.18以上
-- **Drogon** フレームワーク（HTTP/WebSocket）
-- **yaml-cpp** （設定ファイル）
-- **NNG** （オプション、メッセージング）
-- **Hokuyo URG Library** （自動ビルド）
+### Build Options
 
-## インストール
+**Modern Build System (Recommended)**
 
-### Ubuntu/Debian/Raspberry Pi OS
+HokuyoHub uses organized build scripts for different deployment targets:
 
 ```bash
-# 基本依存関係
-sudo apt-get update
-sudo apt-get install -y cmake g++ pkg-config git libjsoncpp-dev uuid-dev \
-  zlib1g-dev libssl-dev libbrotli-dev
+# Native macOS development build
+./scripts/build/build_with_presets.sh
 
-# Drogon フレームワーク
-sudo apt-get install -y libdrogon-dev || {
-  git clone https://github.com/drogonframework/drogon && cd drogon && \
-  git submodule update --init && mkdir build && cd build && \
-  cmake .. -DCMAKE_BUILD_TYPE=Release && \
-  make -j$(nproc) && sudo make install && cd ../../
-}
+# Docker ARM64 cross-compilation (Raspberry Pi 5)
+./scripts/build/docker_cross_build.sh --build-all
 
-# YAML-CPP
-sudo apt-get install -y libyaml-cpp-dev
+# Environment setup (if needed)
+./scripts/setup/setup_cross_compile.sh
 
-# NNG（オプション）
-sudo apt-get install -y cmake ninja-build
-git clone https://github.com/nanomsg/nng.git && cd nng && mkdir build && cd build \
-  && cmake -G Ninja -DCMAKE_BUILD_TYPE=Release -DNNG_TESTS=OFF -DNNG_TOOLS=OFF .. \
-  && ninja && sudo ninja install && sudo ldconfig
+# Testing and validation
+./scripts/testing/test_rest_api.sh http://localhost:8080
 ```
 
-### ビルド
+**Build System Architecture:**
+- **`scripts/build/`** - Core build scripts
+- **`scripts/setup/`** - Environment configuration
+- **`scripts/testing/`** - Testing and validation
+- **`scripts/utils/`** - Utility scripts and artifact extraction
+- **`docker/`** - Docker multi-stage build system
 
-#### 従来の方法（引き続き利用可能）
+### Cross-Compilation
+
+For ARM64 targets (Raspberry Pi 5), use the Docker-based cross-compilation:
 
 ```bash
-mkdir -p build && cd build
-cmake -DCMAKE_BUILD_TYPE=Release -DENABLE_NNG=ON ..
-make -j$(nproc)
+# Complete cross-compilation build
+./scripts/build/docker_cross_build.sh --build-all
+
+# Extract deployment artifacts
+# (automatically included in --build-all)
+# Output: dist/linux-arm64/
 ```
 
-#### CMake Presets を使用した方法（Phase 1 - 推奨）
+**Docker Build Features:**
+- Multi-stage build (dependencies → application → runtime)
+- Automatic URG library cross-compilation
+- Optimized runtime container (208MB)
+- ARM64 native binary generation
 
-```bash
-# リリースビルド（推奨）
-cmake --preset mac-release
-cmake --build --preset build-mac-release
+## 🎮 Basic Usage
 
-# デバッグビルド
-cmake --preset mac-debug
-cmake --build --preset build-mac-debug
+### Web Interface Overview
 
-# RelWithDebInfo ビルド（プロファイリング用）
-cmake --preset mac-relwithdebinfo
-cmake --build --preset build-mac-relwithdebinfo
+The HokuyoHub web interface provides three main panels:
 
-# 利用可能なプリセット一覧
-cmake --list-presets
-cmake --list-presets=build
-```
+1. **Left Panel - Sensors & Sinks**
+   - Add and configure LiDAR sensors
+   - Set up data publishing endpoints
+   - Monitor connection status
 
-#### 便利スクリプトを使用した方法
+2. **Center Panel - Visualization**
+   - Real-time point cloud display
+   - Interactive pan/zoom controls
+   - ROI (Region of Interest) creation tools
+   - Raw and filtered data overlay
 
-```bash
-# リリースビルド + インストール
-./scripts/build_with_presets.sh release --install
+3. **Right Panel - Processing Configuration**
+   - DBSCAN clustering parameters
+   - Pre/post-filtering options
+   - Real-time parameter adjustment
 
-# デバッグビルド + インストール
-./scripts/build_with_presets.sh debug --install
+### Adding a Sensor
 
-# 簡単なラッパー
-./scripts/preset_build.sh release  # または debug, clean
+1. Click "Add Sensor" in the left panel
+2. Configure sensor parameters:
+   - **Name**: Descriptive sensor name
+   - **Type**: `hokuyo_urg_eth` for Ethernet sensors
+   - **Endpoint**: IP address and port (e.g., `192.168.1.100:10940`)
+   - **Position**: Sensor pose (x, y, rotation)
+3. Click "Save" to activate the sensor
 
-# ヘルプ表示
-./scripts/build_with_presets.sh --help
-```
+### Creating Regions of Interest
 
-### インストール
+1. Click "+ Include Region" or "+ Exclude Region"
+2. Click points on the visualization to define the polygon
+3. Press Enter to complete the region
+4. Use "Clear All ROI" to remove all regions
 
-#### 従来の方法
+### Data Publishing Setup
 
-```bash
-# デフォルトでは ./dist にインストール
-make install
+1. Click "Add Sink" in the sinks panel
+2. Choose publishing method:
+   - **NNG**: High-performance messaging (`tcp://0.0.0.0:5555`)
+   - **OSC**: Open Sound Control protocol
+   - **REST**: HTTP API access
+3. Configure topic names and data formats
 
-# システムワイドインストール
-cmake -DCMAKE_INSTALL_PREFIX=/usr/local ..
-make install
-```
+## ⚙️ Configuration
 
-#### CMake Presets を使用した方法
-
-```bash
-# プリセットビルド後のインストール
-cmake --install build/darwin-arm64
-
-# または便利スクリプトで一括実行
-./scripts/build_with_presets.sh release --install
-```
-
-## 使用方法
-
-### 基本実行
-
-```bash
-./hokuyo_hub --config ./configs/default.yaml --listen 0.0.0.0:8080
-```
-
-### コマンドライン引数
-
-- `--config <path>`: 設定ファイルパス（デフォルト: `./config/default.yaml`）
-- `--listen <host:port>`: HTTP/WebSocketサーバーアドレス（設定ファイルで指定可能）
-
-### WebUI アクセス
-
-ブラウザで `http://localhost:8080` にアクセス
-
-#### WebUI 操作方法
-
-**ビューポート操作:**
-- ドラッグ: パン
-- マウスホイール: ズーム
-- ダブルクリック: ビューリセット
-
-**センサー操作:**
-- ドラッグ: センサー移動
-- `R`キー: 選択センサーの回転
-
-**ROI操作:**
-- `+ Include Region`: 包含領域作成開始
-- `+ Exclude Region`: 除外領域作成開始
-- クリック: 頂点追加
-- `Enter`: 領域作成完了
-- `Escape`: 作成キャンセル
-- ドラッグ: 領域・頂点移動
-- `Delete`: 選択領域・頂点削除
-
-## 設定ファイル
-
-### 基本構造（YAML）
+### Sensor Configuration
 
 ```yaml
 sensors:
-  - id: 0
-    name: "hokuyo-a"
+  - id: "sensor1"
+    name: "front-scanner"
     type: "hokuyo_urg_eth"
-    endpoint: "192.168.104.202:10940"
-    pose: { tx: 0.0, ty: 0.0, theta: 0.0 }
+    endpoint: "192.168.1.100:10940"
+    pose: { tx: 1.0, ty: 0.0, theta: 0.0 }  # Position in meters, rotation in radians
     enabled: true
-    mode: "ME"  # "MD"=距離のみ / "ME"=距離+強度
+    mode: "ME"              # "MD" = distance only, "ME" = distance + intensity
+    skip_step: 1            # Data downsampling (1 = no downsampling)
+    interval: 0             # Scan interval in ms (0 = default)
     mask:
-      angle: { min: -135.0, max: 135.0 }  # degree
-      range: { near: 0.05, far: 15.0 }    # m
+      angle: { min: -135.0, max: 135.0 }  # Angular range in degrees
+      range: { near: 0.05, far: 15.0 }    # Distance range in meters
+```
 
-world_mask:
-  polygon: []  # ROI設定（WebUIで編集可能）
+### DBSCAN Clustering
 
+```yaml
 dbscan:
-  eps_norm: 5      # 正規化距離閾値
-  minPts: 5        # 最小点数
-  k_scale: 1       # 角度項スケール係数
+  eps_norm: 2.5           # Normalized distance threshold
+  minPts: 5               # Minimum points per cluster
+  k_scale: 1.0            # Angular scaling factor
+  h_min: 0.01             # Grid resolution minimum (m)
+  h_max: 0.20             # Grid resolution maximum (m)
+  R_max: 5                # Search radius limit
+  M_max: 600              # Maximum candidates per query
+```
 
+### Filtering Pipeline
+
+```yaml
 prefilter:
   enabled: true
   neighborhood:
     enabled: true
-    k: 5                    # 最小近傍点数
-    r_base: 0.05           # 基準半径 [m]
-    r_scale: 1.0           # 距離スケール係数
+    k: 5                  # Minimum neighbors required
+    r_base: 0.05          # Base radius in meters
+    r_scale: 1.0          # Distance-based scaling
+  
   spike_removal:
     enabled: true
-    dr_threshold: 0.3      # スパイク検出閾値
-    window_size: 3         # ウィンドウサイズ
-  # その他のフィルター設定...
+    dr_threshold: 0.3     # Spike detection sensitivity
+    window_size: 3        # Processing window size
+  
+  outlier_removal:
+    enabled: true
+    median_window: 5      # Moving median window
+    outlier_threshold: 2.0 # Standard deviation threshold
 
 postfilter:
   enabled: true
   isolation_removal:
     enabled: true
-    min_points_size: 3     # 最小クラスターサイズ
-    isolation_radius: 0.2  # 分離判定半径
+    min_points_size: 3    # Minimum cluster size
+    isolation_radius: 0.2 # Inter-cluster distance threshold
+```
 
+### Data Publishing
+
+```yaml
 sinks:
-  - { type: "nng", url: "tcp://0.0.0.0:5555", topic: "clusters", encoding: "msgpack", rate_limit: 120 }
-  - { type: "osc", url: "0.0.0.0:10000", topic: "clusters", rate_limit: 120 }
-
-ui:
-  listen: "0.0.0.0:8080"
+  - type: "nng"
+    url: "tcp://0.0.0.0:5555"
+    topic: "clusters"
+    encoding: "msgpack"
+    rate_limit: 120
+  
+  - type: "osc"
+    url: "127.0.0.1:10000"
+    in_bundle: true
+    topic: "clusters"
+    encoding: "osc"
+    rate_limit: 120
 ```
 
-## REST API
+## 🔧 Supported Hardware
 
-### エンドポイント一覧
+### Hokuyo Sensor Compatibility
 
-**センサー管理:**
-- `GET /api/v1/sensors` - センサー一覧取得
-- `GET /api/v1/sensors/{id}` - 個別センサー情報
-- `PATCH /api/v1/sensors/{id}` - センサー設定更新
+**Tested Models:**
+- URG-04LX-UG01 (USB/Ethernet)
+- UTM-30LX (Ethernet)
+- UST-10LX/20LX (Ethernet)
 
-**フィルター設定:**
-- `GET /api/v1/filters` - フィルター設定取得
-- `PUT /api/v1/filters/prefilter` - プリフィルター更新
-- `PUT /api/v1/filters/postfilter` - ポストフィルター更新
+**Connection Requirements:**
+- **Ethernet Models**: Direct network connection or switch
+- **USB Models**: Serial-over-USB interface
+- **Power**: External power supply for most models
+- **Network**: Static IP configuration recommended
 
-**設定管理:**
-- `GET /api/v1/configs/list` - 保存済み設定一覧
-- `POST /api/v1/configs/save` - 設定保存
-- `POST /api/v1/configs/load` - 設定読み込み
-- `GET /api/v1/configs/export` - 設定エクスポート
-- `POST /api/v1/configs/import` - 設定インポート
+### Network Configuration
 
-**スナップショット:**
-- `GET /api/v1/snapshot` - 現在の全設定取得
-
-### API テスト
+For Ethernet sensors, ensure proper network setup:
 
 ```bash
-# テストスクリプト実行
-./scripts/test_rest_api.sh http://localhost:8080
+# Example: Configure static IP for sensor communication
+sudo ip addr add 192.168.1.10/24 dev eth0
+sudo ip link set eth0 up
+
+# Test sensor connectivity
+ping 192.168.1.100  # Replace with your sensor IP
 ```
 
-## 開発・デバッグ
+## 🔍 Troubleshooting
 
-### ログ出力
-アプリケーションは標準出力にログを出力します：
-- フレーム処理統計
-- フィルター適用結果
-- エラー・警告メッセージ
+### Common Issues
 
-### パフォーマンス監視
-WebUIでリアルタイム監視可能：
-- FPS（フレームレート）
-- 点群数（Raw/Filtered）
-- クラスター数
-- 接続状態
+**Sensor Connection Failed**
+- Verify IP address and port configuration
+- Check network connectivity: `ping <sensor-ip>`
+- Ensure sensor power and network cables are secure
+- Try different skip_step values if data rate is too high
 
-## システムサービス化
+**Web Interface Not Loading**
+```bash
+# Check if service is running
+ps aux | grep hokuyo_hub
 
-### systemd設定例
+# Verify port availability
+netstat -ln | grep 8080
 
-```ini
-# /etc/systemd/system/hokuyo-hub.service
-[Unit]
-Description=HokuyoHub LiDAR Processing Service
-After=network.target
-
-[Service]
-Type=simple
-User=hokuyohub
-WorkingDirectory=/opt/hokuyohub
-ExecStart=/opt/hokuyohub/hokuyo_hub --config /etc/hokuyohub/config.yaml
-Restart=always
-RestartSec=5
-
-[Install]
-WantedBy=multi-user.target
+# Check configuration file
+./hokuyo_hub --config ./config/default.yaml --listen 0.0.0.0:8080
 ```
+
+**Poor Clustering Results**
+- Adjust DBSCAN `eps_norm` parameter (try 1.5-4.0 range)
+- Increase `minPts` for noisy environments
+- Enable prefiltering for better data quality
+- Check sensor mounting and environmental conditions
+
+**High CPU Usage**
+- Enable `skip_step` for data downsampling
+- Reduce scan frequency with `interval` setting
+- Lower visualization frame rate
+- Optimize ROI regions to focus processing
+
+### Performance Optimization
+
+**For High-Frequency Applications:**
+```yaml
+# Optimize for speed
+dbscan:
+  h_min: 0.02    # Larger grid cells
+  M_max: 400     # Fewer candidates
+prefilter:
+  neighborhood:
+    r_base: 0.08 # Larger filtering radius
+```
+
+**For High-Precision Applications:**
+```yaml
+# Optimize for accuracy
+dbscan:
+  h_min: 0.005   # Smaller grid cells
+  M_max: 1000    # More candidates
+prefilter:
+  neighborhood:
+    r_base: 0.03 # Smaller filtering radius
+```
+
+### Log Analysis
 
 ```bash
-sudo systemctl enable hokuyo-hub
-sudo systemctl start hokuyo-hub
+# Enable verbose logging
+./hokuyo_hub --config ./config/default.yaml --listen 0.0.0.0:8080 2>&1 | tee hokuyo.log
+
+# Common log patterns to monitor:
+# - "[Sensor] Connected to ..." - Sensor initialization
+# - "[DBSCAN] Processed frame ..." - Clustering statistics
+# - "[Prefilter] Filtered ..." - Data processing stats
 ```
 
-## トラブルシューティング
+## 📡 REST API
 
-### よくある問題
-
-1. **センサー接続エラー**
-   - ネットワーク設定確認
-   - ファイアウォール設定確認
-   - センサーIPアドレス確認
-
-2. **WebUI接続できない**
-   - ポート8080が使用可能か確認
-   - `--listen` パラメータ確認
-
-3. **パフォーマンス問題**
-   - フィルター設定の調整
-   - WebUIのパフォーマンスモード有効化（`P`キー）
-
-### ログ確認
+Access sensor data and configuration via HTTP:
 
 ```bash
-# アプリケーションログ
-./hokuyo_hub --config config.yaml 2>&1 | tee hokuyo.log
+# Get sensor status
+curl http://localhost:8080/api/sensors
 
-# systemdログ
-sudo journalctl -u hokuyo-hub -f
+# Get current configuration
+curl http://localhost:8080/api/config
+
+# Update DBSCAN parameters
+curl -X POST http://localhost:8080/api/dbscan \
+  -H "Content-Type: application/json" \
+  -d '{"eps_norm": 3.0, "minPts": 8}'
 ```
 
-## ライセンス
+## 📄 License and Support
 
-このプロジェクトは開発中のため、ライセンスは未定です。
+This project is available under the MIT License. 
 
-## 貢献
+**Getting Help:**
+- Check the [troubleshooting section](#-troubleshooting) for common issues
+- Review configuration examples in the `configs/` directory
+- Examine log output for detailed error information
 
-バグ報告や機能要望は、プロジェクトの課題管理システムを通じてお知らせください。
+**Contributing:**
+- Report bugs and feature requests via issues
+- Submit pull requests for improvements
+- Share configuration examples for different sensor setups
+
+**System Requirements:**
+- **Minimum**: 2GB RAM, dual-core CPU
+- **Recommended**: 4GB+ RAM, quad-core CPU for multiple sensors
+- **Network**: Gigabit Ethernet for high-frequency scanning
+
+## 📚 Documentation
+
+### Build & Development
+- **[Build Guide](docs/build/BUILD_GUIDE.md)** - Comprehensive build instructions for all platforms
+- **[Docker Build Debug Report](docs/build/DOCKER_BUILD_DEBUG_REPORT.md)** - Docker build troubleshooting
+- **[Scripts Documentation](scripts/README.md)** - Build script organization and usage
+
+### Development & Planning
+- **[Development Plans](docs/development/plans/)** - Feature roadmap and implementation plans
+- **[Legacy Documentation](docs/legacy/README.md)** - Historical build system documentation
+
+### Quick References
+- **Build Commands**: Use `./scripts/build/docker_cross_build.sh --build-all` for production
+- **Testing**: Use `./scripts/testing/test_rest_api.sh` for API validation
+- **Deployment**: ARM64 artifacts available in `dist/linux-arm64/`
+
+---
+
+*HokuyoHub - Empowering real-time LiDAR applications with advanced processing and intuitive visualization.*

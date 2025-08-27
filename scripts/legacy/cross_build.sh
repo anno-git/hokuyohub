@@ -140,7 +140,7 @@ check_cross_tools() {
     for tool in "${required_tools[@]}"; do
         if ! command -v "$tool" >/dev/null 2>&1; then
             print_error "Cross-compilation tool not found: $tool"
-            echo "Run './scripts/setup_cross_compile.sh' to set up the environment."
+            echo "Run './scripts/setup/setup_cross_compile.sh' to set up the environment."
             return 1
         fi
     done
@@ -169,13 +169,15 @@ configure_project() {
     
     local cmake_args=("--preset" "$preset")
     
-    if [[ "$VERBOSE" == true ]]; then
-        cmake_args+=("--verbose")
-    fi
-    
     print_status "$BLUE" "Running: cmake ${cmake_args[*]}"
     
-    if cmake "${cmake_args[@]}"; then
+    if [[ "$VERBOSE" == true ]]; then
+        cmake "${cmake_args[@]}" --verbose
+    else
+        cmake "${cmake_args[@]}"
+    fi
+    
+    if [[ $? -eq 0 ]]; then
         print_success "Configuration completed successfully"
         return 0
     else
