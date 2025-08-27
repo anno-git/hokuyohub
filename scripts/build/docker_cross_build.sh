@@ -26,6 +26,7 @@ NC='\033[0m' # No Color
 # Configuration
 DOCKER_BUILD_SCRIPT="./docker/build.sh"
 EXTRACT_SCRIPT="./scripts/utils/extract_docker_artifacts.sh"
+USE_OPTIMIZED="${USE_OPTIMIZED:-true}"
 
 # Function to print colored output
 print_status() {
@@ -249,7 +250,7 @@ main() {
     case "$action" in
         build)
             print_status "$BLUE" "Delegating to Docker build system: $DOCKER_BUILD_SCRIPT $docker_command"
-            if "$DOCKER_BUILD_SCRIPT" "$docker_command"; then
+            if USE_OPTIMIZED="$USE_OPTIMIZED" "$DOCKER_BUILD_SCRIPT" "$docker_command"; then
                 print_success "Docker build completed: $docker_command"
                 
                 # Extract artifacts if requested

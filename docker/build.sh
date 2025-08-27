@@ -26,6 +26,8 @@ IMAGE_NAME="${IMAGE_NAME:-hokuyo-hub}"
 IMAGE_TAG="${IMAGE_TAG:-latest}"
 PLATFORM="${PLATFORM:-linux/arm64}"
 DOCKERFILE="${DOCKERFILE:-docker/Dockerfile.rpi}"
+DOCKERFILE_OPTIMIZED="${DOCKERFILE_OPTIMIZED:-docker/Dockerfile.rpi.optimized}"
+USE_OPTIMIZED="${USE_OPTIMIZED:-true}"
 
 # Colors for output
 RED='\033[0;31m'
@@ -97,11 +99,18 @@ build_app() {
 # Build runtime stage
 build_runtime() {
     log_info "Building runtime stage..."
+    
+    local dockerfile_to_use="${DOCKERFILE}"
+    if [[ "${USE_OPTIMIZED}" == "true" && -f "${DOCKERFILE_OPTIMIZED}" ]]; then
+        dockerfile_to_use="${DOCKERFILE_OPTIMIZED}"
+        log_info "Using optimized Dockerfile: ${dockerfile_to_use}"
+    fi
+    
     docker buildx build \
         --platform "${PLATFORM}" \
         --target runtime \
         --tag "${IMAGE_NAME}:${IMAGE_TAG}" \
-        --file "${DOCKERFILE}" \
+        --file "${dockerfile_to_use}" \
         --progress=plain \
         --load \
         .
@@ -111,9 +120,28 @@ build_runtime() {
 # Build all stages
 build_all() {
     log_info "Building all stages..."
-    build_deps
-    build_app
-    build_runtime
+    
+    local dockerfile_to_use="${DOCKERFILE}"
+    if [[ "${USE_OPTIMIZED}" == "true" && -f "${DOCKERFILE_OPTIMIZED}" ]]; then
+        dockerfile_to_use="${DOCKERFILE_OPTIMIZED}"
+        log_info "Using optimized Dockerfile for all stages: ${dockerfile_to_use}"
+        
+        # For optimized build, build runtime directly (includes all stages)
+        docker buildx build \
+            --platform "${PLATFORM}" \
+            --target runtime \
+            --tag "${IMAGE_NAME}:${IMAGE_TAG}" \
+            --file "${dockerfile_to_use}" \
+            --progress=plain \
+            --load \
+            .
+    else
+        # Traditional multi-stage build
+        build_deps
+        build_app
+        build_runtime
+    fi
+    
     log_success "All stages built successfully"
 }
 
