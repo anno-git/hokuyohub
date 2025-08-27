@@ -90,4 +90,4 @@ docker run -p 8080:8080 ghcr.io/[username]/hokuyohub:latest
 
 ---
 
-*This status is automatically updated by GitHub Actions on every successful build.*
+*This status is automatically updated by GitHub Actions on every successful build.*Last automated build: 2025-08-27 06:25:42 UTC
