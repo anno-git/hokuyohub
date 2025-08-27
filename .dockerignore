@@ -142,7 +142,9 @@ local.properties
 !cmake/
 !src/
 !external/
+!external/**
 !third_party/
+!third_party/**
 !configs/
 !webui/
 !scripts/
