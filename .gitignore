@@ -1,5 +1,7 @@
-# === CMake build directories ===
+/validation/
 /build/
+
+# === CMake build directories ===
 build-*/
 cmake-build-*/
 

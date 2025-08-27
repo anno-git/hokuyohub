@@ -1,2 +1,0 @@
-/usr/bin/ar qc libsensor_core.a CMakeFiles/sensor_core.dir/src/sensors/SensorFactory.cpp.o CMakeFiles/sensor_core.dir/src/sensors/hokuyo/HokuyoSensorUrg.cpp.o
-/usr/bin/ranlib libsensor_core.a

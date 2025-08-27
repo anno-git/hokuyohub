@@ -143,8 +143,6 @@ local.properties
 !src/
 !external/
 !external/**
-!third_party/
-!third_party/**
 !configs/
 !webui/
 !scripts/

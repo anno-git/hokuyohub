@@ -76,9 +76,11 @@ RUN echo "=== Rebuilding URG Library for Linux ARM64 ===" && \
     cd external/urg_library/current && \
     make clean && \
     make && \
-    cp -r include/* /build/third_party/urg_library/include/ && \
-    cp src/liburg_c.a /build/third_party/urg_library/lib/ && \
-    echo "URG library rebuilt successfully"
+    mkdir -p /build/build/linux-arm64/third_party/urg_library/include && \
+    mkdir -p /build/build/linux-arm64/third_party/urg_library/lib && \
+    cp -r include/* /build/build/linux-arm64/third_party/urg_library/include/ && \
+    cp src/liburg_c.a /build/build/linux-arm64/third_party/urg_library/lib/ && \
+    echo "URG library rebuilt successfully for linux-arm64"
 
 # Create build directory and configure
 RUN mkdir -p build/linux-arm64

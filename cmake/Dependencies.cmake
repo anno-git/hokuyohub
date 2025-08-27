@@ -177,9 +177,14 @@ endfunction()
 # Function to set up ExternalProject for urg_library
 function(setup_urg_external_project)
     set(URG_SRC_DIR ${CMAKE_SOURCE_DIR}/external/urg_library/current)
-    set(URG_INSTALL_DIR ${CMAKE_SOURCE_DIR}/third_party/urg_library)
+    
+    # Use platform-specific third_party directory based on current build directory
+    get_filename_component(BUILD_PLATFORM ${CMAKE_BINARY_DIR} NAME)
+    set(URG_INSTALL_DIR ${CMAKE_SOURCE_DIR}/build/${BUILD_PLATFORM}/third_party/urg_library)
     set(URG_INCLUDE_DIR ${URG_INSTALL_DIR}/include)
     set(URG_LIB_DIR ${URG_INSTALL_DIR}/lib)
+    
+    message(STATUS "URG library will be installed to platform-specific directory: ${URG_INSTALL_DIR}")
 
     # Create directories
     file(MAKE_DIRECTORY ${URG_INSTALL_DIR})
