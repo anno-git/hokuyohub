@@ -68,7 +68,7 @@ int main(int argc, char** argv) {
   });
   
   // Serve static files from webui directory
-  CROW_ROUTE(app, "/<string>")
+  CROW_ROUTE(app, "/<path>")
   ([](const crow::request& req, crow::response& res, const std::string& path) {
     // Basic security check to prevent directory traversal
     if (path.find("..") != std::string::npos) {
