@@ -1,5 +1,5 @@
 # === CMake build directories ===
-build/
+/build/
 build-*/
 cmake-build-*/
 
@@ -16,7 +16,7 @@ dist/
 # === Compiled dynamic libraries ===
 *.so
 *.so.*
-*.dylib
+*.dyli
 *.dll
 
 # === Compiled static libraries ===
