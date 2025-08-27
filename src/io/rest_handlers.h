@@ -1,5 +1,5 @@
 #pragma once
-#include <drogon/HttpController.h>
+#include <crow.h>
 #include "core/sensor_manager.h"
 #include "core/filter_manager.h"
 #include "detect/dbscan.h"
@@ -8,7 +8,7 @@
 #include "ws_handlers.h"
 #include <memory>
 
-class RestApi : public drogon::HttpController<RestApi, false> { // ★ AutoCreationを無効化
+class RestApi {
    SensorManager& sensors_;
    FilterManager& filters_;
    DBSCAN2D& dbscan_;
@@ -21,84 +21,49 @@ class RestApi : public drogon::HttpController<RestApi, false> { // ★ AutoCreat
     RestApi(SensorManager& s, FilterManager& f, DBSCAN2D& d, PublisherManager& pm, std::shared_ptr<LiveWs> w, AppConfig& cfg)
      : sensors_(s), filters_(f), dbscan_(d), publisher_manager_(pm), ws_(std::move(w)), config_(cfg), token_(cfg.security.api_token) {}
 
-  METHOD_LIST_BEGIN
-    // Sensors
-    ADD_METHOD_TO(RestApi::getSensors, "/api/v1/sensors", drogon::Get);
-    ADD_METHOD_TO(RestApi::getSensorById, "/api/v1/sensors/{id}", drogon::Get);
-    ADD_METHOD_TO(RestApi::patchSensor, "/api/v1/sensors/{id}", drogon::Patch);
-    
-    // Filters
-    ADD_METHOD_TO(RestApi::getPrefilter, "/api/v1/filters/prefilter", drogon::Get);
-    ADD_METHOD_TO(RestApi::putPrefilter, "/api/v1/filters/prefilter", drogon::Put);
-    ADD_METHOD_TO(RestApi::getPostfilter, "/api/v1/filters/postfilter", drogon::Get);
-    ADD_METHOD_TO(RestApi::putPostfilter, "/api/v1/filters/postfilter", drogon::Put);
-    ADD_METHOD_TO(RestApi::getFilters, "/api/v1/filters", drogon::Get);
-    
-    // DBSCAN
-    ADD_METHOD_TO(RestApi::getDbscan, "/api/v1/dbscan", drogon::Get);
-    ADD_METHOD_TO(RestApi::putDbscan, "/api/v1/dbscan", drogon::Put);
-    
-    // Sensors (new endpoints)
-    ADD_METHOD_TO(RestApi::postSensor, "/api/v1/sensors", drogon::Post);
-    ADD_METHOD_TO(RestApi::deleteSensor, "/api/v1/sensors/{id}", drogon::Delete);
-    
-    // Sinks
-    ADD_METHOD_TO(RestApi::getSinks, "/api/v1/sinks", drogon::Get);
-    ADD_METHOD_TO(RestApi::postSink, "/api/v1/sinks", drogon::Post);
-    ADD_METHOD_TO(RestApi::patchSink, "/api/v1/sinks/{index}", drogon::Patch);
-    ADD_METHOD_TO(RestApi::deleteSink, "/api/v1/sinks/{index}", drogon::Delete);
-    
-    // Snapshot
-    ADD_METHOD_TO(RestApi::getSnapshot, "/api/v1/snapshot", drogon::Get);
-    
-    // Configs
-    ADD_METHOD_TO(RestApi::getConfigsList, "/api/v1/configs/list", drogon::Get);
-    ADD_METHOD_TO(RestApi::postConfigsLoad, "/api/v1/configs/load", drogon::Post);
-    ADD_METHOD_TO(RestApi::postConfigsImport, "/api/v1/configs/import", drogon::Post);
-    ADD_METHOD_TO(RestApi::postConfigsSave, "/api/v1/configs/save", drogon::Post);
-    ADD_METHOD_TO(RestApi::getConfigsExport, "/api/v1/configs/export", drogon::Get);
-  METHOD_LIST_END
+    // Register all routes with the Crow app
+    void registerRoutes(crow::SimpleApp& app);
 
   // Sink runtime management (public for main.cpp access)
   void applySinksRuntime();
 
 private:
-  bool authorize(const drogon::HttpRequestPtr& req) const;
-  void sendUnauthorized(std::function<void (const drogon::HttpResponsePtr &)>&& callback) const;
+  bool authorize(const crow::request& req) const;
+  crow::response sendUnauthorized() const;
 
   // Sensors
-  void getSensors(const drogon::HttpRequestPtr&, std::function<void (const drogon::HttpResponsePtr &)> &&);
-  void getSensorById(const drogon::HttpRequestPtr&, std::function<void (const drogon::HttpResponsePtr &)> &&);
-  void patchSensor(const drogon::HttpRequestPtr&, std::function<void (const drogon::HttpResponsePtr &)> &&);
+  crow::response getSensors();
+  crow::response getSensorById(const std::string& id);
+  crow::response patchSensor(const std::string& id, const crow::request& req);
   
   // Filters
-  void getPrefilter(const drogon::HttpRequestPtr&, std::function<void (const drogon::HttpResponsePtr &)> &&);
-  void putPrefilter(const drogon::HttpRequestPtr&, std::function<void (const drogon::HttpResponsePtr &)> &&);
-  void getPostfilter(const drogon::HttpRequestPtr&, std::function<void (const drogon::HttpResponsePtr &)> &&);
-  void putPostfilter(const drogon::HttpRequestPtr&, std::function<void (const drogon::HttpResponsePtr &)> &&);
-  void getFilters(const drogon::HttpRequestPtr&, std::function<void (const drogon::HttpResponsePtr &)> &&);
+  crow::response getPrefilter();
+  crow::response putPrefilter(const crow::request& req);
+  crow::response getPostfilter();
+  crow::response putPostfilter(const crow::request& req);
+  crow::response getFilters();
   
   // DBSCAN
-  void getDbscan(const drogon::HttpRequestPtr&, std::function<void (const drogon::HttpResponsePtr &)> &&);
-  void putDbscan(const drogon::HttpRequestPtr&, std::function<void (const drogon::HttpResponsePtr &)> &&);
+  crow::response getDbscan();
+  crow::response putDbscan(const crow::request& req);
   
   // Sensors (new endpoints)
-  void postSensor(const drogon::HttpRequestPtr&, std::function<void (const drogon::HttpResponsePtr &)> &&);
-  void deleteSensor(const drogon::HttpRequestPtr&, std::function<void (const drogon::HttpResponsePtr &)> &&);
+  crow::response postSensor(const crow::request& req);
+  crow::response deleteSensor(const std::string& id);
   
   // Sinks
-  void getSinks(const drogon::HttpRequestPtr&, std::function<void (const drogon::HttpResponsePtr &)> &&);
-  void postSink(const drogon::HttpRequestPtr&, std::function<void (const drogon::HttpResponsePtr &)> &&);
-  void patchSink(const drogon::HttpRequestPtr&, std::function<void (const drogon::HttpResponsePtr &)> &&);
-  void deleteSink(const drogon::HttpRequestPtr&, std::function<void (const drogon::HttpResponsePtr &)> &&);
+  crow::response getSinks();
+  crow::response postSink(const crow::request& req);
+  crow::response patchSink(int index, const crow::request& req);
+  crow::response deleteSink(int index);
   
   // Snapshot
-  void getSnapshot(const drogon::HttpRequestPtr&, std::function<void (const drogon::HttpResponsePtr &)> &&);
+  crow::response getSnapshot();
   
   // Configs
-  void getConfigsList(const drogon::HttpRequestPtr&, std::function<void (const drogon::HttpResponsePtr &)> &&);
-  void postConfigsLoad(const drogon::HttpRequestPtr&, std::function<void (const drogon::HttpResponsePtr &)> &&);
-  void postConfigsImport(const drogon::HttpRequestPtr&, std::function<void (const drogon::HttpResponsePtr &)> &&);
-  void postConfigsSave(const drogon::HttpRequestPtr&, std::function<void (const drogon::HttpResponsePtr &)> &&);
-  void getConfigsExport(const drogon::HttpRequestPtr&, std::function<void (const drogon::HttpResponsePtr &)> &&);
+  crow::response getConfigsList(const crow::request& req);
+  crow::response postConfigsLoad(const crow::request& req);
+  crow::response postConfigsImport(const crow::request& req);
+  crow::response postConfigsSave(const crow::request& req);
+  crow::response getConfigsExport();
 };

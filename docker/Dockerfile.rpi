@@ -28,23 +28,23 @@ RUN apt-get update && apt-get install -y \
     git \
     file \
     # C++ dependencies available in Debian Bookworm
-    # Note: libdrogon-dev is NOT available in Debian Bookworm
-    # We'll use DEPS_MODE=fetch to build Drogon from source
+    # CrowCpp requires minimal system dependencies compared to Drogon
     libyaml-cpp-dev \
     libnng-dev \
-    # Additional libraries needed for Drogon and other dependencies
+    # Dependencies for CrowCpp (header-only, but needs these at runtime)
     libssl-dev \
     zlib1g-dev \
-    libjsoncpp-dev \
-    libbrotli-dev \
+    # Note: CrowCpp is header-only and uses asio (included), so fewer deps needed
     libuuid1 \
     uuid-dev \
+    libasio-dev \
     # Cleanup
     && rm -rf /var/lib/apt/lists/*
 
 # Verify installed packages
+# Verify installed packages
 RUN echo "=== Installed Package Versions ===" && \
-    dpkg -l | grep -E "(libdrogon|libyaml-cpp|libnng)" && \
+    dpkg -l | grep -E "(libyaml-cpp|libnng)" && \
     echo "=== CMake Version ===" && \
     cmake --version && \
     echo "=== GCC Version ===" && \
@@ -62,9 +62,9 @@ WORKDIR /build
 COPY . .
 
 # Configure build environment for container
-# Use mixed mode: system for available packages, fetch for Drogon
+# Use system packages for available dependencies (CrowCpp is header-only)
 ENV DEPS_MODE=auto
-ENV DEPS_DROGON=fetch
+ENV DEPS_CROWCPP=system
 ENV DEPS_YAMLCPP=system
 ENV DEPS_NNG=system
 ENV DEPS_URG=bundled
@@ -85,14 +85,14 @@ RUN echo "=== Rebuilding URG Library for Linux ARM64 ===" && \
 # Create build directory and configure
 RUN mkdir -p build/linux-arm64
 
-# Configure CMake with mixed dependency strategy
-# Add compiler flags to fix GCC restrict errors
+# Configure CMake with system dependencies and CrowCpp
+# CrowCpp is header-only and requires minimal configuration
 RUN cd build/linux-arm64 && \
     cmake ../.. \
     -G Ninja \
     -DCMAKE_BUILD_TYPE=Release \
     -DDEPS_MODE=auto \
-    -DDEPS_DROGON=fetch \
+    -DDEPS_CROWCPP=system \
     -DDEPS_YAMLCPP=system \
     -DDEPS_NNG=system \
     -DDEPS_URG=bundled \
@@ -100,10 +100,10 @@ RUN cd build/linux-arm64 && \
     -DUSE_OSC=ON \
     -DCMAKE_INSTALL_PREFIX=/opt/hokuyohub \
     -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
-    -DCMAKE_CXX_FLAGS="-Wno-error=restrict" \
-    -DCMAKE_C_FLAGS="-Wno-error=restrict"
+    -DCMAKE_CXX_FLAGS="-O2" \
+    -DCMAKE_C_FLAGS="-O2"
 
-# Build the application with reduced compiler strictness for Drogon examples
+# Build the application (CrowCpp header-only compilation is much faster)
 RUN cd build/linux-arm64 && \
     ninja -v -j$(nproc) hokuyo_hub
 
@@ -124,15 +124,12 @@ FROM --platform=linux/arm64 debian:bookworm-slim AS runtime
 
 # Install runtime dependencies only
 RUN apt-get update && apt-get install -y \
-    # Runtime libraries (Drogon will be statically linked from fetch build)
+    # Runtime libraries for application dependencies
     libyaml-cpp0.7 \
     libnng1 \
-    # System libraries that Drogon depends on
+    # System libraries for CrowCpp (minimal runtime dependencies)
     libssl3 \
     zlib1g \
-    libjsoncpp25 \
-    libbrotli1 \
-    libuuid1 \
     # System utilities
     ca-certificates \
     curl \

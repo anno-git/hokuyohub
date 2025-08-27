@@ -4,6 +4,15 @@
 
 This guide covers advanced build configurations, performance optimizations, and expert-level customizations for HokuyoHub. For basic build instructions, see the [main BUILD.md](../../BUILD.md).
 
+## 🌟 CrowCpp Migration Benefits
+
+HokuyoHub now uses **CrowCpp** instead of Drogon, delivering significant build and performance improvements:
+
+- **⚡ Faster Builds**: Header-only design eliminates framework compilation time
+- **🪶 Simplified Dependencies**: No complex web framework dependencies to manage
+- **🔧 Easier Configuration**: Reduced build configuration complexity
+- **📈 Better Performance**: Lower memory footprint and faster startup times
+
 ## 🎯 Advanced CMake Configuration
 
 ### Custom Build Types
@@ -43,7 +52,6 @@ cmake \
 # Build only specific dependencies from source
 cmake \
   -DDEPS_MODE=auto \
-  -DDEPS_DROGON=fetch \
   -DDEPS_YAMLCPP=system \
   -DDEPS_NNG=bundled \
   -DDEPS_URG=fetch \
@@ -51,10 +59,11 @@ cmake \
 
 # Use specific dependency versions
 cmake \
-  -DDROGON_VERSION=1.9.1 \
   -DYAMLCPP_VERSION=0.8.0 \
   -DNNG_VERSION=1.6.0 \
   --preset mac-release
+
+# Note: CrowCpp is header-only and requires no build configuration
 ```
 
 **Custom Dependency Locations:**
@@ -64,8 +73,9 @@ cmake \
 cmake \
   -DCMAKE_PREFIX_PATH="/usr/local;/opt/custom" \
   -DyamlCpp_ROOT=/opt/custom/yaml-cpp \
-  -Ddrogon_ROOT=/opt/custom/drogon \
   --preset mac-release
+
+# CrowCpp is included as header-only - no custom location needed
 ```
 
 ### Feature Configuration Matrix

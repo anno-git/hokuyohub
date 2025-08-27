@@ -4,7 +4,16 @@
 
 This guide provides solutions to frequently encountered build issues, organized by platform and problem category. For platform-specific build instructions, see the [main BUILD.md](../../BUILD.md).
 
-## 🔍 Quick Diagnosis
+## 🌟 CrowCpp Migration Benefits
+
+HokuyoHub now uses **CrowCpp** instead of Drogon, eliminating many common build issues:
+
+- **⚡ No Framework Compilation**: Header-only design eliminates web framework build errors
+- **🔧 Simplified Dependencies**: Fewer external libraries to troubleshoot
+- **🚀 Faster Builds**: Reduced compilation time and complexity
+- **📈 Better Error Messages**: Cleaner build output and easier debugging
+
+## � Quick Diagnosis
 
 ### Build Environment Check
 
@@ -105,20 +114,20 @@ cmake --preset mac-release
 cmake -DDEPS_MODE=fetch --preset mac-release
 ```
 
-**Issue: Drogon Build Fails**
+**Issue: Web Framework Build Issues (Legacy)**
 ```
-Error building Drogon framework
+Note: HokuyoHub now uses CrowCpp (header-only) instead of Drogon
 ```
 **Solutions:**
 ```bash
-# Install Drogon dependencies
-brew install jsoncpp openssl zlib brotli
+# CrowCpp is header-only - no compilation needed
+# If you encounter web framework errors, ensure you're using latest version
 
-# Or force build from source
-cmake -DDEPS_DROGON=fetch --preset mac-release
+# For legacy Drogon builds, clean and rebuild:
+./scripts/build_with_presets.sh clean
+cmake --preset mac-release
 
-# Check specific error in build log
-tail -50 build/darwin-arm64/drogon_ep-prefix/src/drogon_ep-stamp/drogon_ep-build-err.log
+# CrowCpp benefits: No external web framework dependencies to install
 ```
 
 **Issue: NNG Library Issues**
@@ -609,7 +618,7 @@ pfctl -s all  # macOS
 
 **Issue: Very Slow Compilation**
 ```
-Build takes hours instead of minutes
+Build takes hours instead of minutes (mostly resolved with CrowCpp migration)
 ```
 **Solutions:**
 ```bash
@@ -623,6 +632,8 @@ cmake -DCMAKE_CXX_COMPILER_LAUNCHER=ccache --preset mac-release
 # Use faster build system
 brew install ninja
 cmake -G Ninja --preset mac-release
+
+# Note: CrowCpp header-only design significantly reduces build times
 ```
 
 **Issue: Memory Usage During Build**

@@ -1,4 +1,6 @@
-#include <drogon/drogon.h>
+#include <crow.h>
+#include <fstream>
+#include <sstream>
 #include "config/config.h"
 #include "io/rest_handlers.h"
 #include "io/ws_handlers.h"
@@ -8,8 +10,6 @@
 #include "detect/prefilter.h"
 #include "detect/postfilter.h"
 #include "core/filter_manager.h"
-
-using namespace drogon;
 
 int main(int argc, char** argv) {
   std::string cfgPath = "./config/default.yaml";
@@ -42,37 +42,70 @@ int main(int argc, char** argv) {
   // Initialize filter manager with configuration
   FilterManager filterManager(appcfg.prefilter, appcfg.postfilter);
 
+  // Initialize CrowCpp application
+  crow::SimpleApp app;
+  
   auto ws = std::make_shared<LiveWs>(publisher_manager);
   auto rest = std::make_shared<RestApi>(sensors, filterManager, dbscan, publisher_manager, ws, appcfg);
-  app().registerController(ws);
-  app().registerController(rest);
 
   ws->setSensorManager(&sensors);
   ws->setFilterManager(&filterManager);
   ws->setAppConfig(&appcfg);
   ws->setDbscan(&dbscan);
   
+  // Register routes with CrowCpp app
+  rest->registerRoutes(app);
+  ws->registerWebSocketRoutes(app);
+  
   // Apply initial sink configuration to runtime
   rest->applySinksRuntime();
 
-  app().setUploadPath("/tmp");
-  app().setDocumentRoot("./webui");
+  // Configure static file serving for webui
+  CROW_ROUTE(app, "/")
+  ([](const crow::request& req, crow::response& res) {
+    res.set_static_file_info("webui/index.html");
+    res.end();
+  });
+  
+  // Serve static files from webui directory
+  CROW_ROUTE(app, "/<string>")
+  ([](const crow::request& req, crow::response& res, const std::string& path) {
+    // Basic security check to prevent directory traversal
+    if (path.find("..") != std::string::npos) {
+      res.code = 400;
+      res.body = "Bad Request";
+      res.end();
+      return;
+    }
+    
+    std::string file_path = "webui/" + path;
+    res.set_static_file_info(file_path);
+    res.end();
+  });
 
-  // HTTP listen
-  auto startHttp = [](const std::string& url) {
+  // Configure HTTP listen address and port
+  std::string host = "0.0.0.0";
+  uint16_t port = 8080;
+  
+  auto parseListenAddress = [&](const std::string& url) {
     auto pos = url.find(":");
-	  if (pos == std::string::npos) return;
-    std::string host = url.substr(0, pos);
-    uint16_t port = static_cast<uint16_t>(std::stoi(url.substr(pos + 1)));
-    std::cout << "[App] Starting HTTP server on host:" << host << " port:" << port << std::endl;
-    app().addListener(host, port);
+    if (pos != std::string::npos) {
+      host = url.substr(0, pos);
+      port = static_cast<uint16_t>(std::stoi(url.substr(pos + 1)));
+    }
   };
+  
   if (!httpListen.empty()) {
-	  startHttp(httpListen);
+    parseListenAddress(httpListen);
   }
   else if (!appcfg.ui.listen.empty()) {
-    startHttp(appcfg.ui.listen);
+    parseListenAddress(appcfg.ui.listen);
   }
+  
+  std::cout << "[App] Starting HTTP server on host:" << host << " port:" << port << std::endl;
+  
+  // Configure CrowCpp app
+  app.bindaddr(host).port(port);
 
 
   // センサー開始（スタブ：タイマーでダミーデータを流す）
@@ -152,6 +185,7 @@ int main(int argc, char** argv) {
     publisher_manager.publishClusters(f.t_ns, f.seq, final_clusters);
   });
 
-  app().run();
+  // Start the CrowCpp application
+  app.run();
   return 0;
 }

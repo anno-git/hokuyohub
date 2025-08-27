@@ -6,7 +6,7 @@
 #
 # Phase 3: Dependency Management Unification
 # - DEPS_MODE system with auto/system/fetch/bundled modes
-# - Per-dependency overrides (DEPS_DROGON, DEPS_YAMLCPP, DEPS_URG, DEPS_NNG)
+# - Per-dependency overrides (DEPS_YAMLCPP, DEPS_URG, DEPS_NNG)
 # - Consolidated NNG options under HOKUYO_NNG namespace
 # - Backward compatibility shims with deprecation warnings
 
@@ -33,10 +33,10 @@ set(DEPS_MODE "auto" CACHE STRING "Global dependency resolution mode")
 set_property(CACHE DEPS_MODE PROPERTY STRINGS "auto" "system" "fetch" "bundled")
 
 # Per-dependency overrides
-set(DEPS_DROGON "" CACHE STRING "Drogon dependency mode override (empty=use DEPS_MODE)")
 set(DEPS_YAMLCPP "" CACHE STRING "yaml-cpp dependency mode override (empty=use DEPS_MODE)")
 set(DEPS_URG "" CACHE STRING "urg_library dependency mode override (empty=use DEPS_MODE)")
 set(DEPS_NNG "" CACHE STRING "NNG dependency mode override (empty=use DEPS_MODE)")
+set(DEPS_CROWCPP "" CACHE STRING "CrowCpp dependency mode override (empty=use DEPS_MODE)")
 
 # Unified NNG configuration (replaces ENABLE_NNG/USE_NNG)
 option(HOKUYO_NNG_ENABLE "Enable NNG publisher support" ON)
@@ -80,18 +80,7 @@ endfunction()
 function(try_system_package OUTPUT_VAR PACKAGE_NAME)
     set(${OUTPUT_VAR} FALSE PARENT_SCOPE)
     
-    if(PACKAGE_NAME STREQUAL "Drogon")
-        # Check if Drogon config exists without importing
-        find_file(DROGON_CONFIG_FILE DrogonConfig.cmake
-            PATHS ${CMAKE_PREFIX_PATH}
-            PATH_SUFFIXES lib/cmake/Drogon cmake/Drogon
-            NO_DEFAULT_PATH
-        )
-        if(DROGON_CONFIG_FILE OR TARGET Drogon::Drogon)
-            set(${OUTPUT_VAR} TRUE PARENT_SCOPE)
-            message(STATUS "Found system Drogon package")
-        endif()
-    elseif(PACKAGE_NAME STREQUAL "yaml-cpp")
+    if(PACKAGE_NAME STREQUAL "yaml-cpp")
         # Check if yaml-cpp config exists without importing
         find_file(YAMLCPP_CONFIG_FILE yaml-cppConfig.cmake
             PATHS ${CMAKE_PREFIX_PATH}
@@ -281,51 +270,6 @@ endfunction()
 # Main Dependency Resolution Functions
 # =============================================================================
 
-# Resolve Drogon dependency
-function(resolve_drogon_dependency)
-    # Check if already resolved
-    if(TARGET Drogon::Drogon)
-        message(STATUS "Drogon already resolved")
-        return()
-    endif()
-    
-    resolve_dependency_mode(DROGON_MODE "Drogon" DEPS_DROGON)
-    
-    if(DROGON_MODE STREQUAL "system")
-        find_package(Drogon REQUIRED)
-        message(STATUS "Using system Drogon package")
-    elseif(DROGON_MODE STREQUAL "fetch")
-        setup_fetch_content("Drogon"
-            "https://github.com/drogonframework/drogon.git"
-            "v1.9.1")
-    elseif(DROGON_MODE STREQUAL "bundled")
-        # Use bundled version in external/drogon
-        if(EXISTS "${CMAKE_SOURCE_DIR}/external/drogon/CMakeLists.txt")
-            add_subdirectory(${CMAKE_SOURCE_DIR}/external/drogon)
-            message(STATUS "Using bundled Drogon from external/drogon")
-        else()
-            message(FATAL_ERROR "Bundled Drogon not found in external/drogon")
-        endif()
-    else() # auto mode
-        try_system_package(SYSTEM_FOUND "Drogon")
-        if(SYSTEM_FOUND)
-            find_package(Drogon REQUIRED)
-            message(STATUS "Auto-selected system Drogon package")
-        else()
-            # Fallback to bundled if available, otherwise fetch
-            if(EXISTS "${CMAKE_SOURCE_DIR}/external/drogon/CMakeLists.txt")
-                add_subdirectory(${CMAKE_SOURCE_DIR}/external/drogon)
-                message(STATUS "Auto-selected bundled Drogon from external/drogon")
-            else()
-                setup_fetch_content("Drogon"
-                    "https://github.com/drogonframework/drogon.git"
-                    "v1.9.1")
-                message(STATUS "Auto-selected FetchContent for Drogon")
-            endif()
-        endif()
-    endif()
-endfunction()
-
 # Resolve yaml-cpp dependency
 function(resolve_yamlcpp_dependency)
     # Check if already resolved
@@ -384,7 +328,9 @@ function(resolve_urg_dependency)
             message(FATAL_ERROR "System urg_library not found")
         endif()
     elseif(URG_MODE STREQUAL "fetch")
-        message(FATAL_ERROR "FetchContent for urg_library not implemented (uses custom Makefile)")
+        message(STATUS "FetchContent for urg_library not implemented (use bundled instead)")
+        setup_urg_external_project()
+        message(STATUS "Using bundled urg_library via ExternalProject")
     elseif(URG_MODE STREQUAL "bundled")
         setup_urg_external_project()
         message(STATUS "Using bundled urg_library via ExternalProject")
@@ -448,6 +394,131 @@ function(resolve_nng_dependency)
     endif()
 endfunction()
 
+# Resolve JsonCpp dependency
+function(resolve_jsoncpp_dependency)
+    # Check if already resolved
+    if(TARGET jsoncpp_lib OR TARGET PkgConfig::jsoncpp)
+        message(STATUS "JsonCpp already resolved")
+        return()
+    endif()
+    
+    # Try to find system JsonCpp first
+    find_package(PkgConfig QUIET)
+    if(PKG_CONFIG_FOUND)
+        pkg_check_modules(jsoncpp QUIET jsoncpp)
+        if(jsoncpp_FOUND)
+            # Create an imported target for pkg-config found JsonCpp
+            add_library(PkgConfig::jsoncpp INTERFACE IMPORTED GLOBAL)
+            set_target_properties(PkgConfig::jsoncpp PROPERTIES
+                INTERFACE_INCLUDE_DIRECTORIES "${jsoncpp_INCLUDE_DIRS}"
+                INTERFACE_LINK_LIBRARIES "${jsoncpp_LIBRARIES}"
+                INTERFACE_LINK_DIRECTORIES "${jsoncpp_LIBRARY_DIRS}"
+            )
+            message(STATUS "Using system JsonCpp via pkg-config")
+            return()
+        endif()
+    endif()
+    
+    # Fallback to FetchContent
+    include(FetchContent)
+    FetchContent_Declare(
+        jsoncpp
+        GIT_REPOSITORY https://github.com/open-source-parsers/jsoncpp.git
+        GIT_TAG        1.9.5
+        GIT_SHALLOW    TRUE
+    )
+    
+    set(JSONCPP_WITH_TESTS OFF CACHE BOOL "" FORCE)
+    set(JSONCPP_WITH_POST_BUILD_UNITTEST OFF CACHE BOOL "" FORCE)
+    set(JSONCPP_WITH_WARNING_AS_ERROR OFF CACHE BOOL "" FORCE)
+    set(JSONCPP_WITH_STRICT_ISO OFF CACHE BOOL "" FORCE)
+    set(JSONCPP_WITH_PKGCONFIG_SUPPORT OFF CACHE BOOL "" FORCE)
+    set(JSONCPP_WITH_CMAKE_PACKAGE OFF CACHE BOOL "" FORCE)
+    set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
+    set(BUILD_STATIC_LIBS ON CACHE BOOL "" FORCE)
+    
+    FetchContent_MakeAvailable(jsoncpp)
+    message(STATUS "FetchContent configured for JsonCpp")
+endfunction()
+
+# Resolve CrowCpp dependency
+function(resolve_crowcpp_dependency)
+    # Check if already resolved
+    if(TARGET Crow::Crow OR TARGET crow)
+        message(STATUS "CrowCpp already resolved")
+        return()
+    endif()
+    
+    resolve_dependency_mode(CROWCPP_MODE "CrowCpp" DEPS_CROWCPP)
+    
+    if(CROWCPP_MODE STREQUAL "system")
+        # Try to find system CrowCpp package, but don't fail if not found
+        find_package(Crow CONFIG QUIET)
+        if(Crow_FOUND)
+            message(STATUS "Using system CrowCpp package")
+        else()
+            message(WARNING "System CrowCpp package not found, falling back to FetchContent")
+            setup_fetch_content("CrowCpp"
+                "https://github.com/CrowCpp/Crow.git"
+                "master")
+            
+            # Configure CrowCpp options after fetch
+            set(CROW_BUILD_DOCS OFF CACHE BOOL "" FORCE)
+            set(CROW_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+            set(CROW_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+            set(CROW_AMALGAMATE ON CACHE BOOL "" FORCE)
+            
+            # Create alias target if needed
+            if(TARGET crow AND NOT TARGET Crow::Crow)
+                add_library(Crow::Crow ALIAS crow)
+            endif()
+            
+            message(STATUS "Using FetchContent CrowCpp master (system fallback)")
+        endif()
+    elseif(CROWCPP_MODE STREQUAL "fetch")
+        setup_fetch_content("CrowCpp"
+            "https://github.com/CrowCpp/Crow.git"
+            "master")
+        
+        # Configure CrowCpp options after fetch
+        set(CROW_BUILD_DOCS OFF CACHE BOOL "" FORCE)
+        set(CROW_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+        set(CROW_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+        set(CROW_AMALGAMATE ON CACHE BOOL "" FORCE)
+        
+        # Create alias target if needed
+        if(TARGET crow AND NOT TARGET Crow::Crow)
+            add_library(Crow::Crow ALIAS crow)
+        endif()
+        
+        message(STATUS "Using FetchContent CrowCpp master")
+    elseif(CROWCPP_MODE STREQUAL "bundled")
+        message(FATAL_ERROR "Bundled CrowCpp not implemented")
+    else() # auto mode
+        find_package(Crow CONFIG QUIET)
+        if(Crow_FOUND)
+            message(STATUS "Auto-selected system CrowCpp package")
+        else()
+            setup_fetch_content("CrowCpp"
+                "https://github.com/CrowCpp/Crow.git"
+                "master")
+            
+            # Configure CrowCpp options after fetch
+            set(CROW_BUILD_DOCS OFF CACHE BOOL "" FORCE)
+            set(CROW_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+            set(CROW_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+            set(CROW_AMALGAMATE ON CACHE BOOL "" FORCE)
+            
+            # Create alias target if needed
+            if(TARGET crow AND NOT TARGET Crow::Crow)
+                add_library(Crow::Crow ALIAS crow)
+            endif()
+            
+            message(STATUS "Auto-selected FetchContent for CrowCpp master")
+        endif()
+    endif()
+endfunction()
+
 # =============================================================================
 # Main Entry Point
 # =============================================================================
@@ -461,10 +532,11 @@ function(resolve_all_dependencies)
     verify_architecture_compatibility()
     
     # Resolve each dependency
-    resolve_drogon_dependency()
     resolve_yamlcpp_dependency()
     resolve_urg_dependency()
     resolve_nng_dependency()
+    resolve_jsoncpp_dependency()
+    resolve_crowcpp_dependency()
     
     # Set compile definitions for enabled features
     if(HOKUYO_NNG_ENABLE)
@@ -481,15 +553,6 @@ endfunction()
 
 # Function to link dependencies to a target
 function(link_hokuyo_dependencies TARGET_NAME)
-    # Link Drogon (handle different target names)
-    if(TARGET Drogon::Drogon)
-        target_link_libraries(${TARGET_NAME} PRIVATE Drogon::Drogon)
-    elseif(TARGET drogon)
-        target_link_libraries(${TARGET_NAME} PRIVATE drogon)
-    else()
-        message(FATAL_ERROR "Drogon target not found")
-    endif()
-    
     # Link yaml-cpp (handle different target names)
     if(TARGET yaml-cpp::yaml-cpp)
         target_link_libraries(${TARGET_NAME} PRIVATE yaml-cpp::yaml-cpp)
@@ -501,6 +564,31 @@ function(link_hokuyo_dependencies TARGET_NAME)
     
     # Link urg_c
     target_link_libraries(${TARGET_NAME} PRIVATE urg_c)
+    
+    # Link JsonCpp (handle different target names)
+    if(TARGET jsoncpp_lib)
+        target_link_libraries(${TARGET_NAME} PRIVATE jsoncpp_lib)
+    elseif(TARGET PkgConfig::jsoncpp)
+        target_link_libraries(${TARGET_NAME} PRIVATE PkgConfig::jsoncpp)
+    elseif(TARGET jsoncpp_static)
+        target_link_libraries(${TARGET_NAME} PRIVATE jsoncpp_static)
+    elseif(TARGET jsoncpp)
+        target_link_libraries(${TARGET_NAME} PRIVATE jsoncpp)
+    elseif(jsoncpp_FOUND)
+        target_include_directories(${TARGET_NAME} PRIVATE ${jsoncpp_INCLUDE_DIRS})
+        target_link_libraries(${TARGET_NAME} PRIVATE ${jsoncpp_LIBRARIES})
+    else()
+        message(FATAL_ERROR "JsonCpp target not found")
+    endif()
+    
+    # Link CrowCpp (handle different target names)
+    if(TARGET Crow::Crow)
+        target_link_libraries(${TARGET_NAME} PRIVATE Crow::Crow)
+    elseif(TARGET crow)
+        target_link_libraries(${TARGET_NAME} PRIVATE crow)
+    else()
+        message(FATAL_ERROR "CrowCpp target not found")
+    endif()
     
     # Link NNG if enabled
     if(HOKUYO_NNG_ENABLE)

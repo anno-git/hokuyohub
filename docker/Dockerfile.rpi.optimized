@@ -5,99 +5,46 @@
 # to dramatically reduce build times, especially for CI/CD environments.
 #
 # Build stages:
-# 1. drogon-builder: Build and cache Drogon once
-# 2. build-deps: Install system dependencies  
-# 3. build-app: Build the application using cached Drogon
-# 4. runtime: Minimal runtime image
+# 1. build-deps: Install system dependencies (CrowCpp is header-only)
+# 2. build-app: Build the application with CrowCpp
+# 3. runtime: Minimal runtime image
 #
 # Usage:
 #   docker buildx build --platform linux/arm64 -f docker/Dockerfile.rpi.optimized -t hokuyo-hub:rpi-fast .
 #
 
 # =============================================================================
-# Stage 1: Drogon Builder (with aggressive caching)
-# =============================================================================
-FROM --platform=linux/arm64 debian:bookworm-slim AS drogon-builder
-
-# Install Drogon build dependencies
-RUN apt-get update && apt-get install -y \
-    build-essential \
-    cmake \
-    ninja-build \
-    git \
-    pkg-config \
-    libssl-dev \
-    zlib1g-dev \
-    libjsoncpp-dev \
-    libbrotli-dev \
-    libuuid1 \
-    uuid-dev \
-    && rm -rf /var/lib/apt/lists/*
-
-# Set working directory for Drogon build
-WORKDIR /drogon-build
-
-# Clone and build Drogon (this layer will be cached)
-RUN git clone --depth=1 --branch v1.9.1 https://github.com/drogonframework/drogon.git . && \
-    mkdir build && \
-    cd build && \
-    cmake .. \
-        -G Ninja \
-        -DCMAKE_BUILD_TYPE=Release \
-        -DCMAKE_INSTALL_PREFIX=/opt/drogon \
-        -DBUILD_EXAMPLES=OFF \
-        -DBUILD_CTL=OFF \
-        -DBUILD_TESTING=OFF \
-        -DCMAKE_CXX_FLAGS="-Wno-error=restrict -O3" \
-        -DCMAKE_C_FLAGS="-Wno-error=restrict -O3" && \
-    ninja && \
-    ninja install
-
-# Verify Drogon installation
-RUN echo "=== Drogon Build Complete ===" && \
-    ls -la /opt/drogon/ && \
-    find /opt/drogon -name "*.so*" | head -10
-
-# =============================================================================
-# Stage 2: Build Dependencies + Pre-built Drogon
+# Stage 1: Build Dependencies (CrowCpp is header-only, no pre-build needed)
 # =============================================================================
 FROM --platform=linux/arm64 debian:bookworm-slim AS build-deps
 
-# Install build dependencies (lighter than drogon-builder stage)
+# Install build dependencies
 RUN apt-get update && apt-get install -y \
     build-essential \
     cmake \
     ninja-build \
     pkg-config \
+    git \
     file \
-    # Runtime dependencies for Drogon
+    # Dependencies for CrowCpp (header-only, but needs these at build time)
     libssl-dev \
     zlib1g-dev \
-    libjsoncpp-dev \
-    libbrotli-dev \
     libuuid1 \
     uuid-dev \
+    libasio-dev \
     # Application-specific dependencies
     libyaml-cpp-dev \
     libnng-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy pre-built Drogon from builder stage
-COPY --from=drogon-builder /opt/drogon /opt/drogon
-
-# Add Drogon to system paths
-ENV PKG_CONFIG_PATH="/opt/drogon/lib/pkgconfig:$PKG_CONFIG_PATH"
-ENV CMAKE_PREFIX_PATH="/opt/drogon:$CMAKE_PREFIX_PATH"
-ENV LD_LIBRARY_PATH="/opt/drogon/lib:$LD_LIBRARY_PATH"
-
-# Verify Drogon is available
-RUN echo "=== Verifying Drogon Installation ===" && \
-    pkg-config --exists drogon && \
-    pkg-config --cflags drogon && \
-    echo "Drogon ready for use"
+# Verify installed packages
+RUN echo "=== Build Dependencies Installed ===" && \
+    dpkg -l | grep -E "(libyaml-cpp|libnng|libssl)" && \
+    echo "=== CMake Version ===" && \
+    cmake --version
 
 # =============================================================================
-# Stage 3: Application Build (Fast!)
+# Stage 2: Application Build (Very Fast with CrowCpp!)
 # =============================================================================
 FROM build-deps AS build-app
 
@@ -107,9 +54,9 @@ WORKDIR /build
 # Copy source code
 COPY . .
 
-# Configure build environment to use pre-built Drogon
+# Configure build environment to use CrowCpp (header-only)
 ENV DEPS_MODE=system
-ENV DEPS_DROGON=system
+ENV DEPS_CROWCPP=system
 ENV DEPS_YAMLCPP=system
 ENV DEPS_NNG=system
 ENV DEPS_URG=bundled
@@ -130,13 +77,13 @@ RUN echo "=== Rebuilding URG Library for Linux ARM64 ===" && \
 # Create build directory
 RUN mkdir -p build/linux-arm64
 
-# Configure CMake with pre-built Drogon (FAST!)
+# Configure CMake with CrowCpp (header-only - VERY FAST!)
 RUN cd build/linux-arm64 && \
     cmake ../.. \
         -G Ninja \
         -DCMAKE_BUILD_TYPE=Release \
         -DDEPS_MODE=system \
-        -DDEPS_DROGON=system \
+        -DDEPS_CROWCPP=system \
         -DDEPS_YAMLCPP=system \
         -DDEPS_NNG=system \
         -DDEPS_URG=bundled \
@@ -144,20 +91,16 @@ RUN cd build/linux-arm64 && \
         -DUSE_OSC=ON \
         -DCMAKE_INSTALL_PREFIX=/opt/hokuyohub \
         -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
-        -DCMAKE_CXX_FLAGS="-Wno-error=restrict -O3" \
-        -DCMAKE_C_FLAGS="-Wno-error=restrict -O3"
+        -DCMAKE_CXX_FLAGS="-O3" \
+        -DCMAKE_C_FLAGS="-O3"
 
-# Build the application (FAST - no Drogon compilation!)
+# Build the application (VERY FAST - CrowCpp is header-only!)
 RUN cd build/linux-arm64 && \
     ninja -v -j$(nproc) hokuyo_hub
 
 # Install to staging area
 RUN cd build/linux-arm64 && \
     DESTDIR=/staging ninja install
-
-# Copy Drogon runtime libraries to staging
-RUN mkdir -p /staging/opt/hokuyohub/lib && \
-    cp -r /opt/drogon/lib/*.so* /staging/opt/hokuyohub/lib/ || true
 
 # Verify build output
 RUN echo "=== Build Verification ===" && \
@@ -166,18 +109,15 @@ RUN echo "=== Build Verification ===" && \
     ls -la /staging/opt/hokuyohub/
 
 # =============================================================================
-# Stage 4: Runtime Image (Minimal)
+# Stage 3: Runtime Image (Minimal)
 # =============================================================================
 FROM --platform=linux/arm64 debian:bookworm-slim AS runtime
 
 # Install only runtime dependencies
 RUN apt-get update && apt-get install -y \
-    # System runtime libraries
+    # System runtime libraries for CrowCpp
     libssl3 \
     zlib1g \
-    libjsoncpp25 \
-    libbrotli1 \
-    libuuid1 \
     # Application runtime libraries
     libyaml-cpp0.7 \
     libnng1 \
@@ -191,9 +131,6 @@ RUN groupadd -r hokuyo && useradd -r -g hokuyo hokuyo
 
 # Copy application from build stage
 COPY --from=build-app /staging/opt/hokuyohub /opt/hokuyohub
-
-# Set up library paths for Drogon
-ENV LD_LIBRARY_PATH="/opt/hokuyohub/lib:$LD_LIBRARY_PATH"
 
 # Set ownership
 RUN chown -R hokuyo:hokuyo /opt/hokuyohub
@@ -222,8 +159,8 @@ CMD ["./hokuyo_hub"]
 # Metadata
 # =============================================================================
 LABEL maintainer="Hokuyo Hub Team"
-LABEL description="Hokuyo Hub - Raspberry Pi ARM64 Runtime (Optimized)"
-LABEL version="1.0.0-optimized"
+LABEL description="Hokuyo Hub - Raspberry Pi ARM64 Runtime (CrowCpp Optimized)"
+LABEL version="1.0.0-crowcpp"
 LABEL architecture="arm64"
 LABEL target="raspberry-pi-5"
-LABEL build_optimization="pre_built_drogon"
+LABEL build_optimization="crowcpp_header_only"

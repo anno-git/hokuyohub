@@ -24,7 +24,7 @@ services:
   hokuyo-hub-build:
     build:
       context: ..
-      dockerfile: docker/Dockerfile.rpi.rebuild
+      dockerfile: docker/Dockerfile.rpi
       target: build-app
       platforms:
         - linux/arm64
@@ -45,7 +45,7 @@ services:
   hokuyo-hub:
     build:
       context: ..
-      dockerfile: docker/Dockerfile.rpi.rebuild
+      dockerfile: docker/Dockerfile.rpi
       target: runtime
       platforms:
         - linux/arm64
@@ -78,7 +78,7 @@ services:
   hokuyo-hub-dev:
     build:
       context: ..
-      dockerfile: docker/Dockerfile.rpi.rebuild
+      dockerfile: docker/Dockerfile.rpi
       target: runtime
       platforms:
         - linux/arm64

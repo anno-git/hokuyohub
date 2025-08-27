@@ -4,7 +4,16 @@
 
 This guide covers native macOS builds using Apple Silicon (ARM64) architecture. For cross-compilation to other platforms, see the [main BUILD.md](../../BUILD.md).
 
-## 🚀 Quick Start
+## 🌟 CrowCpp Migration Benefits
+
+HokuyoHub has migrated from Drogon to **CrowCpp** for improved macOS build experience:
+
+- **⚡ Faster Builds**: No complex web framework compilation required
+- **🪶 Simplified Setup**: Header-only design eliminates brew install dependencies
+- **🔧 Better Development**: Faster incremental builds and cleaner error messages
+- **📈 Improved Performance**: Lower memory usage and faster startup times
+
+## � Quick Start
 
 ```bash
 # Install prerequisites
@@ -48,7 +57,10 @@ cmake --version  # Should be 3.18+
 **4. Optional - Install System Dependencies:**
 ```bash
 # Install system libraries (optional, HokuyoHub can build its own)
-brew install yaml-cpp drogon
+brew install yaml-cpp
+
+# Note: CrowCpp is header-only and requires no installation
+# (replaces Drogon for faster builds and simplified dependencies)
 
 # For development
 brew install pkg-config
@@ -354,6 +366,7 @@ sudo chown -R $(whoami) /opt/homebrew
 # Install missing dependencies
 brew install yaml-cpp libnng openssl zlib
 
+# Note: CrowCpp is header-only and requires no system installation
 # Or use fetch mode to build from source
 cmake -DDEPS_MODE=fetch --preset mac-release
 ```

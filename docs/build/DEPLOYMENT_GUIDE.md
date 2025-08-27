@@ -7,6 +7,15 @@ HokuyoHub supports two deployment methods that can both be made public even with
 1. **🐳 Docker Containers** - Complete runtime environment (208MB)
 2. **📦 Standalone Binaries** - Lightweight ARM64 binaries (3.2MB)
 
+## 🌟 CrowCpp Migration Benefits for Deployment
+
+The migration from Drogon to **CrowCpp** improves deployment significantly:
+
+- **🚀 Faster Container Builds**: Eliminated complex web framework compilation
+- **📦 Smaller Dependencies**: Reduced runtime library requirements
+- **⚡ Quick Startup**: Faster application initialization
+- **🔧 Simplified Installation**: Fewer system dependencies to manage
+
 ## Making GitHub Assets Public
 
 ### Step 1: Make Container Packages Public
@@ -185,9 +194,9 @@ docker pull ghcr.io/[username]/hokuyohub:latest
 
 **Binary Missing Dependencies:**
 ```bash
-# Install system libraries
+# Install system libraries (CrowCpp is header-only, no web framework deps needed)
 sudo apt update
-sudo apt install libdrogon-dev libhdf5-dev libboost-all-dev
+sudo apt install libyaml-cpp0.7 libnng1 libssl3
 ```
 
 **Permission Denied:**

@@ -171,7 +171,6 @@ This follows the platform-specific directory structure pattern:
 - Target platform: linux/arm64
 - Build date: $(date -u +"%Y-%m-%d %H:%M:%S UTC")
 - URG library: Rebuilt from source for ARM64 Linux
-- Drogon framework: Built from source (v1.9.1)
 - Platform-specific output: dist/linux-arm64/
 
 EOF

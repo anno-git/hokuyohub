@@ -5,6 +5,9 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
+# Find threading support (required for CrowCpp on Unix systems)
+find_package(Threads REQUIRED)
+
 # -------- install 先（デフォルト: ${CMAKE_SOURCE_DIR}/dist。ただしユーザ指定で上書き可）--------
 if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
   set(CMAKE_INSTALL_PREFIX "${CMAKE_SOURCE_DIR}/dist" CACHE PATH "Install path prefix" FORCE)
@@ -61,6 +64,9 @@ add_executable(hokuyo_hub
 
 target_include_directories(hokuyo_hub PRIVATE src)
 target_link_libraries(hokuyo_hub PRIVATE sensor_core)
+
+# Link threading support (required for CrowCpp)
+target_link_libraries(hokuyo_hub PRIVATE Threads::Threads)
 
 # Link all dependencies using unified system
 link_hokuyo_dependencies(hokuyo_hub)

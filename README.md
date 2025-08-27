@@ -14,6 +14,26 @@ HokuyoHub is a comprehensive solution for collecting, processing, and visualizin
 - **ROI Management**: Create include/exclude regions for focused area monitoring
 - **Filter Pipeline**: Multi-stage filtering system (prefilter → clustering → postfilter)
 - **Cross-Platform**: Runs on Linux, macOS, and supports ARM64 architecture
+- **Fast Build Times**: Uses CrowCpp header-only web framework for significantly faster compilation
+
+## 🌟 Recent Migration: Drogon → CrowCpp
+
+HokuyoHub has been migrated from Drogon to **CrowCpp**, a modern, lightweight web framework that delivers significant improvements:
+
+### ✅ Migration Benefits
+- **⚡ Faster Build Times**: CrowCpp is header-only, eliminating complex dependency compilation
+- **🪶 Lightweight**: Reduced binary size and memory footprint
+- **🔧 Simplified Deployment**: No external web framework dependencies to manage
+- **⚙️ Better CI/CD**: Dramatically reduced build times in continuous integration
+- **� Modern C++**: Clean, type-safe API with excellent performance
+- **🔍 Easier Debugging**: Header-only design provides better build error messages
+
+### 🔄 What Changed
+- **Web Framework**: Replaced Drogon with CrowCpp (header-only)
+- **Build System**: Removed complex Drogon build configurations
+- **Dependencies**: Eliminated Trantor and other Drogon-specific libraries
+- **API Compatibility**: All REST endpoints remain unchanged
+- **Performance**: Maintained or improved response times with reduced overhead
 
 ## 🎯 Quick Start
 
@@ -79,7 +99,8 @@ sudo apt install libyaml-cpp-dev  # Optional: use system libraries
 # Install Homebrew dependencies
 brew install cmake yaml-cpp
 
-# Or use built-in dependency management (recommended)
+# Note: CrowCpp is now used as a lightweight, header-only web framework
+# No additional web framework dependencies needed (replaces Drogon)
 ```
 
 ### Build Options

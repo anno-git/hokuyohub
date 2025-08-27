@@ -1,37 +1,49 @@
 #include "ws_handlers.h"
-#include <drogon/drogon.h>
+#include <crow.h>
+#include <json/json.h>
 #include "core/sensor_manager.h"  // ★ SensorManager へ橋渡し
 #include "core/filter_manager.h"  // ★ FilterManager へ橋渡し
 #include "config/config.h"        // ★ AppConfig へ橋渡し
 
 std::mutex LiveWs::mtx_;
-std::unordered_set<drogon::WebSocketConnectionPtr> LiveWs::conns_;
+std::unordered_set<crow::websocket::connection*> LiveWs::conns_;
 
-void LiveWs::handleNewConnection(const drogon::HttpRequestPtr&,
-                                 const drogon::WebSocketConnectionPtr& conn){
+void LiveWs::registerWebSocketRoutes(crow::SimpleApp& app) {
+  // Register WebSocket route for /ws/live
+  CROW_WEBSOCKET_ROUTE(app, "/ws/live")
+  .onopen([this](crow::websocket::connection& conn) {
+    handleNewConnection(conn);
+  })
+  .onclose([this](crow::websocket::connection& conn, const std::string& reason, std::uint16_t code) {
+    handleConnectionClosed(conn, reason);
+  })
+  .onmessage([this](crow::websocket::connection& conn, const std::string& data, bool is_binary) {
+    handleNewMessage(conn, data, is_binary);
+  });
+}
+
+void LiveWs::handleNewConnection(crow::websocket::connection& conn){
   std::lock_guard<std::mutex> lk(mtx_);
-  conns_.insert(conn);
+  conns_.insert(&conn);
   // 接続直後に snapshot を送る（サーバ主導、クライアントのRefresh不要）
   sendSnapshotTo(conn);
 }
 
-void LiveWs::handleConnectionClosed(const drogon::WebSocketConnectionPtr& conn){
+void LiveWs::handleConnectionClosed(crow::websocket::connection& conn, const std::string& reason){
   std::lock_guard<std::mutex> lk(mtx_);
-  conns_.erase(conn);
+  conns_.erase(&conn);
 }
 
-void LiveWs::handleNewMessage(const drogon::WebSocketConnectionPtr& conn,
-                              std::string&& msg,
-                              const drogon::WebSocketMessageType& type){
-  if(type==drogon::WebSocketMessageType::Text){
+void LiveWs::handleNewMessage(crow::websocket::connection& conn, const std::string& data, bool is_binary){
+  if(!is_binary){
     // 既存: 不明メッセージは echo。まずは JSON として解釈を試みる
     Json::CharReaderBuilder b;
     std::unique_ptr<Json::CharReader> r(b.newCharReader());
     Json::Value j;
     std::string errs;
-    bool ok = r->parse(msg.data(), msg.data()+msg.size(), &j, &errs);
+    bool ok = r->parse(data.data(), data.data()+data.size(), &j, &errs);
     if(!ok || !j.isObject()){
-      conn->send(msg); // パースできなければ従来通り echo
+      conn.send_text(data); // パースできなければ従来通り echo
       return;
     }
 
@@ -52,11 +64,11 @@ void LiveWs::handleNewMessage(const drogon::WebSocketConnectionPtr& conn,
       Json::Value res;
       if(applied){
         res["type"] = "ok"; res["ref"] = "sensor.enable";
-        conn->send(res.toStyledString());
+        conn.send_text(res.toStyledString());
         broadcastSensorUpdated(sensor_id);
       }else{
         res["type"]="error"; res["ref"]="sensor.enable"; res["message"]="invalid sensor id";
-        conn->send(res.toStyledString());
+        conn.send_text(res.toStyledString());
       }
       return;
     }
@@ -103,14 +115,14 @@ void LiveWs::handleNewMessage(const drogon::WebSocketConnectionPtr& conn,
     // -----------------------------------
 
     // 既存互換: 上記に該当しない Text は echo（後方互換）
-    conn->send(msg);
+    conn.send_text(data);
   }
 }
 
 void LiveWs::broadcast(std::string_view msg){
   std::lock_guard<std::mutex> lk(mtx_);
   for(const auto& c : conns_){
-    if(c && c->connected()) c->send(std::string{msg});
+    if(c) c->send_text(std::string{msg});
   }
 }
 
@@ -255,11 +267,9 @@ Json::Value LiveWs::buildSnapshot() const
 }
 
 // ==== 追加: センサー状態の送受信用ユーティリティ ====
-void LiveWs::sendSnapshotTo(const drogon::WebSocketConnectionPtr& conn){
+void LiveWs::sendSnapshotTo(crow::websocket::connection& conn){
   Json::Value out = buildSnapshot();
-  if(conn && conn->connected()){
-    conn->send(out.toStyledString());
-  }
+  conn.send_text(out.toStyledString());
 }
 
 void LiveWs::broadcastSnapshot(){
@@ -267,7 +277,7 @@ void LiveWs::broadcastSnapshot(){
   const auto payload = out.toStyledString();
   std::lock_guard<std::mutex> lk(mtx_);
   for(const auto& c : conns_){
-    if(c && c->connected()) c->send(payload);
+    if(c) c->send_text(payload);
   }
   std::cout << "[LiveWs] Broadcasted snapshot to " << conns_.size() << " clients" << std::endl;
 }
@@ -282,18 +292,18 @@ void LiveWs::broadcastSensorUpdated(std::string sensor_id){
   const auto payload = out.toStyledString();
   std::lock_guard<std::mutex> lk(mtx_);
   for(const auto& c : conns_){
-    if(c && c->connected()) c->send(payload);
+    if(c) c->send_text(payload);
   }
 }
 
-void LiveWs::handleSensorUpdate(const drogon::WebSocketConnectionPtr& conn, const Json::Value& j){
+void LiveWs::handleSensorUpdate(crow::websocket::connection& conn, const Json::Value& j){
   // WebSocket uses slot index (numeric) for sensor operations
   std::string sensor_id = j.get("id", "").asString();
   const Json::Value patch = j.get("patch", Json::Value(Json::objectValue));
 
   if(!sensorManager_){
     Json::Value res; res["type"]="error"; res["ref"]="sensor.update"; res["message"]="sensorManager not set";
-    conn->send(res.toStyledString());
+    conn.send_text(res.toStyledString());
     return;
   }
 
@@ -302,15 +312,15 @@ void LiveWs::handleSensorUpdate(const drogon::WebSocketConnectionPtr& conn, cons
     Json::Value res; res["type"]="ok"; res["ref"]="sensor.update";
     res["applied"]=applied;
     res["sensor"]=sensorManager_->getAsJson(sensor_id);
-    conn->send(res.toStyledString());
+    conn.send_text(res.toStyledString());
     broadcastSensorUpdated(sensor_id);
   }else{
     Json::Value res; res["type"]="error"; res["ref"]="sensor.update"; res["message"]=err;
-    conn->send(res.toStyledString());
+    conn.send_text(res.toStyledString());
   }
 }
 
-void LiveWs::handleWorldUpdate(const drogon::WebSocketConnectionPtr& conn, const Json::Value& j){
+void LiveWs::handleWorldUpdate(crow::websocket::connection& conn, const Json::Value& j){
   const Json::Value patch = j.get("patch", Json::Value(Json::objectValue));
   
   Json::Value res;
@@ -320,7 +330,7 @@ void LiveWs::handleWorldUpdate(const drogon::WebSocketConnectionPtr& conn, const
   if (!appConfig_) {
     res["type"] = "error";
     res["message"] = "AppConfig not available";
-    conn->send(res.toStyledString());
+    conn.send_text(res.toStyledString());
     return;
   }
   
@@ -328,7 +338,7 @@ void LiveWs::handleWorldUpdate(const drogon::WebSocketConnectionPtr& conn, const
   if (!patch.isMember("world_mask")) {
     res["type"] = "error";
     res["message"] = "Missing world_mask in patch";
-    conn->send(res.toStyledString());
+    conn.send_text(res.toStyledString());
     return;
   }
   
@@ -419,10 +429,10 @@ void LiveWs::handleWorldUpdate(const drogon::WebSocketConnectionPtr& conn, const
     std::cout << "[WorldUpdate] Failed to update world mask: " << e.what() << std::endl;
   }
   
-  conn->send(res.toStyledString());
+  conn.send_text(res.toStyledString());
 }
 
-void LiveWs::handleFilterUpdate(const drogon::WebSocketConnectionPtr& conn, const Json::Value& j){
+void LiveWs::handleFilterUpdate(crow::websocket::connection& conn, const Json::Value& j){
   const Json::Value config = j.get("config", Json::Value(Json::objectValue));
   
   Json::Value res;
@@ -432,7 +442,7 @@ void LiveWs::handleFilterUpdate(const drogon::WebSocketConnectionPtr& conn, cons
   if (!filterManager_) {
     res["type"] = "error";
     res["message"] = "FilterManager not available";
-    conn->send(res.toStyledString());
+    conn.send_text(res.toStyledString());
     return;
   }
   
@@ -451,7 +461,7 @@ void LiveWs::handleFilterUpdate(const drogon::WebSocketConnectionPtr& conn, cons
     std::cout << "[FilterUpdate] Failed to update filter configuration" << std::endl;
   }
   
-  conn->send(res.toStyledString());
+  conn.send_text(res.toStyledString());
 }
 
 void LiveWs::broadcastFilterConfigUpdate(){
@@ -464,23 +474,23 @@ void LiveWs::broadcastFilterConfigUpdate(){
   const auto payload = out.toStyledString();
   std::lock_guard<std::mutex> lk(mtx_);
   for(const auto& c : conns_){
-    if(c && c->connected()) c->send(payload);
+    if(c) c->send_text(payload);
   }
   std::cout << "[LiveWs] Broadcasted filter config update to " << conns_.size() << " clients" << std::endl;
 }
 
-void LiveWs::sendFilterConfigTo(const drogon::WebSocketConnectionPtr& conn){
-  if (!filterManager_ || !conn || !conn->connected()) return;
+void LiveWs::sendFilterConfigTo(crow::websocket::connection& conn){
+  if (!filterManager_) return;
   
   Json::Value out;
   out["type"] = "filter.config";
   out["config"] = filterManager_->getFilterConfigAsJson();
   
-  conn->send(out.toStyledString());
+  conn.send_text(out.toStyledString());
 }
 
-void LiveWs::sendDbscanConfigTo(const drogon::WebSocketConnectionPtr& conn){
-  if (!appConfig_ || !conn || !conn->connected()) return;
+void LiveWs::sendDbscanConfigTo(crow::websocket::connection& conn){
+  if (!appConfig_) return;
   
   Json::Value out;
   out["type"] = "dbscan.config";
@@ -492,10 +502,10 @@ void LiveWs::sendDbscanConfigTo(const drogon::WebSocketConnectionPtr& conn){
   out["config"]["R_max"] = appConfig_->dbscan.R_max;
   out["config"]["M_max"] = appConfig_->dbscan.M_max;
   
-  conn->send(out.toStyledString());
+  conn.send_text(out.toStyledString());
 }
 
-void LiveWs::handleDbscanUpdate(const drogon::WebSocketConnectionPtr& conn, const Json::Value& j){
+void LiveWs::handleDbscanUpdate(crow::websocket::connection& conn, const Json::Value& j){
   const Json::Value config = j.get("config", Json::Value(Json::objectValue));
   
   Json::Value res;
@@ -505,7 +515,7 @@ void LiveWs::handleDbscanUpdate(const drogon::WebSocketConnectionPtr& conn, cons
   if (!appConfig_) {
     res["type"] = "error";
     res["message"] = "AppConfig not available";
-    conn->send(res.toStyledString());
+    conn.send_text(res.toStyledString());
     return;
   }
   
@@ -517,7 +527,7 @@ void LiveWs::handleDbscanUpdate(const drogon::WebSocketConnectionPtr& conn, cons
       if (eps_norm < 0.1f || eps_norm > 10.0f) {
         res["type"] = "error";
         res["message"] = "eps_norm must be between 0.1 and 10.0";
-        conn->send(res.toStyledString());
+        conn.send_text(res.toStyledString());
         return;
       }
       appConfig_->dbscan.eps_norm = eps_norm;
@@ -529,7 +539,7 @@ void LiveWs::handleDbscanUpdate(const drogon::WebSocketConnectionPtr& conn, cons
       if (minPts < 1 || minPts > 100) {
         res["type"] = "error";
         res["message"] = "minPts must be between 1 and 100";
-        conn->send(res.toStyledString());
+        conn.send_text(res.toStyledString());
         return;
       }
       appConfig_->dbscan.minPts = minPts;
@@ -541,7 +551,7 @@ void LiveWs::handleDbscanUpdate(const drogon::WebSocketConnectionPtr& conn, cons
       if (k_scale < 0.1f || k_scale > 10.0f) {
         res["type"] = "error";
         res["message"] = "k_scale must be between 0.1 and 10.0";
-        conn->send(res.toStyledString());
+        conn.send_text(res.toStyledString());
         return;
       }
       appConfig_->dbscan.k_scale = k_scale;
@@ -553,7 +563,7 @@ void LiveWs::handleDbscanUpdate(const drogon::WebSocketConnectionPtr& conn, cons
       if (h_min < 0.001f || h_min > appConfig_->dbscan.h_max) {
         res["type"] = "error";
         res["message"] = "h_min must be between 0.001 and h_max";
-        conn->send(res.toStyledString());
+        conn.send_text(res.toStyledString());
         return;
       }
       appConfig_->dbscan.h_min = h_min;
@@ -565,7 +575,7 @@ void LiveWs::handleDbscanUpdate(const drogon::WebSocketConnectionPtr& conn, cons
       if (h_max < appConfig_->dbscan.h_min || h_max > 1.0f) {
         res["type"] = "error";
         res["message"] = "h_max must be between h_min and 1.0";
-        conn->send(res.toStyledString());
+        conn.send_text(res.toStyledString());
         return;
       }
       appConfig_->dbscan.h_max = h_max;
@@ -577,7 +587,7 @@ void LiveWs::handleDbscanUpdate(const drogon::WebSocketConnectionPtr& conn, cons
       if (R_max < 1 || R_max > 50) {
         res["type"] = "error";
         res["message"] = "R_max must be between 1 and 50";
-        conn->send(res.toStyledString());
+        conn.send_text(res.toStyledString());
         return;
       }
       appConfig_->dbscan.R_max = R_max;
@@ -589,7 +599,7 @@ void LiveWs::handleDbscanUpdate(const drogon::WebSocketConnectionPtr& conn, cons
       if (M_max < 10 || M_max > 5000) {
         res["type"] = "error";
         res["message"] = "M_max must be between 10 and 5000";
-        conn->send(res.toStyledString());
+        conn.send_text(res.toStyledString());
         return;
       }
       appConfig_->dbscan.M_max = M_max;
@@ -631,10 +641,10 @@ void LiveWs::handleDbscanUpdate(const drogon::WebSocketConnectionPtr& conn, cons
     res["message"] = std::string("Failed to update DBSCAN config: ") + e.what();
   }
   
-  conn->send(res.toStyledString());
+  conn.send_text(res.toStyledString());
 }
 
-void LiveWs::handleSensorAdd(const drogon::WebSocketConnectionPtr& conn, const Json::Value& j){
+void LiveWs::handleSensorAdd(crow::websocket::connection& conn, const Json::Value& j){
   const Json::Value cfg = j.get("cfg", Json::Value(Json::objectValue));
   
   Json::Value res;
@@ -644,7 +654,7 @@ void LiveWs::handleSensorAdd(const drogon::WebSocketConnectionPtr& conn, const J
   if (!appConfig_ || !sensorManager_) {
     res["type"] = "error";
     res["message"] = "AppConfig or SensorManager not available";
-    conn->send(res.toStyledString());
+    conn.send_text(res.toStyledString());
     return;
   }
   
@@ -658,10 +668,10 @@ void LiveWs::handleSensorAdd(const drogon::WebSocketConnectionPtr& conn, const J
     res["message"] = std::string("Failed to add sensor: ") + e.what();
   }
   
-  conn->send(res.toStyledString());
+  conn.send_text(res.toStyledString());
 }
 
-void LiveWs::handleSinkAdd(const drogon::WebSocketConnectionPtr& conn, const Json::Value& j){
+void LiveWs::handleSinkAdd(crow::websocket::connection& conn, const Json::Value& j){
   const Json::Value cfg = j.get("cfg", Json::Value(Json::objectValue));
   
   Json::Value res;
@@ -671,7 +681,7 @@ void LiveWs::handleSinkAdd(const drogon::WebSocketConnectionPtr& conn, const Jso
   if (!appConfig_) {
     res["type"] = "error";
     res["message"] = "AppConfig not available";
-    conn->send(res.toStyledString());
+    conn.send_text(res.toStyledString());
     return;
   }
   
@@ -685,10 +695,10 @@ void LiveWs::handleSinkAdd(const drogon::WebSocketConnectionPtr& conn, const Jso
     res["message"] = std::string("Failed to add sink: ") + e.what();
   }
   
-  conn->send(res.toStyledString());
+  conn.send_text(res.toStyledString());
 }
 
-void LiveWs::handleSinkUpdate(const drogon::WebSocketConnectionPtr& conn, const Json::Value& j){
+void LiveWs::handleSinkUpdate(crow::websocket::connection& conn, const Json::Value& j){
   const Json::Value patch = j.get("patch", Json::Value(Json::objectValue));
   const int index = j.get("index", -1).asInt();
   
@@ -699,7 +709,7 @@ void LiveWs::handleSinkUpdate(const drogon::WebSocketConnectionPtr& conn, const 
   if (!appConfig_) {
     res["type"] = "error";
     res["message"] = "AppConfig not available";
-    conn->send(res.toStyledString());
+    conn.send_text(res.toStyledString());
     return;
   }
   
@@ -713,10 +723,10 @@ void LiveWs::handleSinkUpdate(const drogon::WebSocketConnectionPtr& conn, const 
     res["message"] = std::string("Failed to update sink: ") + e.what();
   }
   
-  conn->send(res.toStyledString());
+  conn.send_text(res.toStyledString());
 }
 
-void LiveWs::handleSinkDelete(const drogon::WebSocketConnectionPtr& conn, const Json::Value& j){
+void LiveWs::handleSinkDelete(crow::websocket::connection& conn, const Json::Value& j){
   const int index = j.get("index", -1).asInt();
   
   Json::Value res;
@@ -726,7 +736,7 @@ void LiveWs::handleSinkDelete(const drogon::WebSocketConnectionPtr& conn, const 
   if (!appConfig_) {
     res["type"] = "error";
     res["message"] = "AppConfig not available";
-    conn->send(res.toStyledString());
+    conn.send_text(res.toStyledString());
     return;
   }
   
@@ -740,5 +750,5 @@ void LiveWs::handleSinkDelete(const drogon::WebSocketConnectionPtr& conn, const 
     res["message"] = std::string("Failed to delete sink: ") + e.what();
   }
   
-  conn->send(res.toStyledString());
+  conn.send_text(res.toStyledString());
 }
