@@ -1,5 +1,6 @@
 // Canvas drawing and viewport management
 
+import * as ws from './ws.js';
 import * as store from './store.js';
 import { clamp, distance, isPointInPolygon } from './utils.js';
 
@@ -800,23 +801,20 @@ function handleMouseUp(e) {
         }
       };
       
+      console.info(`Updating sensor ${state.selectedSensor}:`, patch);
       // Send with client ID for sender identification
-      import('./ws.js').then(ws => {
-        ws.updateSensor(state.selectedSensor, patch, store.get('clientId'));
-      });
+      ws.updateSensor(state.selectedSensor, patch, store.get('clientId'));
     }
   } else if (state.isDragging && (state.dragMode === 'vertex' || state.dragMode === 'roi') && state.selectedROI !== null) {
     // Send world mask update to server
-    import('./ws.js').then(ws => {
-      ws.send({
-        type: 'world.update',
-        patch: {
-          world_mask: {
-            includes: state.worldMask.include,
-            excludes: state.worldMask.exclude
-          }
+    ws.send({
+      type: 'world.update',
+      patch: {
+        world_mask: {
+          includes: state.worldMask.include,
+          excludes: state.worldMask.exclude
         }
-      });
+      }
     });
   }
   
@@ -893,9 +891,7 @@ function handleKeyDown(e) {
               theta_deg: sensor.pose.theta_deg
             }
           };
-          import('./ws.js').then(ws => {
-            ws.updateSensor(state.selectedSensor, patch, store.get('clientId'));
-          });
+          ws.updateSensor(state.selectedSensor, patch, store.get('clientId'));
         }
       }
       break;

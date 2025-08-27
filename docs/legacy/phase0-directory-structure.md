@@ -115,7 +115,7 @@ src/
 #### `/external/` - Third-Party Libraries
 ```
 external/
-├── drogon/                           # Web framework (git submodule)
+├── the-previous-web-framework/                           # Web framework (git submodule)
 ├── urg_library/                      # Hokuyo sensor library
 │   ├── current/                      # Symlink to active version
 │   └── release/
@@ -124,7 +124,7 @@ external/
 ```
 
 **Dependency Management**:
-- **Drogon**: Web framework, found via `find_package(Drogon REQUIRED)`
+- **CrowCpp**: Web framework (header-only)
 - **yaml-cpp**: YAML parsing, found via `find_package(yaml-cpp CONFIG REQUIRED)`
 - **urg_library**: Built via ExternalProject from source in `external/urg_library/release/urg_library-1.2.7`
 
@@ -233,7 +233,7 @@ docs/
 ### Build Dependencies
 ```
 CMakeLists.txt
-├── External: Drogon (Homebrew/system)
+├── External: CrowCpp (header-only)
 ├── External: yaml-cpp (Homebrew/system)
 ├── ExternalProject: urg_library
 │   ├── Source: external/urg_library/release/urg_library-1.2.7
@@ -244,7 +244,7 @@ CMakeLists.txt
     │   └── Depends: urg_c (IMPORTED from urg_library)
     └── hokuyo_hub (executable)
         ├── Depends: sensor_core
-        ├── Depends: Drogon::Drogon
+        ├── Depends: Crow::Crow
         └── Depends: yaml-cpp::yaml-cpp
 ```
 
@@ -252,12 +252,12 @@ CMakeLists.txt
 ```
 hokuyo_hub (executable)
 ├── Dynamic Libraries:
-│   ├── Drogon framework
+│   ├── CrowCpp (header-only)
 │   ├── yaml-cpp
 │   ├── System libraries (macOS/Linux)
 │   └── Optional: NNG (if enabled)
 ├── Configuration:
-│   └── config/default.yaml
+│   └── configs/default.yaml
 └── Web Assets:
     └── webui/ (entire directory)
 ```
@@ -290,7 +290,7 @@ The existing `linux-arm64.cmake` toolchain will be integrated with CMakePresets.
 ## Git Configuration
 
 ### Submodules
-- `external/drogon`: Web framework
+- `external/the-previous-web-framework`: Web framework
 - `external/yaml-cpp`: YAML parser
 
 ### Ignored Paths

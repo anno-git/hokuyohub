@@ -6,7 +6,7 @@ This guide covers Docker-based builds using multi-stage containers for reproduci
 
 ## 🌟 CrowCpp Migration Benefits for Docker Builds
 
-The migration from Drogon to **CrowCpp** dramatically improves Docker build performance:
+The migration from the previous web framework to **CrowCpp** dramatically improves Docker build performance:
 
 - **⚡ Faster Builds**: Header-only design eliminates complex web framework compilation
 - **🔧 Simplified Dependencies**: Reduced external library management in containers
@@ -286,7 +286,7 @@ docker create --name temp-extract --platform linux/arm64 hokuyo-hub:latest
 docker cp temp-extract:/opt/hokuyohub/hokuyo_hub dist/linux-arm64/
 
 # Extract configuration
-docker cp temp-extract:/opt/hokuyohub/config dist/linux-arm64/
+docker cp temp-extract:/opt/hokuyohub/configs dist/linux-arm64/
 
 # Extract web interface
 docker cp temp-extract:/opt/hokuyohub/webui dist/linux-arm64/
@@ -322,7 +322,7 @@ curl http://localhost:8080/api/health
 | **Total** | **15-20 minutes** | **5-7 minutes** | **2-4 minutes** |
 
 **Performance Improvements:**
-- **60%+ faster builds** compared to Drogon-based builds
+- **60%+ faster builds** compared to the previous web framework-based builds
 - Reduced dependency compilation complexity
 - More efficient Docker layer caching
 
@@ -370,7 +370,7 @@ docker run -d -p 8080:8080 --name hokuyo-hub hokuyo-hub:latest
 
 # Run with custom configuration
 docker run -d -p 8080:8080 \
-    -v $(pwd)/configs:/opt/hokuyohub/config:ro \
+    -v $(pwd)/configs:/opt/hokuyohub/configs:ro \
     --name hokuyo-hub hokuyo-hub:latest
 ```
 
@@ -387,7 +387,7 @@ docker run -d \
     -p 8080:8080 \
     -p 8081:8081 \
     -v hokuyo-data:/var/lib/hokuyo-hub \
-    -v $(pwd)/configs:/opt/hokuyohub/config:ro \
+    -v $(pwd)/configs:/opt/hokuyohub/configs:ro \
     --restart unless-stopped \
     hokuyo-hub:latest
 ```
@@ -397,7 +397,7 @@ docker run -d \
 docker run -d \
     --name hokuyo-hub \
     -p 8080:8080 \
-    -e HOKUYO_CONFIG_PATH=/opt/hokuyohub/config \
+    -e HOKUYO_CONFIG_PATH=/opt/hokuyohub/configs \
     -e HOKUYO_LOG_LEVEL=INFO \
     --restart unless-stopped \
     hokuyo-hub:latest
@@ -435,10 +435,10 @@ services:
       - "8080:8080"
       - "8081:8081"
     volumes:
-      - ./configs:/opt/hokuyohub/config:ro
+      - ./configs:/opt/hokuyohub/configs:ro
       - hokuyo-data:/var/lib/hokuyo-hub
     environment:
-      - HOKUYO_CONFIG_PATH=/opt/hokuyohub/config
+      - HOKUYO_CONFIG_PATH=/opt/hokuyohub/configs
       - HOKUYO_LOG_LEVEL=INFO
     restart: unless-stopped
     healthcheck:

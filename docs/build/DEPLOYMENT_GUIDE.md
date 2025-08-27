@@ -9,7 +9,7 @@ HokuyoHub supports two deployment methods that can both be made public even with
 
 ## 🌟 CrowCpp Migration Benefits for Deployment
 
-The migration from Drogon to **CrowCpp** improves deployment significantly:
+The migration from the previous web framework to **CrowCpp** improves deployment significantly:
 
 - **🚀 Faster Container Builds**: Eliminated complex web framework compilation
 - **📦 Smaller Dependencies**: Reduced runtime library requirements
@@ -86,7 +86,7 @@ cd hokuyohub-arm64
 
 # Manual installation
 chmod +x hokuyo_hub
-./hokuyo_hub --config config/default.yaml
+./hokuyo_hub --config configs/default.yaml
 ```
 
 ## Automated Build Pipeline

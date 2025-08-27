@@ -23,7 +23,7 @@ HokuyoHub is a real-time sensor data processing and visualization system built w
 │                    Web Frontend (JS/HTML)                   │
 ├─────────────────────────────────────────────────────────────┤
 │              HTTP REST API / WebSocket Layer                │
-│                    (Drogon Framework)                       │
+│                    (CrowCpp Framework)                      │
 ├─────────────────────────────────────────────────────────────┤
 │                   Application Logic Layer                   │
 │  ┌─────────────────┐  ┌────────────────┐  ┌──────────────┐ │
@@ -75,7 +75,6 @@ HokuyoHub/
 ├── docs/                      # Project documentation
 │   └── plans/                # Development planning documents
 ├── external/                  # External dependencies
-│   ├── drogon/               # Drogon C++ web framework
 │   └── urg_library/          # Hokuyo URG sensor library
 ├── scripts/                   # Build and utility scripts
 │   └── test_rest_api.sh      # API testing utilities
@@ -153,8 +152,8 @@ resolve_all_dependencies()
 
 The build system uses a unified dependency management approach via [`cmake/Dependencies.cmake`](cmake/Dependencies.cmake:1):
 
-1. **Drogon Framework**: Modern C++ web framework
-   - Automatically downloaded and compiled via ExternalProject
+1. **CrowCpp Framework**: Modern header-only C++ web framework
+   - Included as header-only dependency
    - Provides HTTP/WebSocket server capabilities
    - Thread-safe asynchronous I/O
 
@@ -503,7 +502,7 @@ main.cpp
 │   ├── Prefilter
 │   └── Postfilter
 ├── DBSCAN2D
-├── RestApi (Drogon Framework)
+├── RestApi (CrowCpp Framework)
 │   ├── Sensor endpoints
 │   ├── Filter endpoints
 │   └── Configuration endpoints
@@ -1095,10 +1094,10 @@ public:
 
 ### Threading Architecture
 
-- **Main Thread**: HTTP server and application control via Drogon framework
+- **Main Thread**: HTTP server and application control via CrowCpp framework
 - **Sensor Threads**: Individual threads per sensor for data acquisition
 - **Processing Thread**: Filter pipeline and clustering in callback context
-- **WebSocket Threads**: Real-time data broadcasting managed by Drogon
+- **WebSocket Threads**: Real-time data broadcasting managed by CrowCpp
 - **Publisher Threads**: Background publishing to external sinks (NNG, OSC)
 
 ### Real-time Performance
@@ -1157,7 +1156,7 @@ private:
 
 // Constants: UPPER_CASE or constexpr
 static constexpr int MAX_RETRY_COUNT = 3;
-static const std::string DEFAULT_CONFIG_PATH = "./config/default.yaml";
+static const std::string DEFAULT_CONFIG_PATH = "./configs/default.yaml";
 
 // Enums: PascalCase with scoped enumerators
 enum class SensorType {
@@ -1253,7 +1252,7 @@ RUN apt-get update && apt-get install -y \
 
 # Copy application and assets from dist/ directory
 COPY --from=builder /app/dist/hokuyo_hub /usr/local/bin/
-COPY --from=builder /app/dist/config /usr/local/etc/hokuyo_hub
+COPY --from=builder /app/dist/configs /usr/local/etc/hokuyo_hub
 COPY --from=builder /app/dist/webui /usr/local/share/hokuyo_hub/webui
 
 # Runtime configuration
@@ -1522,7 +1521,7 @@ valgrind --tool=helgrind ./hokuyo_hub --config configs/test.yaml
 
 | Issue | Symptom | Solution |
 |-------|---------|----------|
-| Build fails with missing drogon | CMake can't find Drogon framework | Run `git submodule update --init --recursive` |
+| Build fails with missing dependencies | CMake can't find required libraries | Check system packages and dependencies |
 | Sensor timeout errors | Connection failures, no data | Check USB cable, permissions, device path |
 | High CPU usage | Poor real-time performance | Optimize filter parameters, reduce processing load |
 | Memory growth | Increasing memory usage over time | Enable AddressSanitizer, check buffer management |

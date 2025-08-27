@@ -96,15 +96,15 @@ extract_artifacts() {
     
     # Extract configuration files
     log_info "Extracting configuration files..."
-    if docker cp "$TEMP_CONTAINER:/opt/hokuyohub/config" "$DIST_DIR/" 2>/dev/null; then
+    if docker cp "$TEMP_CONTAINER:/opt/hokuyohub/configs" "$DIST_DIR/" 2>/dev/null; then
         log_success "Configuration files extracted successfully"
     else
         log_warning "Failed to extract config from runtime directory, trying staging..."
-        if docker cp "$TEMP_CONTAINER:/staging/opt/hokuyohub/config" "$DIST_DIR/" 2>/dev/null; then
+        if docker cp "$TEMP_CONTAINER:/staging/opt/hokuyohub/configs" "$DIST_DIR/" 2>/dev/null; then
             log_success "Configuration files extracted from staging area"
         else
             log_warning "Failed to extract config from staging, trying source..."
-            if docker cp "$TEMP_CONTAINER:/build/configs" "$DIST_DIR/config" 2>/dev/null; then
+            if docker cp "$TEMP_CONTAINER:/build/configs" "$DIST_DIR/configs" 2>/dev/null; then
                 log_success "Configuration files extracted from source"
             else
                 log_warning "No configuration files found"
@@ -150,7 +150,7 @@ This follows the platform-specific directory structure pattern:
 ## Contents
 
 - `hokuyo_hub` - Main application binary (ARM64 Linux)
-- `config/` - Configuration files
+- `configs/` - Configuration files
 - `webui/` - Web user interface files
 - `third_party/` - Third-party libraries and dependencies (if any)
 
@@ -202,8 +202,8 @@ validate_artifacts() {
     fi
     
     # Check config directory
-    if [ -d "$DIST_DIR/config" ]; then
-        local config_count=$(find "$DIST_DIR/config" -type f | wc -l)
+    if [ -d "$DIST_DIR/configs" ]; then
+        local config_count=$(find "$DIST_DIR/configs" -type f | wc -l)
         log_success "Configuration files: $config_count files"
     else
         log_warning "Configuration directory not found"

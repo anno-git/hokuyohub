@@ -108,37 +108,36 @@ async function saveCurrentConfiguration() {
 async function loadConfiguration() {
   try {
     // First, get the list of available configurations
-    const listResult = await api.configs.list();
-    const files = listResult.files || [];
-    
+    const files = await api.configs.list();
+
     if (files.length === 0) {
       showNotification('No configuration files found', 'warning');
       return;
     }
     
     // Create a simple selection dialog
-    const options = files.map((name, index) => `${index + 1}. ${name}`).join('\n');
+    const options = files.map(({name}, index) => `${index + 1}. ${name}`).join('\n');
     const selection = prompt(`Select configuration to load:\n${options}\n\nEnter number or name:`);
     
     if (!selection) return;
     
-    let selectedName;
+    let selectedFile;
     // Check if user entered a number
     const num = parseInt(selection);
     if (!isNaN(num) && num >= 1 && num <= files.length) {
-      selectedName = files[num - 1];
+      selectedFile = files[num - 1];
     } else {
       // Check if the entered name exists in the list
-      selectedName = files.find(name => name.toLowerCase() === selection.toLowerCase());
-      if (!selectedName) {
+      selectedFile = files.find(({name}) => name.toLowerCase() === selection.toLowerCase());
+      if (!selectedFile) {
         showNotification(`Configuration "${selection}" not found`, 'error');
         return;
       }
     }
-    
+
     // Load the selected configuration
-    const result = await api.configs.load(selectedName);
-    showNotification(`Configuration loaded successfully: ${selectedName}`, 'success');
+    const result = await api.configs.load(selectedFile.name);
+    showNotification(`Configuration loaded successfully: ${selectedFile.name}`, 'success');
     console.log('Configuration loaded:', result);
     
     // Refresh all browser state from server

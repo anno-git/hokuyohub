@@ -6,7 +6,7 @@ This guide provides solutions to frequently encountered build issues, organized 
 
 ## 🌟 CrowCpp Migration Benefits
 
-HokuyoHub now uses **CrowCpp** instead of Drogon, eliminating many common build issues:
+HokuyoHub now uses **CrowCpp** instead of the previous web framework, eliminating many common build issues:
 
 - **⚡ No Framework Compilation**: Header-only design eliminates web framework build errors
 - **🔧 Simplified Dependencies**: Fewer external libraries to troubleshoot
@@ -116,14 +116,14 @@ cmake -DDEPS_MODE=fetch --preset mac-release
 
 **Issue: Web Framework Build Issues (Legacy)**
 ```
-Note: HokuyoHub now uses CrowCpp (header-only) instead of Drogon
+Note: HokuyoHub now uses CrowCpp (header-only) instead of the previous web framework
 ```
 **Solutions:**
 ```bash
 # CrowCpp is header-only - no compilation needed
 # If you encounter web framework errors, ensure you're using latest version
 
-# For legacy Drogon builds, clean and rebuild:
+# For legacy the previous web framework builds, clean and rebuild:
 ./scripts/build_with_presets.sh clean
 cmake --preset mac-release
 
@@ -585,13 +585,13 @@ Failed to load configuration file: default.yaml
 **Solutions:**
 ```bash
 # Check file exists and path is correct
-ls -la config/default.yaml
+ls -la configs/default.yaml
 
 # Use absolute path
-./hokuyo_hub --config $(pwd)/config/default.yaml
+./hokuyo_hub --config $(pwd)/configs/default.yaml
 
 # Copy from examples if missing
-cp configs/examples/basic.yaml config/default.yaml
+cp configs/examples/basic.yaml configs/default.yaml
 ```
 
 **Issue: Sensor Connection Failures**
@@ -730,7 +730,7 @@ lldb ./hokuyo_hub
 **Log Analysis:**
 ```bash
 # Enable verbose logging
-./hokuyo_hub --config ./config/default.yaml --verbose 2>&1 | tee app.log
+./hokuyo_hub --config ./configs/default.yaml --verbose 2>&1 | tee app.log
 
 # Monitor system calls (macOS)
 sudo dtruss -p $(pgrep hokuyo_hub)

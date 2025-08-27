@@ -28,7 +28,7 @@ file build/darwin-arm64/hokuyo_hub
 ```
 
 **Dependency Resolution:**
-- ✅ Drogon: Auto-selected system package (Homebrew)
+- ✅ the previous web framework: Auto-selected system package (Homebrew)
 - ✅ yaml-cpp: System package (forced via override)
 - ✅ urg_library: Bundled via ExternalProject
 - ✅ NNG: Auto-selected system library (manual detection)
@@ -50,13 +50,13 @@ file build/darwin-arm64/hokuyo_hub
 - Environment variables properly set for ExternalProject builds
 
 **Dependency Resolution Issues:**
-- ❌ Drogon bundled mode fails due to missing cross-compiled Jsoncpp
+- ❌ the previous web framework bundled mode fails due to missing cross-compiled Jsoncpp
 - ❌ System dependencies not available in cross-compilation environment
 - ✅ urg_library: Would work (ExternalProject with cross-compilation support)
 - ✅ Toolchain configuration: Fully functional
 
 **Root Cause Analysis:**
-The bundled Drogon framework requires system dependencies (Jsoncpp, OpenSSL, c-ares) that are not available in the minimal musl-cross sysroot. This is a known limitation of cross-compilation environments.
+The bundled the previous web framework framework requires system dependencies (Jsoncpp, OpenSSL, c-ares) that are not available in the minimal musl-cross sysroot. This is a known limitation of cross-compilation environments.
 
 ## Unified Dependency Management System Validation
 
@@ -69,8 +69,7 @@ The bundled Drogon framework requires system dependencies (Jsoncpp, OpenSSL, c-a
 4. **`bundled`** - Use local bundled dependencies
 
 **Per-Dependency Overrides:**
-- `DEPS_DROGON` - Override for Drogon framework
-- `DEPS_YAMLCPP` - Override for yaml-cpp library  
+- `DEPS_YAMLCPP` - Override for yaml-cpp library
 - `DEPS_URG` - Override for urg_library
 - `DEPS_NNG` - Override for NNG messaging library
 
@@ -101,7 +100,7 @@ The bundled Drogon framework requires system dependencies (Jsoncpp, OpenSSL, c-a
 ### Raspberry Pi Cross-Compilation
 - **Status:** ⚠️ **TOOLCHAIN READY, DEPENDENCY LIMITATIONS**
 - **Toolchain:** ✅ Fully configured and functional
-- **Core Issue:** Drogon framework dependencies not available in cross-compilation
+- **Core Issue:** the previous web framework framework dependencies not available in cross-compilation
 - **Workaround:** Requires proper cross-compiled sysroot with all dependencies
 - **Recommended Mode:** `bundled` (with complete sysroot)
 
@@ -155,7 +154,7 @@ rm -rf build/linux-arm64
 # Configure (requires complete sysroot for full success)
 cmake --preset rpi-release -DDEPS_MODE=bundled -DHOKUYO_NNG_ENABLE=OFF
 
-# Note: Currently fails at Drogon dependencies
+# Note: Currently fails at the previous web framework dependencies
 # Requires cross-compiled Jsoncpp, OpenSSL, c-ares in sysroot
 ```
 
@@ -163,7 +162,7 @@ cmake --preset rpi-release -DDEPS_MODE=bundled -DHOKUYO_NNG_ENABLE=OFF
 
 | Dependency | macOS Auto | macOS System | macOS Fetch | RPI Cross | Status |
 |------------|------------|--------------|-------------|-----------|---------|
-| Drogon     | ✅ System   | ✅ System    | ✅ Fetch    | ❌ Deps   | Partial |
+| the previous web framework     | ✅ System   | ✅ System    | ✅ Fetch    | ❌ Deps   | Partial |
 | yaml-cpp   | ✅ System   | ✅ System    | ✅ Fetch    | ❌ Deps   | Partial |
 | urg_library| ✅ Bundled  | ❌ N/A       | ❌ N/A      | ✅ Bundled| Working |
 | NNG        | ✅ System   | ✅ System    | ✅ Fetch    | ❌ Deps   | Partial |
@@ -174,7 +173,7 @@ cmake --preset rpi-release -DDEPS_MODE=bundled -DHOKUYO_NNG_ENABLE=OFF
 
 1. **Unified Dependency Management System**
    - ✅ DEPS_MODE system with auto/system/fetch/bundled modes
-   - ✅ Per-dependency overrides (DEPS_DROGON, DEPS_YAMLCPP, etc.)
+   - ✅ Per-dependency overrides (DEPS_YAMLCPP, etc.)
    - ✅ Consolidated NNG options under HOKUYO_NNG namespace
    - ✅ Backward compatibility shims with deprecation warnings
 
@@ -198,7 +197,7 @@ cmake --preset rpi-release -DDEPS_MODE=bundled -DHOKUYO_NNG_ENABLE=OFF
 ### ⚠️ KNOWN LIMITATIONS
 
 1. **Cross-Compilation Dependencies**
-   - Drogon framework requires system dependencies not available in minimal sysroot
+   - the previous web framework framework requires system dependencies not available in minimal sysroot
    - Solution: Requires complete Raspberry Pi sysroot with cross-compiled libraries
    - Impact: Cross-compilation works for toolchain but needs dependency environment
 
@@ -229,7 +228,7 @@ cmake --preset rpi-release -DDEPS_MODE=bundled -DHOKUYO_NNG_ENABLE=OFF
 
 1. **Enhanced Cross-Compilation:**
    - Consider Docker-based cross-compilation environment
-   - Investigate lighter-weight alternatives to Drogon for embedded targets
+   - Investigate lighter-weight alternatives to the previous web framework for embedded targets
    - Implement dependency pre-building for cross-compilation
 
 2. **Dependency Management:**

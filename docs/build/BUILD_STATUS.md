@@ -61,7 +61,7 @@ docker run -p 8080:8080 ghcr.io/[username]/hokuyohub:latest
 **Using Release Artifacts:**
 1. Download `hokuyohub-*.tar.gz` from GitHub Releases
 2. Extract to Raspberry Pi: `tar -xzf hokuyohub-*.tar.gz`  
-3. Run: `./hokuyo_hub --config config/default.yaml`
+3. Run: `./hokuyo_hub --config configs/default.yaml`
 
 ### Build System Health
 

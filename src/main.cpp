@@ -12,7 +12,7 @@
 #include "core/filter_manager.h"
 
 int main(int argc, char** argv) {
-  std::string cfgPath = "./config/default.yaml";
+  std::string cfgPath = "./configs/default.yaml";
   std::string httpListen = "";
 
   for (int i=1;i<argc;++i){

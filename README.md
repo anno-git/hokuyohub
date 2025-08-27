@@ -16,9 +16,9 @@ HokuyoHub is a comprehensive solution for collecting, processing, and visualizin
 - **Cross-Platform**: Runs on Linux, macOS, and supports ARM64 architecture
 - **Fast Build Times**: Uses CrowCpp header-only web framework for significantly faster compilation
 
-## 🌟 Recent Migration: Drogon → CrowCpp
+## 🌟 Web Framework: CrowCpp
 
-HokuyoHub has been migrated from Drogon to **CrowCpp**, a modern, lightweight web framework that delivers significant improvements:
+HokuyoHub uses **CrowCpp**, a modern, lightweight web framework that delivers excellent performance:
 
 ### ✅ Migration Benefits
 - **⚡ Faster Build Times**: CrowCpp is header-only, eliminating complex dependency compilation
@@ -29,9 +29,9 @@ HokuyoHub has been migrated from Drogon to **CrowCpp**, a modern, lightweight we
 - **🔍 Easier Debugging**: Header-only design provides better build error messages
 
 ### 🔄 What Changed
-- **Web Framework**: Replaced Drogon with CrowCpp (header-only)
-- **Build System**: Removed complex Drogon build configurations
-- **Dependencies**: Eliminated Trantor and other Drogon-specific libraries
+- **Web Framework**: CrowCpp (header-only, lightweight)
+- **Build System**: Simplified build configurations
+- **Dependencies**: Minimal external dependencies
 - **API Compatibility**: All REST endpoints remain unchanged
 - **Performance**: Maintained or improved response times with reduced overhead
 
@@ -77,7 +77,7 @@ sensors:
 
 5. **Launch HokuyoHub**
 ```bash
-./hokuyo_hub --config ./config/default.yaml --listen 0.0.0.0:8080
+./hokuyo_hub --config ./configs/default.yaml --listen 0.0.0.0:8080
 ```
 
 6. **Open the web interface**
@@ -99,8 +99,8 @@ sudo apt install libyaml-cpp-dev  # Optional: use system libraries
 # Install Homebrew dependencies
 brew install cmake yaml-cpp
 
-# Note: CrowCpp is now used as a lightweight, header-only web framework
-# No additional web framework dependencies needed (replaces Drogon)
+# Note: CrowCpp is a lightweight, header-only web framework
+# No additional web framework dependencies needed
 ```
 
 ### Build Options
@@ -324,7 +324,7 @@ ps aux | grep hokuyo_hub
 netstat -ln | grep 8080
 
 # Check configuration file
-./hokuyo_hub --config ./config/default.yaml --listen 0.0.0.0:8080
+./hokuyo_hub --config ./configs/default.yaml --listen 0.0.0.0:8080
 ```
 
 **Poor Clustering Results**
@@ -367,7 +367,7 @@ prefilter:
 
 ```bash
 # Enable verbose logging
-./hokuyo_hub --config ./config/default.yaml --listen 0.0.0.0:8080 2>&1 | tee hokuyo.log
+./hokuyo_hub --config ./configs/default.yaml --listen 0.0.0.0:8080 2>&1 | tee hokuyo.log
 
 # Common log patterns to monitor:
 # - "[Sensor] Connected to ..." - Sensor initialization

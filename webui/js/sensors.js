@@ -227,8 +227,8 @@ function setupAccordionItem(item, header, content, sensor) {
     const enabled = toggleSwitch.checked;
     statusBadge.textContent = enabled ? 'ON' : 'OFF';
     statusBadge.className = `status-badge ${enabled ? 'status-enabled' : 'status-disabled'}`;
-    
-    ws.enableSensor(Number(toggleSwitch.dataset.sensorId), enabled);
+
+    ws.enableSensor(toggleSwitch.dataset.sensorId, enabled);
   });
   
   // Pose input handlers with optimistic updates
@@ -255,7 +255,7 @@ function setupPoseInputs(content, sensor) {
     if (!input) return;
     
     const debouncedUpdate = debounce(() => {
-      const sensorId = Number(input.dataset.sensorId);
+      const sensorId = input.dataset.sensorId;
       const value = Number(input.value || 0);
       
       // Optimistic update: immediately update local sensor state

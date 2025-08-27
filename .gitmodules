@@ -1,9 +1,6 @@
 [submodule "external/urg_library"]
 	path = external/urg_library
 	url = https://github.com/UrgNetwork/urg_library
-[submodule "external/drogon"]
-	path = external/drogon
-	url = https://github.com/drogonframework/drogon
 [submodule "external/yaml-cpp"]
 	path = external/yaml-cpp
 	url = https://github.com/jbeder/yaml-cpp

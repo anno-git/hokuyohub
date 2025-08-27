@@ -47,7 +47,7 @@ This document serves as the main entry point for building HokuyoHub across all s
 brew install cmake
 
 # Optional: Install system dependencies
-brew install yaml-cpp drogon
+brew install yaml-cpp
 ```
 
 ### Cross-Compilation (Raspberry Pi 5)
@@ -152,12 +152,12 @@ All builds follow a consistent platform-specific directory structure:
 dist/
 ├── darwin-arm64/           # macOS ARM64 builds
 │   ├── hokuyo_hub         # Main executable
-│   ├── config/            # Configuration files
+│   ├── configs/            # Configuration files
 │   ├── webui/             # Web interface
 │   └── README.md          # Platform-specific docs
 └── linux-arm64/           # Linux ARM64 builds
     ├── hokuyo_hub         # Main executable (ARM64)
-    ├── config/            # Configuration files
+    ├── configs/            # Configuration files
     ├── webui/             # Web interface
     └── README.md          # Platform-specific docs
 ```
@@ -182,7 +182,7 @@ cmake -DDEPS_MODE=bundled ..
 ```
 
 ### Key Dependencies
-- **Drogon** - Web framework (built from source)
+- **CrowCpp** - Lightweight header-only web framework
 - **yaml-cpp** - Configuration parsing
 - **NNG** - High-performance messaging
 - **URG Library** - Hokuyo sensor communication
@@ -273,7 +273,7 @@ New to HokuyoHub? Start here:
 
 After building HokuyoHub:
 
-1. **Configure sensors** - Edit [`config/default.yaml`](config/default.yaml)
+1. **Configure sensors** - Edit [`configs/default.yaml`](configs/default.yaml)
 2. **Start the application** - Run `./hokuyo_hub` from the dist directory
 3. **Open web interface** - Navigate to `http://localhost:8080`
 4. **Read the documentation** - Check the main [`README.md`](README.md) for usage guide

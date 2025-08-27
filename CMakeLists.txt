@@ -81,7 +81,7 @@ install(TARGETS hokuyo_hub
 
 # 設定ファイル（configs/ 配下を丸ごと）
 install(DIRECTORY ${CMAKE_SOURCE_DIR}/configs/
-        DESTINATION config
+        DESTINATION configs
         FILES_MATCHING PATTERN "*")
 
 # WebUI（webui/ 配下を丸ごと）

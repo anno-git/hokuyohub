@@ -104,7 +104,7 @@ The Docker build uses a 3-stage approach:
 ```
 dist/darwin-arm64/Release/
 ├── hokuyo_hub                 # Main executable
-├── config/default.yaml       # Configuration
+├── configs/default.yaml       # Configuration
 └── webui/                     # Web interface
 ```
 
@@ -112,7 +112,7 @@ dist/darwin-arm64/Release/
 ```
 dist/linux-arm64/
 ├── hokuyo_hub                 # ARM64 executable (2.98MB)
-├── config/default.yaml       # Configuration
+├── configs/default.yaml       # Configuration
 ├── webui/                     # Web interface (17 files)
 ├── README.md                  # Deployment instructions
 ├── MANIFEST.txt               # File inventory
@@ -134,7 +134,7 @@ libyaml-cpp0.7 libnng1 libssl3 libjsoncpp25 libbrotli1 libuuid1
 ```
 
 ### Third-Party Libraries
-- **CrowCpp**: Modern header-only HTTP framework (replaces Drogon for faster builds)
+- **CrowCpp**: Modern header-only HTTP framework (replaces the previous web framework for faster builds)
 - **URG Library**: Hokuyo sensor interface (rebuilt for target platform)
 - **yaml-cpp**: YAML configuration parsing
 - **NNG**: High-performance messaging library
@@ -254,7 +254,7 @@ docker run -p 8080:8080 -p 8081:8081 hokuyo-hub:latest
 ## Performance
 
 ### Build Times (Improved with CrowCpp Migration)
-- **macOS Native**: ~1-3 minutes (previously ~2-5 with Drogon)
+- **macOS Native**: ~1-3 minutes (previously ~2-5 with the previous web framework)
 - **Docker Cross-compilation**: ~3-6 minutes (with cache, previously ~5-10)
 - **Docker Clean Build**: ~8-12 minutes (previously ~15-20)
 

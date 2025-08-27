@@ -6,7 +6,7 @@ This guide covers advanced build configurations, performance optimizations, and 
 
 ## 🌟 CrowCpp Migration Benefits
 
-HokuyoHub now uses **CrowCpp** instead of Drogon, delivering significant build and performance improvements:
+HokuyoHub now uses **CrowCpp** instead of the previous web framework, delivering significant build and performance improvements:
 
 - **⚡ Faster Builds**: Header-only design eliminates framework compilation time
 - **🪶 Simplified Dependencies**: No complex web framework dependencies to manage
@@ -304,7 +304,7 @@ sudo sysctl -p
 **Application-Level Tuning:**
 
 ```yaml
-# config/performance.yaml
+# configs/performance.yaml
 sensors:
   - id: "high_performance_sensor"
     skip_step: 1          # No downsampling
@@ -362,7 +362,7 @@ cmake \
 
 # Run with ASAN options
 export ASAN_OPTIONS=verbosity=1:halt_on_error=1:check_initialization_order=1
-./hokuyo_hub --config config/default.yaml
+./hokuyo_hub --config configs/default.yaml
 ```
 
 **Valgrind Integration:**
@@ -378,7 +378,7 @@ valgrind \
   --leak-check=full \
   --track-origins=yes \
   --log-file=valgrind.log \
-  ./dist/darwin-arm64/hokuyo_hub --config ./config/default.yaml
+  ./dist/darwin-arm64/hokuyo_hub --config ./configs/default.yaml
 ```
 
 ### Profiling and Benchmarking
@@ -400,7 +400,7 @@ open profile.trace
 ```bash
 # Heap profiling with jemalloc
 export MALLOC_CONF="prof:true,prof_prefix:jeprof.out"
-./hokuyo_hub --config config/default.yaml
+./hokuyo_hub --config configs/default.yaml
 
 # Generate heap profile
 jeprof --pdf ./hokuyo_hub jeprof.out.* > heap_profile.pdf
@@ -657,7 +657,7 @@ public:
 **Custom Telemetry:**
 
 ```yaml
-# config/telemetry.yaml
+# configs/telemetry.yaml
 telemetry:
   enabled: true
   endpoint: "http://telemetry.example.com"
@@ -673,7 +673,7 @@ telemetry:
 ### High-Performance Template
 
 ```yaml
-# config/high-performance.yaml
+# configs/high-performance.yaml
 sensors:
   - id: "perf_sensor"
     type: "hokuyo_urg_eth"
@@ -704,7 +704,7 @@ performance:
 ### Low-Latency Template
 
 ```yaml
-# config/low-latency.yaml
+# configs/low-latency.yaml
 sensors:
   - id: "latency_sensor"
     type: "hokuyo_urg_eth"
@@ -734,7 +734,7 @@ sinks:
 ### Resource-Constrained Template
 
 ```yaml
-# config/resource-constrained.yaml
+# configs/resource-constrained.yaml
 sensors:
   - id: "constrained_sensor"
     type: "hokuyo_urg_eth"

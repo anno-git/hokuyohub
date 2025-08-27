@@ -5,7 +5,7 @@
 ### macOS Build (Recommended)
 ```bash
 # Prerequisites: Homebrew with dependencies installed
-brew install drogon yaml-cpp nng
+brew install the-previous-web-framework yaml-cpp nng
 
 # Build
 rm -rf build/darwin-arm64
@@ -39,7 +39,6 @@ cmake --preset rpi-release -DDEPS_MODE=bundled -DHOKUYO_NNG_ENABLE=OFF
 - `bundled` - Use local bundled dependencies
 
 ### Per-Dependency Overrides
-- `-DDEPS_DROGON=system|fetch|bundled`
 - `-DDEPS_YAMLCPP=system|fetch|bundled`
 - `-DDEPS_URG=system|bundled`
 - `-DDEPS_NNG=system|fetch`
@@ -64,7 +63,7 @@ cmake --preset rpi-release -DDEPS_MODE=bundled -DHOKUYO_NNG_ENABLE=OFF
 cmake --preset mac-release -DDEPS_YAMLCPP=system
 
 # Missing Homebrew dependencies
-brew install drogon yaml-cpp nng
+brew install the-previous-web-framework yaml-cpp nng
 ```
 
 ### Cross-Compilation Issues
@@ -85,7 +84,6 @@ brew install musl-cross
 -- === Hokuyo Hub Dependency Resolution ===
 -- Global DEPS_MODE: auto
 -- Cross-compiling: FALSE
--- Auto-selected system Drogon package
 -- Using override mode 'system' for yaml-cpp
 -- Auto-selected bundled urg_library via ExternalProject
 -- Auto-selected system nng library (manual)

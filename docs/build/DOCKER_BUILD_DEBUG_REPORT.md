@@ -6,9 +6,9 @@ This document details the systematic debugging process and solutions implemented
 
 ## 🌟 CrowCpp Migration Impact
 
-**Migration Status**: HokuyoHub has migrated from Drogon to **CrowCpp**, significantly simplifying the Docker build process:
+**Migration Status**: HokuyoHub has migrated from the previous web framework to **CrowCpp**, significantly simplifying the Docker build process:
 
-- **⚡ Eliminated Framework Compilation**: Many Drogon-specific build issues are now resolved
+- **⚡ Eliminated Framework Compilation**: Many the previous web framework-specific build issues are now resolved
 - **🔧 Simplified Build Process**: Header-only design removes complex dependency management
 - **🚀 Faster Builds**: Reduced build times and fewer potential failure points
 - **📈 Improved Reliability**: More predictable builds with fewer external dependencies
@@ -21,7 +21,7 @@ During Phase 2 script reorganization, multiple critical issues were discovered i
 
 ### 1. GCC Compiler Strictness Issue (RESOLVED - CrowCpp Migration)
 
-**Problem**: `-Werror=restrict` flag causing build failures in Drogon framework examples.
+**Problem**: `-Werror=restrict` flag causing build failures in the previous web framework framework examples.
 
 **Status**: **✅ RESOLVED** - CrowCpp is header-only and doesn't trigger these compiler warnings.
 
@@ -130,7 +130,7 @@ The build system uses a 3-stage Docker approach:
 ### Key Build Features
 
 - **URG Library Cross-Compilation**: Rebuilds URG library from source for correct architecture
-- **CrowCpp Header-Only Integration**: No complex web framework compilation required (replaced Drogon)
+- **CrowCpp Header-Only Integration**: No complex web framework compilation required (replaced the previous web framework)
 - **System Library Integration**: Uses system libraries for yaml-cpp and nng for efficiency
 - **Comprehensive Verification**: Includes binary verification with `file` and `ldd` commands
 

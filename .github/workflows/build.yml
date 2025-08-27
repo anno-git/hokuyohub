@@ -88,7 +88,7 @@ jobs:
       run: |
         echo "::group::Start Test Container (CrowCpp Fast Startup)"
         # Start the runtime container for testing
-        # CrowCpp applications start faster than Drogon-based ones
+        # CrowCpp applications start quickly
         docker run -d --name test-container -p 8080:8080 \
           hokuyohub:runtime-latest || echo "Container start failed, continuing..."
         # Reduced startup time thanks to CrowCpp's efficiency

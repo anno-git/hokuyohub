@@ -2,11 +2,11 @@
 
 ## Overview
 
-This directory contains the Docker-based build system for Hokuyo Hub targeting ARM64 Linux (Raspberry Pi 5). The build system has been migrated from Drogon to CrowCpp, resulting in significantly faster build times and reduced complexity. The system follows the established platform-specific directory structure pattern.
+This directory contains the Docker-based build system for Hokuyo Hub targeting ARM64 Linux (Raspberry Pi 5). The build system has been migrated from the previous web framework to CrowCpp, resulting in significantly faster build times and reduced complexity. The system follows the established platform-specific directory structure pattern.
 
 ## Migration to CrowCpp
 
-The Docker build system has been updated to use CrowCpp instead of Drogon:
+The Docker build system has been updated to use CrowCpp instead of the previous web framework:
 
 - **Faster builds**: CrowCpp is header-only, eliminating the need to compile a heavy web framework
 - **Simplified dependencies**: Fewer system dependencies required
@@ -49,7 +49,7 @@ The Docker build system outputs artifacts to maintain consistency with the estab
 ls -la dist/linux-arm64/
 # Expected:
 # - hokuyo_hub (ARM64 Linux binary)
-# - config/ (configuration files)
+# - configs/ (configuration files)
 # - webui/ (web interface files)
 # - README.md (distribution documentation)
 ```
@@ -163,7 +163,7 @@ docker rm temp-extract
 ```
 dist/linux-arm64/
 ├── hokuyo_hub              # Main ARM64 binary
-├── config/                 # Configuration files
+├── configs/                 # Configuration files
 │   └── default.yaml
 ├── webui/                  # Web interface files
 │   ├── index.html
@@ -314,5 +314,5 @@ chmod +x hokuyo_hub
 **Last Updated**: 2025-08-27
 **Target Platform**: linux/arm64 (Raspberry Pi 5)
 **Build System**: Docker Multi-stage with Debian Bookworm (CrowCpp)
-**Web Framework**: CrowCpp (migrated from Drogon)
+**Web Framework**: CrowCpp (migrated from the previous web framework)
 **Output Structure**: `dist/linux-arm64/` (platform-specific)

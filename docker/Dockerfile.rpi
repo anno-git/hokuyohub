@@ -28,7 +28,7 @@ RUN apt-get update && apt-get install -y \
     git \
     file \
     # C++ dependencies available in Debian Bookworm
-    # CrowCpp requires minimal system dependencies compared to Drogon
+    # CrowCpp requires minimal system dependencies compared to the previous web framework
     libyaml-cpp-dev \
     libnng-dev \
     # Dependencies for CrowCpp (header-only, but needs these at runtime)

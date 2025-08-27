@@ -207,7 +207,7 @@ This document establishes the change management workflow for Phase 0 of the Hoku
 1. **Homebrew Dependencies**:
    ```bash
    brew update
-   brew upgrade drogon yaml-cpp
+   brew upgrade the-previous-web-framework yaml-cpp
    ```
 
 2. **External Dependencies**:

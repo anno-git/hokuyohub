@@ -40,7 +40,7 @@
 
 | Dependency | Mode | Source | Status |
 |------------|------|--------|--------|
-| **Drogon** | `fetch` | GitHub v1.9.1 | ✅ Downloaded and built |
+| **the previous web framework** | `fetch` | GitHub v1.9.1 | ✅ Downloaded and built |
 | **yaml-cpp** | `system` | Debian package | ✅ libyaml-cpp-dev 0.7.0 |
 | **NNG** | `system` | Debian package | ✅ libnng-dev 1.5.2 |
 | **urg_library** | `bundled` | Pre-built | ⚠️ Architecture mismatch |
@@ -50,8 +50,8 @@
 -- === Hokuyo Hub Dependency Resolution ===
 -- Global DEPS_MODE: auto
 -- Cross-compiling: FALSE
--- Using override mode 'fetch' for Drogon
--- FetchContent configured for Drogon
+-- Using override mode 'fetch' for the previous web framework
+-- FetchContent configured for the previous web framework
 -- Using override mode 'system' for yaml-cpp
 -- Using system yaml-cpp package
 -- Using override mode 'bundled' for urg_library
@@ -72,7 +72,7 @@
 
 2. **Application Build** (26.4s)
    - ✅ CMake configuration successful
-   - ✅ Drogon FetchContent download and build
+   - ✅ the previous web framework FetchContent download and build
    - ✅ 119/212 build targets completed
    - ✅ All core libraries built successfully
 
@@ -88,8 +88,8 @@ HokuyoSensorUrg.cpp:(.text+0x270): undefined reference to `urg_stop_measurement'
 **Root Cause**: Using host-built library in container
 **Solution**: Force rebuild in container environment
 
-#### 2. Drogon Example Compilation Warning
-**Issue**: GCC 12 strict warning treated as error in Drogon examples
+#### 2. the previous web framework Example Compilation Warning
+**Issue**: GCC 12 strict warning treated as error in the previous web framework examples
 ```
 error: 'void* __builtin_memcpy(...)' accessing 9223372036854775810 or more bytes
 ```
@@ -111,7 +111,7 @@ error: 'void* __builtin_memcpy(...)' accessing 9223372036854775810 or more bytes
 ### Resource Usage
 - **CPU**: Efficient ARM64 emulation on Apple Silicon
 - **Memory**: Standard Docker build requirements
-- **Network**: ~50MB downloads (Drogon source)
+- **Network**: ~50MB downloads (the previous web framework source)
 
 ## Docker Build System Assessment
 
@@ -143,7 +143,7 @@ else()
 endif()
 ```
 
-### 2. Optimize Drogon Build
+### 2. Optimize the previous web framework Build
 ```dockerfile
 # Skip examples to avoid compilation warnings
 RUN cd build/linux-arm64 && \
@@ -175,13 +175,13 @@ RUN strip hokuyo_hub  # Reduce binary size
 
 ### ✅ Dependency Management
 - [x] System packages (yaml-cpp, nng) resolved
-- [x] FetchContent (Drogon) working
+- [x] FetchContent (the previous web framework) working
 - [x] Mixed dependency modes functional
 - [x] Build configuration flexible
 
 ### ⚠️ Minor Issues
 - [ ] urg_library architecture compatibility
-- [ ] Drogon examples compilation warnings
+- [ ] the previous web framework examples compilation warnings
 - [ ] Runtime testing pending
 
 ## Conclusion
@@ -195,7 +195,7 @@ The Docker build system for Raspberry Pi is **READY FOR PRODUCTION** with minor 
 
 ### Next Steps
 1. Fix urg_library container build
-2. Optimize Drogon compilation flags
+2. Optimize the previous web framework compilation flags
 3. Complete runtime testing
 4. Implement CI/CD pipeline
 

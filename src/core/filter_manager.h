@@ -21,6 +21,9 @@ public:
     Json::Value getPostfilterConfigAsJson() const;
     Json::Value getFilterConfigAsJson() const;
     
+    void recreatePrefilter();
+    void recreatePostfilter();
+
     // Apply filters (thread-safe)
     // sid: 点群処理用の数値センサーID (0-255)
     Prefilter::FilterResult applyPrefilter(const std::vector<float>& xy, const std::vector<uint8_t>& sid);
@@ -41,9 +44,6 @@ private:
     PostfilterConfig& postfilter_config_;
     std::unique_ptr<Prefilter> prefilter_;
     std::unique_ptr<Postfilter> postfilter_;
-    
-    void recreatePrefilter();
-    void recreatePostfilter();
     
     // Helper methods to convert JSON to config structs
     PrefilterConfig jsonToPrefilterConfig(const Json::Value& json) const;

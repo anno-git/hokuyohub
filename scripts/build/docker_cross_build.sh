@@ -284,7 +284,7 @@ main() {
         print_status "$BLUE" ""
         print_status "$BLUE" "Next steps:"
         print_status "$BLUE" "1. Copy dist/linux-arm64/ to your Raspberry Pi"
-        print_status "$BLUE" "2. Run: ./hokuyo_hub --config config/default.yaml"
+        print_status "$BLUE" "2. Run: ./hokuyo_hub --config configs/default.yaml"
         print_status "$BLUE" ""
         print_status "$BLUE" "For detailed usage: docker/README.md"
     fi

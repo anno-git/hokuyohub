@@ -41,7 +41,7 @@ The HokuyoHub project currently uses a CMake-based build system with the followi
 - `rpi-base`: Placeholder for Raspberry Pi cross-compilation (references non-existent `cmake/toolchains/rpi.cmake`)
 
 **Dependencies**:
-- **Drogon**: Web framework (found via `find_package`)
+- **the previous web framework**: Web framework (found via `find_package`)
 - **yaml-cpp**: YAML parsing (found via `find_package`)
 - **urg_library**: Hokuyo sensor library (built via ExternalProject from `external/urg_library/release/urg_library-1.2.7`)
 - **Optional**: NNG (message passing), OSC (Open Sound Control)
@@ -60,7 +60,6 @@ proj/
 │       ├── common.cmake              # Shared toolchain utilities
 │       └── linux-arm64.cmake        # Linux ARM64 cross-compilation
 ├── external/                         # Third-party dependencies
-│   ├── drogon/                       # Web framework (git submodule)
 │   ├── urg_library/                  # Hokuyo sensor library
 │   └── yaml-cpp/                     # YAML parser
 ├── src/                              # Application source code

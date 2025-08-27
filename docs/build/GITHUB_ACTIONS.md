@@ -142,7 +142,7 @@ curl -L -o hokuyo-hub-deployment.tar.gz \
 tar -xzf hokuyo-hub-deployment.tar.gz
 cd release-package
 chmod +x hokuyo_hub
-./hokuyo_hub --config config/default.yaml
+./hokuyo_hub --config configs/default.yaml
 ```
 
 ## Configuration

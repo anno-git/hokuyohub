@@ -338,14 +338,14 @@ chmod +x hokuyo_hub
 **2. Test Run:**
 ```bash
 # Test with verbose output
-./hokuyo_hub --config ./config/default.yaml --listen 0.0.0.0:8080 --verbose
+./hokuyo_hub --config ./configs/default.yaml --listen 0.0.0.0:8080 --verbose
 
 # Check if it starts (Ctrl+C to stop)
 ```
 
 **3. Configure Sensors:**
 
-Edit `config/default.yaml` for your sensor setup:
+Edit `configs/default.yaml` for your sensor setup:
 ```yaml
 sensors:
   - id: "sensor1"
@@ -384,7 +384,7 @@ Wants=network-online.target
 Type=simple
 User=pi
 WorkingDirectory=/home/pi/hokuyo-hub
-ExecStart=/home/pi/hokuyo-hub/hokuyo_hub --config ./config/default.yaml --listen 0.0.0.0:8080
+ExecStart=/home/pi/hokuyo-hub/hokuyo_hub --config ./configs/default.yaml --listen 0.0.0.0:8080
 Restart=always
 RestartSec=3
 StandardOutput=journal
@@ -417,7 +417,7 @@ For development and testing:
 ```bash
 # Start in screen session
 screen -S hokuyo-hub
-./hokuyo_hub --config ./config/default.yaml --listen 0.0.0.0:8080
+./hokuyo_hub --config ./configs/default.yaml --listen 0.0.0.0:8080
 
 # Detach: Ctrl+A, D
 # Reattach: screen -r hokuyo-hub
@@ -615,7 +615,7 @@ iostat 1
 sar -n DEV 1
 
 # Log performance metrics
-./hokuyo_hub --config ./config/default.yaml --listen 0.0.0.0:8080 2>&1 | \
+./hokuyo_hub --config ./configs/default.yaml --listen 0.0.0.0:8080 2>&1 | \
 grep -E "(fps|latency|cpu)" | tee performance.log
 ```
 

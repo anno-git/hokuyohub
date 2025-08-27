@@ -28,7 +28,7 @@ cd HokuyoHub
 
 # Run HokuyoHub
 cd dist/darwin-arm64
-./hokuyo_hub --config ./config/default.yaml --listen 0.0.0.0:8080
+./hokuyo_hub --config ./configs/default.yaml --listen 0.0.0.0:8080
 ```
 
 **Open:** http://localhost:8080
@@ -56,7 +56,7 @@ sudo apt install libyaml-cpp0.7 libnng1 libssl3 zlib1g
 # Run HokuyoHub
 cd ~/hokuyo-hub
 chmod +x hokuyo_hub
-./hokuyo_hub --config ./config/default.yaml --listen 0.0.0.0:8080
+./hokuyo_hub --config ./configs/default.yaml --listen 0.0.0.0:8080
 ```
 
 **Open:** http://raspberrypi.local:8080
@@ -79,7 +79,7 @@ docker version
 
 # Run locally
 cd dist/linux-arm64
-./hokuyo_hub --config ./config/default.yaml --listen 0.0.0.0:8080
+./hokuyo_hub --config ./configs/default.yaml --listen 0.0.0.0:8080
 ```
 
 **Or run in container:**
@@ -95,8 +95,8 @@ docker run -d -p 8080:8080 --name hokuyo-hub hokuyo-hub:latest
 
 Edit the configuration file for your setup:
 
-**macOS:** [`dist/darwin-arm64/config/default.yaml`](dist/darwin-arm64/config/default.yaml)  
-**Raspberry Pi/Docker:** [`dist/linux-arm64/config/default.yaml`](dist/linux-arm64/config/default.yaml)
+**macOS:** [`dist/darwin-arm64/configs/default.yaml`](dist/darwin-arm64/configs/default.yaml)  
+**Raspberry Pi/Docker:** [`dist/linux-arm64/configs/default.yaml`](dist/linux-arm64/configs/default.yaml)
 
 ```yaml
 sensors:
@@ -126,10 +126,10 @@ ping 192.168.1.100  # Replace with your sensor IP
 ./hokuyo_hub
 
 # With custom config and listen address
-./hokuyo_hub --config ./config/default.yaml --listen 0.0.0.0:8080
+./hokuyo_hub --config ./configs/default.yaml --listen 0.0.0.0:8080
 
 # With verbose logging
-./hokuyo_hub --config ./config/default.yaml --listen 0.0.0.0:8080 --verbose
+./hokuyo_hub --config ./configs/default.yaml --listen 0.0.0.0:8080 --verbose
 ```
 
 ### 4. Access Web Interface
@@ -258,7 +258,7 @@ sensors:
 **Log Analysis:**
 ```bash
 # Run with verbose logging
-./hokuyo_hub --config ./config/default.yaml --verbose 2>&1 | tee hokuyo.log
+./hokuyo_hub --config ./configs/default.yaml --verbose 2>&1 | tee hokuyo.log
 
 # Monitor for key messages:
 # - "[Sensor] Connected to ..." - Successful connection

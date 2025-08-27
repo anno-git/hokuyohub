@@ -14,13 +14,13 @@ Successfully completed the Docker-based build system for Hokuyo Hub targeting AR
 ### Phase 2: Build System Fixes ✅
 - **Issue Identified**: URG library contained macOS Mach-O objects instead of Linux ELF
 - **Solution Implemented**: Created [`docker/Dockerfile.rpi.rebuild`](../docker/Dockerfile.rpi.rebuild) with URG library rebuild
-- **Drogon Issues**: Resolved compiler warnings by disabling examples and tests
+- **the previous web framework Issues**: Resolved compiler warnings by disabling examples and tests
 
 ### Phase 3: Successful Docker Build ✅
 - **Platform**: linux/arm64 (Raspberry Pi 5 compatible)
 - **Build Strategy**: Multi-stage Docker build with dependency optimization
 - **URG Library**: Successfully rebuilt from source for ARM64 Linux
-- **Drogon Framework**: Built from source (v1.9.1) with FetchContent
+- **the previous web framework Framework**: Built from source (v1.9.1) with FetchContent
 - **Final Binary**: ARM64 Linux executable with all dependencies
 
 ## Build Configuration
@@ -30,11 +30,11 @@ Successfully completed the Docker-based build system for Hokuyo Hub targeting AR
 # Stage 1: Build Dependencies (Debian Bookworm)
 - build-essential, cmake, ninja-build
 - libyaml-cpp-dev, libnng-dev, libssl-dev
-- System libraries for Drogon dependencies
+- System libraries for the previous web framework dependencies
 
 # Stage 2: Application Build
 - URG library rebuild for ARM64 Linux
-- Drogon framework from source (FetchContent)
+- the previous web framework framework from source (FetchContent)
 - Main application compilation
 - Installation to staging area
 
@@ -47,7 +47,6 @@ Successfully completed the Docker-based build system for Hokuyo Hub targeting AR
 ### Dependency Resolution
 ```cmake
 DEPS_MODE=auto
-DEPS_DROGON=fetch      # Build from source (v1.9.1)
 DEPS_YAMLCPP=system    # Use Debian package
 DEPS_NNG=system        # Use Debian package  
 DEPS_URG=bundled       # Rebuild from source
@@ -67,7 +66,7 @@ USE_OSC=ON             # Enable OSC support
 ```
 /staging/opt/hokuyo-hub/
 ├── hokuyo_hub              # Main ARM64 binary
-├── config/                 # Configuration files
+├── configs/                 # Configuration files
 │   └── default.yaml
 ├── webui/                  # Web UI files
 │   ├── index.html
@@ -86,9 +85,7 @@ USE_OSC=ON             # Enable OSC support
 │       ├── types.js
 │       ├── utils.js
 │       └── ws.js
-└── bin/                    # Drogon tools
-    ├── drogon_ctl
-    └── dg_ctl
+└── bin/                    # Build tools
 ```
 
 ## Extraction Process
@@ -113,7 +110,7 @@ Features:
 ```
 dist/linux-arm64/          # Platform-specific directory structure
 ├── hokuyo_hub              # ARM64 Linux binary (~2-5MB)
-├── config/                 # Configuration files
+├── configs/                 # Configuration files
 │   └── default.yaml
 ├── webui/                  # Web UI assets
 │   ├── index.html
@@ -139,7 +136,7 @@ Following the established pattern:
 
 ### 2. Dependency Resolution
 - **URG Library**: Successfully rebuilt from C source for ARM64 Linux
-- **Drogon Framework**: Built from source with all dependencies
+- **the previous web framework Framework**: Built from source with all dependencies
 - **System Libraries**: Properly linked Debian packages
 - **Static Linking**: Reduced runtime dependencies
 
@@ -217,7 +214,7 @@ sudo systemctl start hokuyo-hub
 ## Performance Metrics
 
 ### Build Performance
-- **Total Build Time**: ~30-45 minutes (including Drogon compilation)
+- **Total Build Time**: ~30-45 minutes (including the previous web framework compilation)
 - **URG Library Rebuild**: ~2 minutes
 - **Main Application**: ~5 minutes
 - **Docker Layer Caching**: Reduces subsequent builds to ~10 minutes

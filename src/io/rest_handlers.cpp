@@ -610,7 +610,7 @@ crow::response RestApi::putDbscan(const crow::request& req) {
     
     bool updated = false;
     
-    // Validate and update DBSCAN configuration (simplified for demo)
+    // Validate and update eps_norm
     if (config.isMember("eps_norm")) {
       float eps_norm = config["eps_norm"].asFloat();
       if (eps_norm < 0.1f || eps_norm > 10.0f) {
@@ -622,6 +622,96 @@ crow::response RestApi::putDbscan(const crow::request& req) {
         return resp;
       }
       config_.dbscan.eps_norm = eps_norm;
+      updated = true;
+    }
+    
+    // Validate and update minPts
+    if (config.isMember("minPts")) {
+      int minPts = config["minPts"].asInt();
+      if (minPts < 1 || minPts > 100) {
+        Json::Value error;
+        error["error"] = "config_invalid";
+        error["message"] = "minPts must be between 1 and 100";
+        crow::response resp(400, error.toStyledString());
+        resp.add_header("Content-Type", "application/json");
+        return resp;
+      }
+      config_.dbscan.minPts = minPts;
+      updated = true;
+    }
+    
+    // Validate and update k_scale
+    if (config.isMember("k_scale")) {
+      float k_scale = config["k_scale"].asFloat();
+      if (k_scale < 0.1f || k_scale > 10.0f) {
+        Json::Value error;
+        error["error"] = "config_invalid";
+        error["message"] = "k_scale must be between 0.1 and 10.0";
+        crow::response resp(400, error.toStyledString());
+        resp.add_header("Content-Type", "application/json");
+        return resp;
+      }
+      config_.dbscan.k_scale = k_scale;
+      updated = true;
+    }
+    
+    // Validate and update h_min
+    if (config.isMember("h_min")) {
+      float h_min = config["h_min"].asFloat();
+      if (h_min < 0.001f || h_min > config_.dbscan.h_max) {
+        Json::Value error;
+        error["error"] = "config_invalid";
+        error["message"] = "h_min must be between 0.001 and h_max";
+        crow::response resp(400, error.toStyledString());
+        resp.add_header("Content-Type", "application/json");
+        return resp;
+      }
+      config_.dbscan.h_min = h_min;
+      updated = true;
+    }
+    
+    // Validate and update h_max
+    if (config.isMember("h_max")) {
+      float h_max = config["h_max"].asFloat();
+      if (h_max < config_.dbscan.h_min || h_max > 1.0f) {
+        Json::Value error;
+        error["error"] = "config_invalid";
+        error["message"] = "h_max must be between h_min and 1.0";
+        crow::response resp(400, error.toStyledString());
+        resp.add_header("Content-Type", "application/json");
+        return resp;
+      }
+      config_.dbscan.h_max = h_max;
+      updated = true;
+    }
+    
+    // Validate and update R_max
+    if (config.isMember("R_max")) {
+      int R_max = config["R_max"].asInt();
+      if (R_max < 1 || R_max > 50) {
+        Json::Value error;
+        error["error"] = "config_invalid";
+        error["message"] = "R_max must be between 1 and 50";
+        crow::response resp(400, error.toStyledString());
+        resp.add_header("Content-Type", "application/json");
+        return resp;
+      }
+      config_.dbscan.R_max = R_max;
+      updated = true;
+    }
+    
+    // Validate and update M_max
+    if (config.isMember("M_max")) {
+      int M_max = config["M_max"].asInt();
+      if (M_max < 10 || M_max > 5000) {
+        Json::Value error;
+        error["error"] = "config_invalid";
+        error["message"] = "M_max must be between 10 and 5000";
+        crow::response resp(400, error.toStyledString());
+        resp.add_header("Content-Type", "application/json");
+        return resp;
+      }
+      config_.dbscan.M_max = M_max;
       updated = true;
     }
     
@@ -658,37 +748,354 @@ crow::response RestApi::putDbscan(const crow::request& req) {
   }
 }
 
-// Placeholder implementations for remaining endpoints
+// Sinks endpoints
 crow::response RestApi::getSinks() {
-  Json::Value result;
-  result["message"] = "Sinks endpoint - implemented similar to Drogon version";
-  crow::response resp(200, result.toStyledString());
-  resp.add_header("Content-Type", "application/json");
-  return resp;
+  try {
+    Json::Value result(Json::arrayValue);
+    
+    for (size_t i = 0; i < config_.sinks.size(); ++i) {
+      const auto& sink = config_.sinks[i];
+      Json::Value sinkJson;
+      
+      sinkJson["index"] = static_cast<int>(i);
+      sinkJson["topic"] = sink.topic;
+      sinkJson["rate_limit"] = sink.rate_limit;
+      
+      if (sink.isOsc()) {
+        sinkJson["type"] = "osc";
+        sinkJson["url"] = sink.osc().url;
+        sinkJson["in_bundle"] = sink.osc().in_bundle;
+        sinkJson["bundle_fragment_size"] = static_cast<Json::UInt64>(sink.osc().bundle_fragment_size);
+      } else if (sink.isNng()) {
+        sinkJson["type"] = "nng";
+        sinkJson["url"] = sink.nng().url;
+        sinkJson["encoding"] = sink.nng().encoding;
+      }
+      
+      result.append(sinkJson);
+    }
+    
+    crow::response resp(200, result.toStyledString());
+    resp.add_header("Content-Type", "application/json");
+    return resp;
+  } catch (const std::exception& e) {
+    Json::Value error;
+    error["error"] = "internal_error";
+    error["message"] = e.what();
+    crow::response resp(500, error.toStyledString());
+    resp.add_header("Content-Type", "application/json");
+    return resp;
+  }
 }
 
 crow::response RestApi::postSink(const crow::request& req) {
-  Json::Value result;
-  result["message"] = "Post sink endpoint - implemented similar to Drogon version";
-  crow::response resp(200, result.toStyledString());
-  resp.add_header("Content-Type", "application/json");
-  return resp;
+  if (!authorize(req)) {
+    return sendUnauthorized();
+  }
+  
+  try {
+    Json::CharReaderBuilder builder;
+    Json::Value sinkData;
+    std::string errs;
+    std::istringstream stream(req.body);
+    
+    if (!Json::parseFromStream(builder, stream, &sinkData, &errs)) {
+      Json::Value error;
+      error["error"] = "invalid_json";
+      error["message"] = "Invalid JSON in request body";
+      crow::response resp(400, error.toStyledString());
+      resp.add_header("Content-Type", "application/json");
+      return resp;
+    }
+    
+    // Validate required fields
+    if (!sinkData.isMember("type") || !sinkData["type"].isString()) {
+      Json::Value error;
+      error["error"] = "missing_field";
+      error["message"] = "Missing required field: type";
+      crow::response resp(400, error.toStyledString());
+      resp.add_header("Content-Type", "application/json");
+      return resp;
+    }
+    
+    if (!sinkData.isMember("url") || !sinkData["url"].isString()) {
+      Json::Value error;
+      error["error"] = "missing_field";
+      error["message"] = "Missing required field: url";
+      crow::response resp(400, error.toStyledString());
+      resp.add_header("Content-Type", "application/json");
+      return resp;
+    }
+    
+    std::string type = sinkData["type"].asString();
+    std::string url = sinkData["url"].asString();
+    
+    if (type != "nng" && type != "osc") {
+      Json::Value error;
+      error["error"] = "invalid_type";
+      error["message"] = "Sink type must be 'nng' or 'osc'";
+      crow::response resp(400, error.toStyledString());
+      resp.add_header("Content-Type", "application/json");
+      return resp;
+    }
+    
+    // Validate URL format
+    if (type == "nng" && url.find("tcp://") != 0) {
+      Json::Value error;
+      error["error"] = "invalid_url";
+      error["message"] = "NNG sink URL must start with 'tcp://'";
+      crow::response resp(400, error.toStyledString());
+      resp.add_header("Content-Type", "application/json");
+      return resp;
+    }
+    
+    if (type == "osc" && url.find("osc://") != 0) {
+      Json::Value error;
+      error["error"] = "invalid_url";
+      error["message"] = "OSC sink URL must start with 'osc://'";
+      crow::response resp(400, error.toStyledString());
+      resp.add_header("Content-Type", "application/json");
+      return resp;
+    }
+    
+    // Create new sink configuration
+    SinkConfig newSink;
+    newSink.topic = sinkData.get("topic", "clusters").asString();
+    newSink.rate_limit = sinkData.get("rate_limit", 0).asInt();
+    
+    if (type == "osc") {
+      OscConfig osc;
+      osc.url = url;
+      osc.in_bundle = sinkData.get("in_bundle", false).asBool();
+      osc.bundle_fragment_size = sinkData.get("bundle_fragment_size", 0).asUInt64();
+      newSink.cfg = osc;
+    } else if (type == "nng") {
+      NngConfig nng;
+      nng.url = url;
+      nng.encoding = sinkData.get("encoding", "msgpack").asString();
+      
+      if (nng.encoding != "msgpack" && nng.encoding != "json") {
+        Json::Value error;
+        error["error"] = "invalid_encoding";
+        error["message"] = "NNG encoding must be 'msgpack' or 'json'";
+        crow::response resp(400, error.toStyledString());
+        resp.add_header("Content-Type", "application/json");
+        return resp;
+      }
+      
+      newSink.cfg = nng;
+    }
+    
+    // Add to configuration
+    config_.sinks.push_back(newSink);
+    
+    // Apply runtime configuration
+    applySinksRuntime();
+    
+    // Notify WebSocket clients
+    if (ws_) {
+      ws_->broadcastSnapshot();
+    }
+    
+    // Return created sink with index
+    Json::Value result;
+    result["index"] = static_cast<int>(config_.sinks.size() - 1);
+    result["type"] = type;
+    result["url"] = url;
+    result["topic"] = newSink.topic;
+    result["rate_limit"] = newSink.rate_limit;
+    result["message"] = "Sink added successfully";
+    
+    crow::response resp(201, result.toStyledString());
+    resp.add_header("Content-Type", "application/json");
+    return resp;
+  } catch (const std::exception& e) {
+    Json::Value error;
+    error["error"] = "internal_error";
+    error["message"] = e.what();
+    crow::response resp(500, error.toStyledString());
+    resp.add_header("Content-Type", "application/json");
+    return resp;
+  }
 }
 
 crow::response RestApi::patchSink(int index, const crow::request& req) {
-  Json::Value result;
-  result["message"] = "Patch sink endpoint - implemented similar to Drogon version";
-  crow::response resp(200, result.toStyledString());
-  resp.add_header("Content-Type", "application/json");
-  return resp;
+  if (!authorize(req)) {
+    return sendUnauthorized();
+  }
+  
+  try {
+    if (index < 0 || index >= static_cast<int>(config_.sinks.size())) {
+      Json::Value error;
+      error["error"] = "not_found";
+      error["message"] = "Sink not found";
+      crow::response resp(404, error.toStyledString());
+      resp.add_header("Content-Type", "application/json");
+      return resp;
+    }
+    
+    Json::CharReaderBuilder builder;
+    Json::Value patch;
+    std::string errs;
+    std::istringstream stream(req.body);
+    
+    if (!Json::parseFromStream(builder, stream, &patch, &errs)) {
+      Json::Value error;
+      error["error"] = "invalid_json";
+      error["message"] = "Invalid JSON in request body";
+      crow::response resp(400, error.toStyledString());
+      resp.add_header("Content-Type", "application/json");
+      return resp;
+    }
+    
+    auto& sink = config_.sinks[index];
+    bool updated = false;
+    
+    // Update basic fields
+    if (patch.isMember("topic") && patch["topic"].isString()) {
+      sink.topic = patch["topic"].asString();
+      updated = true;
+    }
+    
+    if (patch.isMember("rate_limit") && patch["rate_limit"].isInt()) {
+      sink.rate_limit = patch["rate_limit"].asInt();
+      updated = true;
+    }
+    
+    // Update type-specific fields
+    if (patch.isMember("url") && patch["url"].isString()) {
+      std::string url = patch["url"].asString();
+      
+      if (sink.isOsc()) {
+        if (url.find("osc://") != 0) {
+          Json::Value error;
+          error["error"] = "invalid_url";
+          error["message"] = "OSC sink URL must start with 'osc://'";
+          crow::response resp(400, error.toStyledString());
+          resp.add_header("Content-Type", "application/json");
+          return resp;
+        }
+        sink.osc().url = url;
+        updated = true;
+      } else if (sink.isNng()) {
+        if (url.find("tcp://") != 0) {
+          Json::Value error;
+          error["error"] = "invalid_url";
+          error["message"] = "NNG sink URL must start with 'tcp://'";
+          crow::response resp(400, error.toStyledString());
+          resp.add_header("Content-Type", "application/json");
+          return resp;
+        }
+        sink.nng().url = url;
+        updated = true;
+      }
+    }
+    
+    if (sink.isOsc()) {
+      if (patch.isMember("in_bundle") && patch["in_bundle"].isBool()) {
+        sink.osc().in_bundle = patch["in_bundle"].asBool();
+        updated = true;
+      }
+      
+      if (patch.isMember("bundle_fragment_size") && patch["bundle_fragment_size"].isUInt64()) {
+        sink.osc().bundle_fragment_size = patch["bundle_fragment_size"].asUInt64();
+        updated = true;
+      }
+    } else if (sink.isNng()) {
+      if (patch.isMember("encoding") && patch["encoding"].isString()) {
+        std::string encoding = patch["encoding"].asString();
+        if (encoding != "msgpack" && encoding != "json") {
+          Json::Value error;
+          error["error"] = "invalid_encoding";
+          error["message"] = "NNG encoding must be 'msgpack' or 'json'";
+          crow::response resp(400, error.toStyledString());
+          resp.add_header("Content-Type", "application/json");
+          return resp;
+        }
+        sink.nng().encoding = encoding;
+        updated = true;
+      }
+    }
+    
+    if (updated) {
+      // Apply runtime configuration
+      applySinksRuntime();
+      
+      // Notify WebSocket clients
+      if (ws_) {
+        ws_->broadcastSnapshot();
+      }
+    }
+    
+    // Return updated sink
+    Json::Value result;
+    result["index"] = index;
+    result["topic"] = sink.topic;
+    result["rate_limit"] = sink.rate_limit;
+    
+    if (sink.isOsc()) {
+      result["type"] = "osc";
+      result["url"] = sink.osc().url;
+      result["in_bundle"] = sink.osc().in_bundle;
+      result["bundle_fragment_size"] = static_cast<Json::UInt64>(sink.osc().bundle_fragment_size);
+    } else if (sink.isNng()) {
+      result["type"] = "nng";
+      result["url"] = sink.nng().url;
+      result["encoding"] = sink.nng().encoding;
+    }
+    
+    result["message"] = "Sink updated successfully";
+    
+    crow::response resp(200, result.toStyledString());
+    resp.add_header("Content-Type", "application/json");
+    return resp;
+  } catch (const std::exception& e) {
+    Json::Value error;
+    error["error"] = "internal_error";
+    error["message"] = e.what();
+    crow::response resp(500, error.toStyledString());
+    resp.add_header("Content-Type", "application/json");
+    return resp;
+  }
 }
 
 crow::response RestApi::deleteSink(int index) {
-  Json::Value result;
-  result["message"] = "Delete sink endpoint - implemented similar to Drogon version";
-  crow::response resp(200, result.toStyledString());
-  resp.add_header("Content-Type", "application/json");
-  return resp;
+  try {
+    if (index < 0 || index >= static_cast<int>(config_.sinks.size())) {
+      Json::Value error;
+      error["error"] = "not_found";
+      error["message"] = "Sink not found";
+      crow::response resp(404, error.toStyledString());
+      resp.add_header("Content-Type", "application/json");
+      return resp;
+    }
+    
+    // Remove sink from configuration
+    config_.sinks.erase(config_.sinks.begin() + index);
+    
+    // Apply runtime configuration
+    applySinksRuntime();
+    
+    // Notify WebSocket clients
+    if (ws_) {
+      ws_->broadcastSnapshot();
+    }
+    
+    Json::Value result;
+    result["index"] = index;
+    result["message"] = "Sink deleted successfully";
+    
+    crow::response resp(200, result.toStyledString());
+    resp.add_header("Content-Type", "application/json");
+    return resp;
+  } catch (const std::exception& e) {
+    Json::Value error;
+    error["error"] = "internal_error";
+    error["message"] = e.what();
+    crow::response resp(500, error.toStyledString());
+    resp.add_header("Content-Type", "application/json");
+    return resp;
+  }
 }
 
 crow::response RestApi::getSnapshot() {
@@ -717,43 +1124,390 @@ crow::response RestApi::getSnapshot() {
 }
 
 crow::response RestApi::getConfigsList(const crow::request& req) {
-  Json::Value result;
-  result["message"] = "Configs list endpoint - implemented similar to Drogon version";
-  crow::response resp(200, result.toStyledString());
-  resp.add_header("Content-Type", "application/json");
-  return resp;
+  try {
+    Json::Value result(Json::arrayValue);
+    
+    // List all .yaml files in the configs directory
+    const std::string configsDir = "configs";
+    if (!std::filesystem::exists(configsDir)) {
+      Json::Value error;
+      error["error"] = "configs_dir_not_found";
+      error["message"] = "Configuration directory not found";
+      crow::response resp(404, error.toStyledString());
+      resp.add_header("Content-Type", "application/json");
+      return resp;
+    }
+    
+    for (const auto& entry : std::filesystem::directory_iterator(configsDir)) {
+      if (entry.is_regular_file() && entry.path().extension() == ".yaml") {
+        Json::Value configFile;
+        configFile["name"] = entry.path().stem().string();
+        configFile["filename"] = entry.path().filename().string();
+        configFile["path"] = entry.path().string();
+        
+        // Get file size and modification time
+        auto filesize = std::filesystem::file_size(entry.path());
+        configFile["size"] = static_cast<Json::UInt64>(filesize);
+        
+        auto ftime = std::filesystem::last_write_time(entry.path());
+        auto sctp = std::chrono::time_point_cast<std::chrono::system_clock::duration>(
+          ftime - std::filesystem::file_time_type::clock::now() + std::chrono::system_clock::now()
+        );
+        auto time_t = std::chrono::system_clock::to_time_t(sctp);
+        configFile["modified"] = static_cast<Json::Int64>(time_t);
+        
+        result.append(configFile);
+      }
+    }
+    
+    crow::response resp(200, result.toStyledString());
+    resp.add_header("Content-Type", "application/json");
+    return resp;
+  } catch (const std::exception& e) {
+    Json::Value error;
+    error["error"] = "internal_error";
+    error["message"] = e.what();
+    crow::response resp(500, error.toStyledString());
+    resp.add_header("Content-Type", "application/json");
+    return resp;
+  }
 }
 
 crow::response RestApi::postConfigsLoad(const crow::request& req) {
-  Json::Value result;
-  result["message"] = "Load configs endpoint - implemented similar to Drogon version";
-  crow::response resp(200, result.toStyledString());
-  resp.add_header("Content-Type", "application/json");
-  return resp;
+  if (!authorize(req)) {
+    return sendUnauthorized();
+  }
+  
+  try {
+    Json::CharReaderBuilder builder;
+    Json::Value requestData;
+    std::string errs;
+    std::istringstream stream(req.body);
+    
+    if (!Json::parseFromStream(builder, stream, &requestData, &errs)) {
+      Json::Value error;
+      error["error"] = "invalid_json";
+      error["message"] = "Invalid JSON in request body";
+      crow::response resp(400, error.toStyledString());
+      resp.add_header("Content-Type", "application/json");
+      return resp;
+    }
+
+    const std::string filename_name = "name";
+    
+    if (!requestData.isMember(filename_name) || !requestData[filename_name].isString()) {
+      Json::Value error;
+      error["error"] = "missing_field";
+      error["message"] = "Missing required field: " + filename_name;
+      crow::response resp(400, error.toStyledString());
+      resp.add_header("Content-Type", "application/json");
+      return resp;
+    }
+
+    std::string filename = requestData[filename_name].asString();
+
+    // Validate filename to prevent path traversal attacks
+    if (filename.find("..") != std::string::npos ||
+        filename.find("/") != std::string::npos ||
+        filename.find("\\") != std::string::npos ||
+        filename.empty()) {
+      Json::Value error;
+      error["error"] = "invalid_filename";
+      error["message"] = "Invalid filename. Only simple filenames without path separators are allowed";
+      crow::response resp(400, error.toStyledString());
+      resp.add_header("Content-Type", "application/json");
+      return resp;
+    }
+    
+    // Ensure .yaml extension
+    if (!filename.ends_with(".yaml")) {
+      filename += ".yaml";
+    }
+    
+    std::string configPath = "configs/" + filename;
+    
+    // Check if file exists
+    if (!std::filesystem::exists(configPath)) {
+      Json::Value error;
+      error["error"] = "file_not_found";
+      error["message"] = "Configuration file not found: " + filename;
+      crow::response resp(404, error.toStyledString());
+      resp.add_header("Content-Type", "application/json");
+      return resp;
+    }
+    
+    // Load the configuration
+    try {
+      AppConfig newConfig = load_app_config(configPath);
+      config_ = newConfig;
+      
+      // Apply the configuration to runtime systems
+      sensors_.reloadFromAppConfig();
+      filters_.recreatePrefilter();
+      filters_.recreatePostfilter();
+      dbscan_.setParams(config_.dbscan.eps_norm, config_.dbscan.minPts);
+      dbscan_.setAngularScale(config_.dbscan.k_scale);
+      dbscan_.setPerformanceParams(config_.dbscan.h_min, config_.dbscan.h_max,
+                                   config_.dbscan.R_max, config_.dbscan.M_max);
+      applySinksRuntime();
+      
+      // Notify WebSocket clients of configuration change
+      if (ws_) {
+        ws_->broadcastSnapshot();
+      }
+      
+      Json::Value result;
+      result["message"] = "Configuration loaded successfully";
+      result["filename"] = filename;
+      result["loaded_at"] = static_cast<Json::Int64>(std::chrono::system_clock::to_time_t(std::chrono::system_clock::now()));
+      
+      crow::response resp(200, result.toStyledString());
+      resp.add_header("Content-Type", "application/json");
+      return resp;
+      
+    } catch (const std::exception& configError) {
+      Json::Value error;
+      error["error"] = "config_load_failed";
+      error["message"] = std::string("Failed to load configuration: ") + configError.what();
+      crow::response resp(400, error.toStyledString());
+      resp.add_header("Content-Type", "application/json");
+      return resp;
+    }
+  } catch (const std::exception& e) {
+    Json::Value error;
+    error["error"] = "internal_error";
+    error["message"] = e.what();
+    crow::response resp(500, error.toStyledString());
+    resp.add_header("Content-Type", "application/json");
+    return resp;
+  }
 }
 
 crow::response RestApi::postConfigsImport(const crow::request& req) {
-  Json::Value result;
-  result["message"] = "Import configs endpoint - implemented similar to Drogon version";
-  crow::response resp(200, result.toStyledString());
-  resp.add_header("Content-Type", "application/json");
-  return resp;
+  if (!authorize(req)) {
+    return sendUnauthorized();
+  }
+  
+  try {
+    Json::CharReaderBuilder builder;
+    Json::Value requestData;
+    std::string errs;
+    std::istringstream stream(req.body);
+    
+    if (!Json::parseFromStream(builder, stream, &requestData, &errs)) {
+      Json::Value error;
+      error["error"] = "invalid_json";
+      error["message"] = "Invalid JSON in request body";
+      crow::response resp(400, error.toStyledString());
+      resp.add_header("Content-Type", "application/json");
+      return resp;
+    }
+    
+    if (!requestData.isMember("yaml_content") || !requestData["yaml_content"].isString()) {
+      Json::Value error;
+      error["error"] = "missing_field";
+      error["message"] = "Missing required field: yaml_content";
+      crow::response resp(400, error.toStyledString());
+      resp.add_header("Content-Type", "application/json");
+      return resp;
+    }
+    
+    std::string yamlContent = requestData["yaml_content"].asString();
+    
+    // Parse and validate the YAML content by attempting to load it
+    try {
+      // Create a temporary file to validate the YAML
+      std::string tempPath = "/tmp/hokuyohub_config_temp.yaml";
+      std::ofstream tempFile(tempPath);
+      if (!tempFile.is_open()) {
+        Json::Value error;
+        error["error"] = "temp_file_error";
+        error["message"] = "Failed to create temporary file for validation";
+        crow::response resp(500, error.toStyledString());
+        resp.add_header("Content-Type", "application/json");
+        return resp;
+      }
+      
+      tempFile << yamlContent;
+      tempFile.close();
+      
+      // Load and validate the configuration
+      AppConfig newConfig = load_app_config(tempPath);
+      
+      // Remove temporary file
+      std::filesystem::remove(tempPath);
+      
+      // Apply the configuration
+      config_ = newConfig;
+      
+      // Apply the configuration to runtime systems
+      sensors_.reloadFromAppConfig();
+      filters_.updatePrefilterConfig(Json::Value()); // Reload from config
+      filters_.updatePostfilterConfig(Json::Value()); // Reload from config
+      dbscan_.setParams(config_.dbscan.eps_norm, config_.dbscan.minPts);
+      dbscan_.setAngularScale(config_.dbscan.k_scale);
+      dbscan_.setPerformanceParams(config_.dbscan.h_min, config_.dbscan.h_max,
+                                   config_.dbscan.R_max, config_.dbscan.M_max);
+      applySinksRuntime();
+      
+      // Notify WebSocket clients of configuration change
+      if (ws_) {
+        ws_->broadcastSnapshot();
+      }
+      
+      Json::Value result;
+      result["message"] = "Configuration imported successfully";
+      result["imported_at"] = static_cast<Json::Int64>(std::chrono::system_clock::to_time_t(std::chrono::system_clock::now()));
+      result["sensors_count"] = static_cast<int>(config_.sensors.size());
+      result["sinks_count"] = static_cast<int>(config_.sinks.size());
+      
+      crow::response resp(200, result.toStyledString());
+      resp.add_header("Content-Type", "application/json");
+      return resp;
+      
+    } catch (const std::exception& configError) {
+      // Clean up temp file if it exists
+      std::filesystem::remove("/tmp/hokuyohub_config_temp.yaml");
+      
+      Json::Value error;
+      error["error"] = "invalid_config";
+      error["message"] = std::string("Invalid YAML configuration: ") + configError.what();
+      crow::response resp(400, error.toStyledString());
+      resp.add_header("Content-Type", "application/json");
+      return resp;
+    }
+  } catch (const std::exception& e) {
+    Json::Value error;
+    error["error"] = "internal_error";
+    error["message"] = e.what();
+    crow::response resp(500, error.toStyledString());
+    resp.add_header("Content-Type", "application/json");
+    return resp;
+  }
 }
 
 crow::response RestApi::postConfigsSave(const crow::request& req) {
-  Json::Value result;
-  result["message"] = "Save configs endpoint - implemented similar to Drogon version";
-  crow::response resp(200, result.toStyledString());
-  resp.add_header("Content-Type", "application/json");
-  return resp;
+  if (!authorize(req)) {
+    return sendUnauthorized();
+  }
+  
+  try {
+    Json::CharReaderBuilder builder;
+    Json::Value requestData;
+    std::string errs;
+    std::istringstream stream(req.body);
+    
+    if (!Json::parseFromStream(builder, stream, &requestData, &errs)) {
+      Json::Value error;
+      error["error"] = "invalid_json";
+      error["message"] = "Invalid JSON in request body";
+      crow::response resp(400, error.toStyledString());
+      resp.add_header("Content-Type", "application/json");
+      return resp;
+    }
+
+    const std::string filename_name = "name";
+    
+    if (!requestData.isMember(filename_name) || !requestData[filename_name].isString()) {
+      Json::Value error;
+      error["error"] = "missing_field";
+      error["message"] = "Missing required field: " + filename_name;
+      crow::response resp(400, error.toStyledString());
+      resp.add_header("Content-Type", "application/json");
+      return resp;
+    }
+    
+    std::string filename = requestData[filename_name].asString();
+    
+    // Validate filename to prevent path traversal attacks
+    if (filename.find("..") != std::string::npos ||
+        filename.find("/") != std::string::npos ||
+        filename.find("\\") != std::string::npos ||
+        filename.empty()) {
+      Json::Value error;
+      error["error"] = "invalid_filename";
+      error["message"] = "Invalid filename. Only simple filenames without path separators are allowed";
+      crow::response resp(400, error.toStyledString());
+      resp.add_header("Content-Type", "application/json");
+      return resp;
+    }
+    
+    // Ensure .yaml extension
+    if (!filename.ends_with(".yaml")) {
+      filename += ".yaml";
+    }
+    
+    std::string configPath = "configs/" + filename;
+    
+    // Create configs directory if it doesn't exist
+    std::filesystem::create_directories("configs");
+    
+    // Generate the YAML content from current configuration
+    std::string yamlContent = dump_app_config(config_);
+    
+    // Save the configuration to file
+    std::ofstream configFile(configPath);
+    if (!configFile.is_open()) {
+      Json::Value error;
+      error["error"] = "file_write_error";
+      error["message"] = "Failed to open configuration file for writing: " + filename;
+      crow::response resp(500, error.toStyledString());
+      resp.add_header("Content-Type", "application/json");
+      return resp;
+    }
+    
+    configFile << yamlContent;
+    configFile.close();
+    
+    if (configFile.fail()) {
+      Json::Value error;
+      error["error"] = "file_write_error";
+      error["message"] = "Failed to write configuration file: " + filename;
+      crow::response resp(500, error.toStyledString());
+      resp.add_header("Content-Type", "application/json");
+      return resp;
+    }
+    
+    Json::Value result;
+    result["message"] = "Configuration saved successfully";
+    result[filename_name] = filename;
+    result["path"] = configPath;
+    result["saved_at"] = static_cast<Json::Int64>(std::chrono::system_clock::to_time_t(std::chrono::system_clock::now()));
+    result["size"] = static_cast<Json::UInt64>(yamlContent.length());
+    
+    crow::response resp(200, result.toStyledString());
+    resp.add_header("Content-Type", "application/json");
+    return resp;
+    
+  } catch (const std::exception& e) {
+    Json::Value error;
+    error["error"] = "internal_error";
+    error["message"] = e.what();
+    crow::response resp(500, error.toStyledString());
+    resp.add_header("Content-Type", "application/json");
+    return resp;
+  }
 }
 
 crow::response RestApi::getConfigsExport() {
-  Json::Value result;
-  result["message"] = "Export configs endpoint - implemented similar to Drogon version";
-  crow::response resp(200, result.toStyledString());
-  resp.add_header("Content-Type", "application/json");
-  return resp;
+  try {
+    // Generate the YAML content from current configuration
+    std::string yamlContent = dump_app_config(config_);
+    
+    // Return the YAML content directly with appropriate content type
+    crow::response resp(200, yamlContent);
+    resp.add_header("Content-Type", "application/x-yaml");
+    resp.add_header("Content-Disposition", "attachment; filename=\"exported_config.yaml\"");
+    return resp;
+    
+  } catch (const std::exception& e) {
+    Json::Value error;
+    error["error"] = "internal_error";
+    error["message"] = e.what();
+    crow::response resp(500, error.toStyledString());
+    resp.add_header("Content-Type", "application/json");
+    return resp;
+  }
 }
 
 void RestApi::applySinksRuntime() {

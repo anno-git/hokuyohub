@@ -102,7 +102,7 @@ build/
 dist/
 ├── darwin-arm64/          # macOS ARM64 distribution
 │   ├── hokuyo_hub         # Installed executable
-│   ├── config/            # Configuration files
+│   ├── configs/            # Configuration files
 │   └── webui/             # Web interface
 └── linux-arm64/           # Future: Linux ARM64 distribution
     └── ...

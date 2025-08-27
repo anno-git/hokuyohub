@@ -6,7 +6,7 @@ This guide covers native macOS builds using Apple Silicon (ARM64) architecture. 
 
 ## 🌟 CrowCpp Migration Benefits
 
-HokuyoHub has migrated from Drogon to **CrowCpp** for improved macOS build experience:
+HokuyoHub has migrated from the previous web framework to **CrowCpp** for improved macOS build experience:
 
 - **⚡ Faster Builds**: No complex web framework compilation required
 - **🪶 Simplified Setup**: Header-only design eliminates brew install dependencies
@@ -60,7 +60,7 @@ cmake --version  # Should be 3.18+
 brew install yaml-cpp
 
 # Note: CrowCpp is header-only and requires no installation
-# (replaces Drogon for faster builds and simplified dependencies)
+# (replaces the previous web framework for faster builds and simplified dependencies)
 
 # For development
 brew install pkg-config
@@ -188,7 +188,7 @@ All builds output to the `dist/darwin-arm64/` directory:
 ```
 dist/darwin-arm64/
 ├── hokuyo_hub                  # Main executable
-├── config/                     # Configuration files
+├── configs/                     # Configuration files
 │   ├── default.yaml           # Default configuration
 │   └── examples/              # Example configurations
 ├── webui/                     # Web interface files
@@ -256,7 +256,7 @@ cd dist/darwin-arm64
 lldb ./hokuyo_hub
 
 # In lldb:
-(lldb) run --config ./config/default.yaml --listen 0.0.0.0:8080
+(lldb) run --config ./configs/default.yaml --listen 0.0.0.0:8080
 ```
 
 **3. Debug with VS Code:**
@@ -270,7 +270,7 @@ Install C++ extension and create `.vscode/launch.json`:
       "type": "lldb",
       "request": "launch",
       "program": "${workspaceFolder}/dist/darwin-arm64/hokuyo_hub",
-      "args": ["--config", "./config/default.yaml", "--listen", "0.0.0.0:8080"],
+      "args": ["--config", "./configs/default.yaml", "--listen", "0.0.0.0:8080"],
       "cwd": "${workspaceFolder}/dist/darwin-arm64",
       "console": "integratedTerminal"
     }
@@ -425,7 +425,7 @@ ctest --verbose
 
 # Manual testing
 cd dist/darwin-arm64
-./hokuyo_hub --config ./config/default.yaml &
+./hokuyo_hub --config ./configs/default.yaml &
 curl http://localhost:8080/api/health
 ```
 
