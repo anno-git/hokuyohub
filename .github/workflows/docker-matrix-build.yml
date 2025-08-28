@@ -163,8 +163,18 @@ jobs:
       run: |
         echo "::group::Install macOS dependencies"
         brew update
-        # Install required dependencies for HokuyoHub (including ASIO for CrowCpp)
-        brew install cmake pkg-config yaml-cpp jsoncpp nng asio
+        
+        # Handle cmake installation carefully to avoid tap conflicts
+        if ! command -v cmake &> /dev/null; then
+          echo "Installing cmake..."
+          brew install cmake
+        else
+          echo "cmake already installed, skipping..."
+          cmake --version
+        fi
+        
+        # Install other required dependencies for HokuyoHub (including ASIO for CrowCpp)
+        brew install pkg-config yaml-cpp jsoncpp nng asio
         echo "::endgroup::"
 
     # Windows-specific setup

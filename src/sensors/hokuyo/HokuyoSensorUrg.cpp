@@ -5,6 +5,18 @@
 #include <cstring>
 #include <iostream>
 
+#ifdef _WIN32
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#ifdef max
+#undef max
+#endif
+#ifdef min
+#undef min
+#endif
+#endif
+
 using clock_mono = std::chrono::steady_clock;
 
 HokuyoSensorUrg::HokuyoSensorUrg()
