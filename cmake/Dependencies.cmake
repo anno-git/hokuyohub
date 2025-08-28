@@ -266,18 +266,46 @@ function(setup_urg_external_project)
             LOG_BUILD         1
         )
 
-        # Copy headers and library
-        ExternalProject_Add_Step(urg_library_proj copy_headers
-            COMMAND ${CMAKE_COMMAND} -E copy_directory
-                    ${URG_SRC_DIR}/include/c ${URG_INCLUDE_DIR}
+        # Add verification step to check build output directory after build
+        ExternalProject_Add_Step(urg_library_proj verify_build_output
+            COMMAND ${CMAKE_COMMAND} -E echo "=== URG Library Build Verification ==="
+            COMMAND ${CMAKE_COMMAND} -E echo "Expected output directory: ${URG_BUILD_OUTPUT_DIR}"
+            COMMAND ${CMAKE_COMMAND} -E echo "Expected library file: ${URG_BUILD_OUTPUT_LIB}"
+            COMMAND ${CMAKE_COMMAND} -E echo "Listing contents of build output directory:"
+            COMMAND ${CMAKE_COMMAND} -E make_directory ${URG_BUILD_OUTPUT_DIR}
+            COMMAND ${CMAKE_COMMAND} -DDIR_TO_LIST=${URG_BUILD_OUTPUT_DIR} -P ${CMAKE_SOURCE_DIR}/cmake/list_directory.cmake
             DEPENDEES build
             ALWAYS 1
         )
 
+        # Add verification step to confirm urg.lib exists before copying
+        ExternalProject_Add_Step(urg_library_proj verify_library_exists
+            COMMAND ${CMAKE_COMMAND} -E echo "=== URG Library Existence Verification ==="
+            COMMAND ${CMAKE_COMMAND} -E echo "Checking for library at: ${URG_BUILD_OUTPUT_LIB}"
+            COMMAND ${CMAKE_COMMAND} -E echo "Library exists:"
+            COMMAND ${CMAKE_COMMAND} -DFILE_TO_CHECK=${URG_BUILD_OUTPUT_LIB} -P ${CMAKE_SOURCE_DIR}/cmake/check_file_exists.cmake
+            DEPENDEES verify_build_output
+            ALWAYS 1
+        )
+
+        # Copy headers and library
+        ExternalProject_Add_Step(urg_library_proj copy_headers
+            COMMAND ${CMAKE_COMMAND} -E copy_directory
+                    ${URG_SRC_DIR}/include/c ${URG_INCLUDE_DIR}
+            DEPENDEES verify_library_exists
+            ALWAYS 1
+        )
+
         ExternalProject_Add_Step(urg_library_proj copy_library
+            COMMAND ${CMAKE_COMMAND} -E echo "=== URG Library Copy Operation ==="
+            COMMAND ${CMAKE_COMMAND} -E echo "Copying from: ${URG_BUILD_OUTPUT_LIB}"
+            COMMAND ${CMAKE_COMMAND} -E echo "Copying to: ${URG_FINAL_LIB_PATH}"
             COMMAND ${CMAKE_COMMAND} -E copy_if_different
                     ${URG_BUILD_OUTPUT_LIB} ${URG_FINAL_LIB_PATH}
-            DEPENDEES build
+            COMMAND ${CMAKE_COMMAND} -E echo "Copy operation completed"
+            COMMAND ${CMAKE_COMMAND} -E echo "Verifying final library location:"
+            COMMAND ${CMAKE_COMMAND} -DFILE_TO_CHECK=${URG_FINAL_LIB_PATH} -P ${CMAKE_SOURCE_DIR}/cmake/check_file_exists.cmake
+            DEPENDEES copy_headers
             ALWAYS 1
         )
 
