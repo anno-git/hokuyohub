@@ -66,7 +66,7 @@ jobs:
     - name: Extract Build Artifacts
       run: |
         echo "::group::Extract Build Artifacts"
-        ./scripts/utils/extract_docker_artifacts.sh hokuyo-hub:latest
+        ./scripts/utils/extract_docker_artifacts.sh anno-git/hokuyohub:latest
         echo "::endgroup::"
 
     - name: List Build Artifacts (CrowCpp Build Verification)
