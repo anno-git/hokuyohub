@@ -182,7 +182,7 @@ function(setup_urg_external_project)
 
     # Determine the appropriate library file name and build output path
     if(WIN32)
-        set(URG_LIBRARY_NAME "urg.lib")
+        set(URG_LIBRARY_NAME "urg_c.lib")
         set(URG_BUILD_OUTPUT_DIR "${URG_SRC_DIR}/vs2019/c/x64/Release")
         set(URG_BUILD_OUTPUT_LIB "${URG_BUILD_OUTPUT_DIR}/${URG_LIBRARY_NAME}")
         set(URG_FINAL_LIB_PATH "${URG_LIB_DIR}/${URG_LIBRARY_NAME}")
@@ -261,7 +261,7 @@ endif()
 
 # Set output name and directory
 set_target_properties(urg_c PROPERTIES
-    OUTPUT_NAME \"urg\"
+    OUTPUT_NAME \"urg_c\"
     ARCHIVE_OUTPUT_DIRECTORY \"\${CMAKE_CURRENT_BINARY_DIR}\"
 )
 
@@ -290,7 +290,7 @@ install(DIRECTORY include/c/ DESTINATION include
             )
             
             # Update library paths for the CMake build output
-            set(URG_BUILD_OUTPUT_LIB "${URG_SRC_DIR}/build_windows/Release/urg.lib")
+            set(URG_BUILD_OUTPUT_LIB "${URG_SRC_DIR}/build_windows/Release/urg_c.lib")
         elseif(CMAKE_CROSSCOMPILING)
             set(URG_BUILD_COMMAND
                 make -C ${URG_SRC_DIR}/src clean all
