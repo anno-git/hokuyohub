@@ -124,6 +124,7 @@ jobs:
         fi
         echo "TAG=$TAG" >> $GITHUB_ENV
         echo "Using TAG=$TAG"
+      shell: bash
 
     # Docker-specific setup
     - name: Set up Docker Buildx
@@ -162,8 +163,8 @@ jobs:
       run: |
         echo "::group::Install macOS dependencies"
         brew update
-        # Install required dependencies for HokuyoHub
-        brew install cmake pkg-config yaml-cpp jsoncpp nng
+        # Install required dependencies for HokuyoHub (including ASIO for CrowCpp)
+        brew install cmake pkg-config yaml-cpp jsoncpp nng asio
         echo "::endgroup::"
 
     # Windows-specific setup
@@ -325,9 +326,18 @@ jobs:
             -DCMAKE_TOOLCHAIN_FILE="${CMAKE_TOOLCHAIN_FILE}" \
             -DDEPS_MODE=auto
         else
-          cmake ../.. \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DDEPS_MODE=auto
+          # For macOS, add ASIO hints to help CMake find ASIO headers
+          if [ "${{ runner.os }}" = "macOS" ]; then
+            ASIO_INCLUDE_DIR=$(brew --prefix asio)/include
+            cmake ../.. \
+              -DCMAKE_BUILD_TYPE=Release \
+              -DDEPS_MODE=auto \
+              -DASIO_INCLUDE_DIR="${ASIO_INCLUDE_DIR}"
+          else
+            cmake ../.. \
+              -DCMAKE_BUILD_TYPE=Release \
+              -DDEPS_MODE=auto
+          fi
         fi
         echo "::endgroup::"
       shell: bash
@@ -463,6 +473,7 @@ jobs:
         fi
         echo "TAG=$TAG" >> $GITHUB_ENV
         echo "Using TAG=$TAG"
+      shell: bash
 
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
@@ -527,6 +538,7 @@ jobs:
         fi
         echo "TAG=$TAG" >> $GITHUB_ENV
         echo "Using TAG=$TAG"
+      shell: bash
 
     - name: Log in to GHCR
       uses: docker/login-action@v3
@@ -577,6 +589,7 @@ jobs:
         fi
         echo "TAG=$TAG" >> $GITHUB_ENV
         echo "Using TAG=$TAG"
+      shell: bash
 
     - name: Create and push multi-platform manifest
       run: |
