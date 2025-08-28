@@ -252,6 +252,11 @@ jobs:
         - platform: linux/arm64
           platform-pair: linux-arm64
     steps:
+    - name: Set up QEMU
+      uses: docker/setup-qemu-action@v3
+      with:
+        platforms: arm64
+
     - name: Checkout repository
       uses: actions/checkout@v4
 
