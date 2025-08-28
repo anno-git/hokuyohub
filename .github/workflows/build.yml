@@ -240,9 +240,18 @@ jobs:
     needs: build
     if: github.event_name != 'pull_request'
     permissions:
+      contents: read
+      packages: read
       security-events: write
 
     steps:
+    - name: Log in to GHCR
+      uses: docker/login-action@v3
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+        
     - name: Checkout repository
       uses: actions/checkout@v4
 
