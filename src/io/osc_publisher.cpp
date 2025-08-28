@@ -11,6 +11,8 @@
     #include <winsock2.h>
     #include <ws2tcpip.h>
     #pragma comment(lib, "ws2_32.lib")
+    // Windows doesn't have ssize_t, define it for compatibility
+    typedef intptr_t ssize_t;
   #else
     #include <unistd.h>
     #include <arpa/inet.h>
