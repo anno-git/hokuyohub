@@ -279,14 +279,26 @@ install(DIRECTORY include/c/ DESTINATION include
             
             # Use cmake to build instead of VS project files
             set(URG_BUILD_COMMAND
-                ${CMAKE_COMMAND} -E echo "Building URG library with CMake for Windows..."
+                ${CMAKE_COMMAND} -E echo "=== URG Library Windows Build Debug ==="
+                COMMAND ${CMAKE_COMMAND} -E echo "Building URG library with CMake for Windows..."
+                COMMAND ${CMAKE_COMMAND} -E echo "Source directory: ${URG_SRC_DIR}"
+                COMMAND ${CMAKE_COMMAND} -E echo "Build directory: ${URG_SRC_DIR}/build_windows"
+                COMMAND ${CMAKE_COMMAND} -E echo "Expected output: ${URG_BUILD_OUTPUT_LIB}"
                 COMMAND ${CMAKE_COMMAND} -E make_directory "${URG_SRC_DIR}/build_windows"
                 COMMAND ${CMAKE_COMMAND} -E copy "${URG_SRC_DIR}/CMakeLists_Windows.txt" "${URG_SRC_DIR}/CMakeLists.txt"
+                COMMAND ${CMAKE_COMMAND} -E echo "CMakeLists.txt copied for Windows build"
                 COMMAND ${CMAKE_COMMAND} -S "${URG_SRC_DIR}" -B "${URG_SRC_DIR}/build_windows"
                     -G "Visual Studio 17 2022" -A x64
                     -DCMAKE_BUILD_TYPE=Release
-                COMMAND ${CMAKE_COMMAND} --build "${URG_SRC_DIR}/build_windows" --config Release
-                COMMAND ${CMAKE_COMMAND} -E echo "URG library build completed"
+                COMMAND ${CMAKE_COMMAND} -E echo "CMake configure completed"
+                COMMAND ${CMAKE_COMMAND} --build "${URG_SRC_DIR}/build_windows" --config Release --verbose
+                COMMAND ${CMAKE_COMMAND} -E echo "CMake build completed"
+                COMMAND ${CMAKE_COMMAND} -E echo "Listing build output directory:"
+                COMMAND ${CMAKE_COMMAND} -E echo "Directory: ${URG_SRC_DIR}/build_windows/Release/"
+                COMMAND dir "${URG_SRC_DIR}/build_windows/Release/" || echo "Release directory not found"
+                COMMAND ${CMAKE_COMMAND} -E echo "Searching for urg_c.lib files:"
+                COMMAND dir "${URG_SRC_DIR}/build_windows" /s /b | findstr "urg_c" || echo "No urg_c files found"
+                COMMAND ${CMAKE_COMMAND} -E echo "=== URG Library Build Debug Complete ==="
             )
             
             # Update library paths for the CMake build output
@@ -324,13 +336,25 @@ install(DIRECTORY include/c/ DESTINATION include
         )
 
         if(WIN32)
-            # Windows - simple copy since we're building with CMake now
+            # Windows - enhanced debugging for copy operation
             ExternalProject_Add_Step(urg_library_proj copy_library
+                COMMAND ${CMAKE_COMMAND} -E echo "=== URG Library Copy Debug ==="
                 COMMAND ${CMAKE_COMMAND} -E echo "Copying URG library built with CMake..."
                 COMMAND ${CMAKE_COMMAND} -E echo "Source: ${URG_BUILD_OUTPUT_LIB}"
                 COMMAND ${CMAKE_COMMAND} -E echo "Target: ${URG_FINAL_LIB_PATH}"
+                COMMAND ${CMAKE_COMMAND} -E echo "Checking if source file exists:"
+                COMMAND ${CMAKE_COMMAND} -E echo "Testing: ${URG_BUILD_OUTPUT_LIB}"
+                COMMAND if exist "${URG_BUILD_OUTPUT_LIB}" (echo "Source file found") else (echo "ERROR: Source file NOT found")
+                COMMAND ${CMAKE_COMMAND} -E echo "Creating target directory if needed:"
+                COMMAND ${CMAKE_COMMAND} -E make_directory "${URG_LIB_DIR}"
+                COMMAND ${CMAKE_COMMAND} -E echo "Directory created/verified: ${URG_LIB_DIR}"
+                COMMAND ${CMAKE_COMMAND} -E echo "Attempting file copy..."
                 COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                        ${URG_BUILD_OUTPUT_LIB} ${URG_FINAL_LIB_PATH}
+                        "${URG_BUILD_OUTPUT_LIB}" "${URG_FINAL_LIB_PATH}"
+                COMMAND ${CMAKE_COMMAND} -E echo "Copy operation completed"
+                COMMAND ${CMAKE_COMMAND} -E echo "Verifying copied file:"
+                COMMAND if exist "${URG_FINAL_LIB_PATH}" (echo "Target file successfully created") else (echo "ERROR: Target file NOT created")
+                COMMAND ${CMAKE_COMMAND} -E echo "=== URG Library Copy Debug Complete ==="
                 DEPENDEES build copy_headers
                 ALWAYS 1
             )
