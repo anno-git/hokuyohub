@@ -57,7 +57,7 @@ jobs:
   # Parallel build matrix for multiple platforms
   build-matrix:
     name: Build ${{ matrix.platform }}
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.runner }}
     needs: prepare-cache
     permissions:
       contents: read
@@ -65,16 +65,35 @@ jobs:
       security-events: write
     strategy:
       fail-fast: false
-      max-parallel: 2
+      max-parallel: 4
       matrix:
-        platform: [linux/amd64, linux/arm64]
+        platform: [linux/amd64, linux/arm64, darwin/amd64, darwin/arm64, windows/amd64]
         include:
+        # Docker builds for Linux
         - platform: linux/amd64
           platform-pair: linux-amd64
           dockerfile: docker/Dockerfile.rpi.optimized
+          runner: ubuntu-latest
+          build-method: docker
         - platform: linux/arm64
           platform-pair: linux-arm64
           dockerfile: docker/Dockerfile.rpi.optimized
+          runner: ubuntu-latest
+          build-method: docker
+        # Native builds for macOS
+        - platform: darwin/amd64
+          platform-pair: darwin-amd64
+          runner: macos-13
+          build-method: cmake
+        - platform: darwin/arm64
+          platform-pair: darwin-arm64
+          runner: macos-latest
+          build-method: cmake
+        # Native build for Windows
+        - platform: windows/amd64
+          platform-pair: windows-amd64
+          runner: windows-latest
+          build-method: cmake
 
     env:
       DOCKER_BUILDKIT: 1
@@ -83,6 +102,7 @@ jobs:
 
     steps:
     - name: Set up QEMU
+      if: matrix.build-method == 'docker'
       uses: docker/setup-qemu-action@v3
       with:
         platforms: all
@@ -105,7 +125,9 @@ jobs:
         echo "TAG=$TAG" >> $GITHUB_ENV
         echo "Using TAG=$TAG"
 
+    # Docker-specific setup
     - name: Set up Docker Buildx
+      if: matrix.build-method == 'docker'
       uses: docker/setup-buildx-action@v3
       with:
         driver-opts: |
@@ -115,7 +137,7 @@ jobs:
           --allow-insecure-entitlement network.host
 
     - name: Log in to Container Registry
-      if: github.event_name != 'pull_request'
+      if: matrix.build-method == 'docker' && github.event_name != 'pull_request'
       uses: docker/login-action@v3
       with:
         registry: ${{ env.REGISTRY }}
@@ -123,6 +145,7 @@ jobs:
         password: ${{ secrets.GITHUB_TOKEN }}
 
     - name: Extract metadata
+      if: matrix.build-method == 'docker'
       id: meta
       uses: docker/metadata-action@v5
       with:
@@ -133,6 +156,38 @@ jobs:
           type=semver,pattern={{version}},suffix=-${{ matrix.platform-pair }}
           type=raw,value=latest,suffix=-${{ matrix.platform-pair }},enable={{is_default_branch}}
 
+    # macOS-specific setup
+    - name: Set up Homebrew dependencies (macOS)
+      if: runner.os == 'macOS'
+      run: |
+        echo "::group::Install macOS dependencies"
+        brew update
+        # Install required dependencies for HokuyoHub
+        brew install cmake pkg-config yaml-cpp jsoncpp nng
+        echo "::endgroup::"
+
+    # Windows-specific setup
+    - name: Set up MSVC (Windows)
+      if: runner.os == 'Windows'
+      uses: ilammy/msvc-dev-cmd@v1
+      with:
+        arch: x64
+
+    - name: Set up vcpkg (Windows)
+      if: runner.os == 'Windows'
+      run: |
+        echo "::group::Install Windows dependencies"
+        # Install vcpkg if not present
+        if (!(Test-Path "C:\vcpkg")) {
+          git clone https://github.com/Microsoft/vcpkg.git C:\vcpkg
+          C:\vcpkg\bootstrap-vcpkg.bat -disableMetrics
+        }
+        # Install required dependencies
+        C:\vcpkg\vcpkg.exe install yaml-cpp:x64-windows jsoncpp:x64-windows nng:x64-windows
+        echo "CMAKE_TOOLCHAIN_FILE=C:\vcpkg\scripts\buildsystems\vcpkg.cmake" >> $env:GITHUB_ENV
+        echo "::endgroup::"
+
+    # Unified caching for all platforms
     - name: Cache URG Library Build
       uses: actions/cache@v4
       with:
@@ -140,12 +195,29 @@ jobs:
           external/urg_library/current/src/*.a
           external/urg_library/current/include
           build-cache/urg-${{ matrix.platform-pair }}
-        key: ${{ needs.prepare-cache.outputs.urg-cache-key }}-${{ matrix.platform-pair }}-${{ matrix.platform }}
+          build/${{ matrix.platform-pair }}
+        key: ${{ needs.prepare-cache.outputs.urg-cache-key }}-${{ matrix.platform-pair }}-${{ matrix.platform }}-${{ runner.os }}
         restore-keys: |
           urg-library-${{ runner.os }}-${{ matrix.platform-pair }}-${{ matrix.platform }}
           urg-library-${{ runner.os }}-${{ matrix.platform-pair }}
 
+    - name: Cache Build Dependencies
+      if: matrix.build-method == 'cmake'
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cache/pip
+          ~/.conan
+          ~/Library/Caches/Homebrew
+          C:\Users\runneradmin\AppData\Local\pip\Cache
+          C:\vcpkg\installed
+        key: deps-${{ runner.os }}-${{ matrix.platform-pair }}-${{ hashFiles('CMakeLists.txt', 'cmake/**') }}
+        restore-keys: |
+          deps-${{ runner.os }}-${{ matrix.platform-pair }}
+          deps-${{ runner.os }}
+
     - name: Cache Docker BuildKit layers
+      if: matrix.build-method == 'docker'
       uses: actions/cache@v4
       with:
         path: /tmp/.buildx-cache-${{ matrix.platform-pair }}
@@ -153,7 +225,9 @@ jobs:
         restore-keys: |
           docker-buildkit-${{ runner.os }}-${{ matrix.platform-pair }}
 
-    - name: Pre-build URG Library (if not cached)
+    # Docker build steps (Linux only)
+    - name: Pre-build URG Library (Docker - if not cached)
+      if: matrix.build-method == 'docker'
       run: |
         echo "::group::Pre-build URG Library for ${{ matrix.platform }}"
         mkdir -p build-cache/urg-${{ matrix.platform-pair }}
@@ -174,7 +248,8 @@ jobs:
         fi
         echo "::endgroup::"
 
-    - name: Monitor system resources before build
+    - name: Monitor system resources before build (Docker)
+      if: matrix.build-method == 'docker'
       run: |
         echo "=== System Resource Status ==="
         df -h
@@ -182,6 +257,7 @@ jobs:
         echo "Used memory %: $(free -m | awk 'NR==2{printf \"%.1f%%\\n\", $3*100/$2 }')"
 
     - name: Build and push Docker image
+      if: matrix.build-method == 'docker'
       uses: docker/build-push-action@v5
       with:
         context: .
@@ -189,7 +265,6 @@ jobs:
         platforms: ${{ matrix.platform }}
         target: runtime
         push: ${{ github.event_name != 'pull_request' }}
-        # ← metadata のタグに加えて「必ず存在する自前タグ」を付与
         tags: |
           ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.TAG }}-${{ matrix.platform-pair }}
           ${{ steps.meta.outputs.tags }}
@@ -207,14 +282,15 @@ jobs:
           PLATFORM=${{ matrix.platform }}
           DOCKER_BUILD_MEMORY_LIMIT=${{ env.DOCKER_BUILD_MEMORY_LIMIT }}
 
-    - name: Verify pushed image exists
-      if: github.event_name != 'pull_request'
+    - name: Verify pushed image exists (Docker)
+      if: matrix.build-method == 'docker' && github.event_name != 'pull_request'
       run: |
         IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.TAG }}-${{ matrix.platform-pair }}"
         echo "Verifying image: $IMAGE"
         docker buildx imagetools inspect "$IMAGE"
 
-    - name: Monitor system resources after build
+    - name: Monitor system resources after build (Docker)
+      if: matrix.build-method == 'docker'
       run: |
         echo "=== Post-build System Resource Status ==="
         df -h
@@ -225,8 +301,8 @@ jobs:
           docker system prune -f --volumes
         fi
 
-    - name: Extract build artifacts
-      if: github.event_name != 'pull_request'
+    - name: Extract build artifacts (Docker)
+      if: matrix.build-method == 'docker' && github.event_name != 'pull_request'
       run: |
         echo "::group::Extract Build Artifacts for ${{ matrix.platform }}"
         IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.TAG }}-${{ matrix.platform-pair }}"
@@ -235,11 +311,116 @@ jobs:
         ./scripts/utils/extract_docker_artifacts.sh "$IMAGE" "${{ matrix.platform-pair }}" || echo "Extraction failed, continuing..."
         echo "::endgroup::"
 
+    # Native CMake build steps (macOS/Windows)
+    - name: Configure CMake build
+      if: matrix.build-method == 'cmake'
+      run: |
+        echo "::group::Configure CMake for ${{ matrix.platform }}"
+        mkdir -p build/${{ matrix.platform-pair }}
+        cd build/${{ matrix.platform-pair }}
+        
+        if [ "${{ runner.os }}" = "Windows" ]; then
+          cmake ../.. -G "Visual Studio 17 2022" -A x64 \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_TOOLCHAIN_FILE="${CMAKE_TOOLCHAIN_FILE}" \
+            -DDEPS_MODE=auto
+        else
+          cmake ../.. \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DDEPS_MODE=auto
+        fi
+        echo "::endgroup::"
+      shell: bash
+
+    - name: Build with CMake
+      if: matrix.build-method == 'cmake'
+      run: |
+        echo "::group::Build with CMake for ${{ matrix.platform }}"
+        cd build/${{ matrix.platform-pair }}
+        
+        if [ "${{ runner.os }}" = "Windows" ]; then
+          cmake --build . --config Release --parallel 4
+        else
+          cmake --build . --config Release --parallel $(sysctl -n hw.ncpu 2>/dev/null || nproc)
+        fi
+        echo "::endgroup::"
+      shell: bash
+
+    - name: Install to dist directory
+      if: matrix.build-method == 'cmake'
+      run: |
+        echo "::group::Install artifacts for ${{ matrix.platform }}"
+        cd build/${{ matrix.platform-pair }}
+        
+        # Install to platform-specific directory
+        cmake --install . --prefix "../../dist/${{ matrix.platform-pair }}"
+        
+        # Verify installation
+        ls -la "../../dist/${{ matrix.platform-pair }}/"
+        
+        # Make binary executable on Unix systems
+        if [ "${{ runner.os }}" != "Windows" ]; then
+          chmod +x "../../dist/${{ matrix.platform-pair }}/hokuyo_hub" || true
+        fi
+        echo "::endgroup::"
+      shell: bash
+
+    - name: Create platform-specific artifacts README
+      if: matrix.build-method == 'cmake' && github.event_name != 'pull_request'
+      run: |
+        echo "::group::Create artifacts README for ${{ matrix.platform }}"
+        
+        DIST_DIR="dist/${{ matrix.platform-pair }}"
+        OS_NAME="${{ runner.os }}"
+        ARCH="${{ matrix.platform-pair }}"
+        
+        cat > "${DIST_DIR}/README.md" << EOF
+        # Hokuyo Hub - ${OS_NAME} Distribution
+        
+        This directory contains the compiled Hokuyo Hub application for ${ARCH}.
+        
+        ## Directory Structure
+        
+        This follows the platform-specific directory structure pattern:
+        - \`dist/darwin-amd64/\` - macOS Intel builds
+        - \`dist/darwin-arm64/\` - macOS Apple Silicon builds
+        - \`dist/linux-amd64/\` - Linux AMD64 builds
+        - \`dist/linux-arm64/\` - Linux ARM64 builds
+        - \`dist/windows-amd64/\` - Windows x64 builds
+        
+        ## Contents
+        
+        - \`hokuyo_hub\` - Main application binary (${ARCH})
+        - \`configs/\` - Configuration files
+        - \`webui/\` - Web user interface files
+        
+        ## Installation
+        
+        1. Copy all files to your target ${OS_NAME} system
+        2. Run the application: \`./hokuyo_hub\` (Unix) or \`hokuyo_hub.exe\` (Windows)
+        
+        ## Requirements
+        
+        - ${OS_NAME} system (${ARCH})
+        - System libraries installed via native package manager
+        
+        ## Build Information
+        
+        - Built using native CMake build
+        - Target platform: ${{ matrix.platform }}
+        - Build date: $(date -u +"%Y-%m-%d %H:%M:%S UTC")
+        - Dependencies: Auto-resolved via CMake
+        - Platform-specific output: dist/${ARCH}/
+        
+        EOF
+        echo "::endgroup::"
+      shell: bash
+
     - name: Upload platform-specific artifacts
       if: github.event_name != 'pull_request'
       uses: actions/upload-artifact@v4
       with:
-        name: hokuyohub-${{ matrix.platform-pair }}   # linux-amd64 / linux-arm64
+        name: hokuyohub-${{ matrix.platform-pair }}   # linux-amd64 / linux-arm64 / darwin-amd64 / darwin-arm64 / windows-amd64
         path: |
           dist/
         retention-days: 30
@@ -419,46 +600,109 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v4
 
-    # ダウンロード（アーキ別）
-    - name: Download amd64 artifacts
+    # Download artifacts for all platforms
+    - name: Download Linux AMD64 artifacts
       uses: actions/download-artifact@v4
       with:
         name: hokuyohub-linux-amd64
         path: dist/linux-amd64
 
-    - name: Download arm64 artifacts
+    - name: Download Linux ARM64 artifacts
       uses: actions/download-artifact@v4
       with:
         name: hokuyohub-linux-arm64
         path: dist/linux-arm64
 
-    # アーキ別に tar.gz を作成
-    - name: Create standalone packages (per-arch)
+    - name: Download macOS AMD64 artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: hokuyohub-darwin-amd64
+        path: dist/darwin-amd64
+
+    - name: Download macOS ARM64 artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: hokuyohub-darwin-arm64
+        path: dist/darwin-arm64
+
+    - name: Download Windows AMD64 artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: hokuyohub-windows-amd64
+        path: dist/windows-amd64
+
+    # Create platform-specific packages
+    - name: Create standalone packages (all platforms)
       run: |
-        echo "::group::Create Standalone Packages"
-        mkdir -p deployment/amd64 deployment/arm64
+        echo "::group::Create Standalone Packages for All Platforms"
+        mkdir -p deployment
 
-        # AMD64
-        cp -r dist/linux-amd64/* deployment/amd64/ 2>/dev/null || true
-        cat > deployment/amd64/install.sh << 'EOF'
+        # Linux AMD64
+        if [ -d "dist/linux-amd64" ]; then
+          mkdir -p deployment/linux-amd64
+          cp -r dist/linux-amd64/* deployment/linux-amd64/ 2>/dev/null || true
+          cat > deployment/linux-amd64/install.sh << 'EOF'
         #!/bin/bash
         set -e
         chmod +x hokuyo_hub || true
-        echo "AMD64 package ready. Run: ./hokuyo_hub --config default.yaml"
+        echo "Linux AMD64 package ready. Run: ./hokuyo_hub --config configs/default.yaml"
         EOF
-        chmod +x deployment/amd64/install.sh
-        tar -czf deployment/hokuyohub-${{ github.ref_name }}-amd64.tar.gz -C deployment/amd64 .
+          chmod +x deployment/linux-amd64/install.sh
+          tar -czf deployment/hokuyohub-${{ github.ref_name }}-linux-amd64.tar.gz -C deployment/linux-amd64 .
+        fi
 
-        # ARM64
-        cp -r dist/linux-arm64/* deployment/arm64/ 2>/dev/null || true
-        cat > deployment/arm64/install.sh << 'EOF'
+        # Linux ARM64
+        if [ -d "dist/linux-arm64" ]; then
+          mkdir -p deployment/linux-arm64
+          cp -r dist/linux-arm64/* deployment/linux-arm64/ 2>/dev/null || true
+          cat > deployment/linux-arm64/install.sh << 'EOF'
         #!/bin/bash
         set -e
         chmod +x hokuyo_hub || true
-        echo "ARM64 package ready. Run: ./hokuyo_hub --config default.yaml"
+        echo "Linux ARM64 package ready. Run: ./hokuyo_hub --config configs/default.yaml"
         EOF
-        chmod +x deployment/arm64/install.sh
-        tar -czf deployment/hokuyohub-${{ github.ref_name }}-arm64.tar.gz -C deployment/arm64 .
+          chmod +x deployment/linux-arm64/install.sh
+          tar -czf deployment/hokuyohub-${{ github.ref_name }}-linux-arm64.tar.gz -C deployment/linux-arm64 .
+        fi
+
+        # macOS AMD64
+        if [ -d "dist/darwin-amd64" ]; then
+          mkdir -p deployment/darwin-amd64
+          cp -r dist/darwin-amd64/* deployment/darwin-amd64/ 2>/dev/null || true
+          cat > deployment/darwin-amd64/install.sh << 'EOF'
+        #!/bin/bash
+        set -e
+        chmod +x hokuyo_hub || true
+        echo "macOS Intel package ready. Run: ./hokuyo_hub --config configs/default.yaml"
+        EOF
+          chmod +x deployment/darwin-amd64/install.sh
+          tar -czf deployment/hokuyohub-${{ github.ref_name }}-darwin-amd64.tar.gz -C deployment/darwin-amd64 .
+        fi
+
+        # macOS ARM64
+        if [ -d "dist/darwin-arm64" ]; then
+          mkdir -p deployment/darwin-arm64
+          cp -r dist/darwin-arm64/* deployment/darwin-arm64/ 2>/dev/null || true
+          cat > deployment/darwin-arm64/install.sh << 'EOF'
+        #!/bin/bash
+        set -e
+        chmod +x hokuyo_hub || true
+        echo "macOS Apple Silicon package ready. Run: ./hokuyo_hub --config configs/default.yaml"
+        EOF
+          chmod +x deployment/darwin-arm64/install.sh
+          tar -czf deployment/hokuyohub-${{ github.ref_name }}-darwin-arm64.tar.gz -C deployment/darwin-arm64 .
+        fi
+
+        # Windows AMD64
+        if [ -d "dist/windows-amd64" ]; then
+          mkdir -p deployment/windows-amd64
+          cp -r dist/windows-amd64/* deployment/windows-amd64/ 2>/dev/null || true
+          cat > deployment/windows-amd64/install.bat << 'EOF'
+        @echo off
+        echo Windows x64 package ready. Run: hokuyo_hub.exe --config configs/default.yaml
+        EOF
+          cd deployment/windows-amd64 && zip -r ../hokuyohub-${{ github.ref_name }}-windows-amd64.zip . && cd ../..
+        fi
 
         ls -lh deployment/
         echo "::endgroup::"
@@ -467,26 +711,48 @@ jobs:
       uses: softprops/action-gh-release@v1
       with:
         files: |
-          deployment/hokuyohub-${{ github.ref_name }}-amd64.tar.gz
-          deployment/hokuyohub-${{ github.ref_name }}-arm64.tar.gz
+          deployment/hokuyohub-${{ github.ref_name }}-linux-amd64.tar.gz
+          deployment/hokuyohub-${{ github.ref_name }}-linux-arm64.tar.gz
+          deployment/hokuyohub-${{ github.ref_name }}-darwin-amd64.tar.gz
+          deployment/hokuyohub-${{ github.ref_name }}-darwin-arm64.tar.gz
+          deployment/hokuyohub-${{ github.ref_name }}-windows-amd64.zip
         generate_release_notes: true
         draft: false
         prerelease: ${{ contains(github.ref, 'alpha') || contains(github.ref, 'beta') || contains(github.ref, 'rc') }}
         body: |
-          ## HokuyoHub ${{ github.ref_name }} - Standalone Packages
+          ## HokuyoHub ${{ github.ref_name }} - Multi-Platform Release
 
-          ### 🐳 Docker (multi-arch)
+          ### 🐳 Docker (Linux multi-arch)
           ```bash
           docker pull ghcr.io/${{ github.repository }}:${{ github.ref_name }}
           docker run -d -p 8080:8080 --name hokuyohub ghcr.io/${{ github.repository }}:${{ github.ref_name }}
           ```
 
-          ### 📦 Standalone (pick your arch)
-          - **AMD64**: `hokuyohub-${{ github.ref_name }}-amd64.tar.gz`
-          - **ARM64**: `hokuyohub-${{ github.ref_name }}-arm64.tar.gz`
+          ### 📦 Native Binaries (choose your platform)
+          
+          #### Linux
+          - **Linux x64**: `hokuyohub-${{ github.ref_name }}-linux-amd64.tar.gz`
+          - **Linux ARM64**: `hokuyohub-${{ github.ref_name }}-linux-arm64.tar.gz` (Raspberry Pi 5)
+          
+          #### macOS
+          - **macOS Intel**: `hokuyohub-${{ github.ref_name }}-darwin-amd64.tar.gz`
+          - **macOS Apple Silicon**: `hokuyohub-${{ github.ref_name }}-darwin-arm64.tar.gz`
+          
+          #### Windows
+          - **Windows x64**: `hokuyohub-${{ github.ref_name }}-windows-amd64.zip`
+
+          ### 🚀 Quick Start
+          1. Download the appropriate package for your platform
+          2. Extract the archive
+          3. Run `./hokuyo_hub --config configs/default.yaml` (Unix) or `hokuyo_hub.exe --config configs\default.yaml` (Windows)
 
           ### 🌐 Web Interface
-          http://localhost:8080
+          Access the web interface at http://localhost:8080 after starting the application.
+
+          ### 📋 System Requirements
+          - **Linux**: x64 or ARM64 architecture, common system libraries
+          - **macOS**: macOS 10.15+ (Intel) or macOS 11.0+ (Apple Silicon)
+          - **Windows**: Windows 10/11 x64, Visual C++ Redistributable
 
   # Documentation update job
   docs:
@@ -512,9 +778,9 @@ jobs:
         ## Optimized Docker Matrix Build
 
         - Build Time: Improved via matrix and caching
-        - Parallel Execution: linux/amd64 & linux/arm64
-        - Caching: BuildKit layer + URG dep cache
-        - Runners: 7GB RAM, 2 vCPU
+        - Parallel Execution: linux/amd64, linux/arm64, darwin/amd64, darwin/arm64, windows/amd64
+        - Caching: BuildKit layer + URG dep cache + native dependency cache
+        - Runners: ubuntu-latest, macos-13, macos-latest, windows-latest
 
         Last updated: $(date -u '+%Y-%m-%d %H:%M:%S UTC')
         EOF
