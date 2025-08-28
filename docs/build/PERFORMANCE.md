@@ -3,8 +3,8 @@
 ## Optimized Docker Matrix Build
 
 - Build Time: Improved via matrix and caching
-- Parallel Execution: linux/amd64 & linux/arm64
-- Caching: BuildKit layer + URG dep cache
-- Runners: 7GB RAM, 2 vCPU
+- Parallel Execution: linux/amd64, linux/arm64, darwin/amd64, darwin/arm64, windows/amd64
+- Caching: BuildKit layer + URG dep cache + native dependency cache
+- Runners: ubuntu-latest, macos-13, macos-latest, windows-latest
 
 Last updated: $(date -u '+%Y-%m-%d %H:%M:%S UTC')
