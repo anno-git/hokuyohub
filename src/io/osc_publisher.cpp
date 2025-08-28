@@ -2,15 +2,21 @@
 #include <iostream>
 #include <sstream>
 #include <cstring>
-#include <unistd.h>
 #include <vector>
 #include <cmath>
 #include <chrono>
 
 #ifdef USE_OSC
-  #include <arpa/inet.h>
-  #include <netinet/in.h>
-  #include <sys/socket.h>
+  #ifdef _WIN32
+    #include <winsock2.h>
+    #include <ws2tcpip.h>
+    #pragma comment(lib, "ws2_32.lib")
+  #else
+    #include <unistd.h>
+    #include <arpa/inet.h>
+    #include <netinet/in.h>
+    #include <sys/socket.h>
+  #endif
 #endif
 
 // ===== Helper note =====
@@ -26,11 +32,24 @@
 OscPublisher::OscPublisher() : enabled_(false), rate_limit_(0) {
 #ifdef USE_OSC
   socket_fd_ = -1;
+#ifdef _WIN32
+  // Initialize Winsock on Windows
+  WSADATA wsaData;
+  if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) {
+    std::cerr << "[OscPublisher] Failed to initialize Winsock" << std::endl;
+  }
+#endif
 #endif
 }
 
 OscPublisher::~OscPublisher() {
   stop();
+#ifdef USE_OSC
+#ifdef _WIN32
+  // Clean up Winsock on Windows
+  WSACleanup();
+#endif
+#endif
 }
 
 void OscPublisher::start(const SinkConfig& config) {
@@ -73,7 +92,11 @@ void OscPublisher::start(const SinkConfig& config) {
 
   if (inet_pton(AF_INET, host_.c_str(), &addr_.sin_addr) <= 0) {
     std::cerr << "[OscPublisher] Invalid host address: " << host_ << std::endl;
+#ifdef _WIN32
+    closesocket(socket_fd_);
+#else
     close(socket_fd_);
+#endif
     socket_fd_ = -1;
     enabled_ = false;
     return;
@@ -86,7 +109,11 @@ void OscPublisher::start(const SinkConfig& config) {
 void OscPublisher::stop() {
 #ifdef USE_OSC
   if (socket_fd_ >= 0) {
+#ifdef _WIN32
+    closesocket(socket_fd_);
+#else
     close(socket_fd_);
+#endif
     socket_fd_ = -1;
   }
 #endif
