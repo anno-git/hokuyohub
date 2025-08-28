@@ -137,7 +137,7 @@ RUN echo "Target platform: ${TARGETPLATFORM}" && \
 # Configure CMake with all optimizations
 RUN --mount=type=cache,target=/ccache \
     --mount=type=cache,target=/build/cmake-cache,sharing=locked \
-    source /tmp/platform.env && \
+    . /tmp/platform.env && \
     echo "=== Configuring CMake for ${PLATFORM_DIR} ===" && \
     cd build/${PLATFORM_DIR} && \
     cmake ../.. \
@@ -162,7 +162,7 @@ RUN --mount=type=cache,target=/ccache \
 # Build the application with mount caches
 RUN --mount=type=cache,target=/ccache \
     --mount=type=cache,target=/build/ninja-build-cache,sharing=locked \
-    source /tmp/platform.env && \
+    . /tmp/platform.env && \
     echo "=== Building Application for ${PLATFORM_DIR} ===" && \
     cd build/${PLATFORM_DIR} && \
     ninja -v hokuyo_hub && \
@@ -175,7 +175,7 @@ RUN --mount=type=cache,target=/ccache \
 
 # Install to staging area with mount cache
 RUN --mount=type=cache,target=/build/install-cache,sharing=locked \
-    source /tmp/platform.env && \
+    . /tmp/platform.env && \
     cd build/${PLATFORM_DIR} && \
     DESTDIR=/staging ninja install && \
     echo "Installation to staging completed" && \
