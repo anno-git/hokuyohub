@@ -1,5 +1,10 @@
 name: Optimized Docker Matrix Build
 
+permissions:
+  contents: read
+  actions: read
+  security-events: write
+  
 on:
   push:
     branches: [ main, develop ]
@@ -285,8 +290,8 @@ jobs:
       if: matrix.platform == 'linux/amd64'  # Run API tests only on amd64 for speed
       run: |
         echo "::group::API Tests"
-        chmod +x scripts/test_rest_api.sh
-        ./scripts/test_rest_api.sh || echo "API tests failed, continuing..."
+        chmod +x scripts/testing/test_rest_api.sh
+        ./scripts/testing/test_rest_api.sh || echo "API tests failed, continuing..."
         echo "::endgroup::"
 
   # Security scanning in parallel

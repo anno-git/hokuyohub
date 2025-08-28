@@ -281,7 +281,7 @@ The existing `linux-arm64.cmake` toolchain will be integrated with CMakePresets.
 - `scripts/baseline_verification.sh` (755)
 - `scripts/regression_check.sh` (755)
 - `scripts/run_macos.command` (755)
-- `scripts/test_rest_api.sh` (755)
+- `scripts/testing/test_rest_api.sh` (755)
 
 ### Build Outputs
 - `dist/{platform}/{config}/hokuyo_hub` (executable)

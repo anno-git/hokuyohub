@@ -39,7 +39,7 @@ This document establishes the change management workflow for Phase 0 of the Hoku
 
 ### 3. API Validation
 
-**API Test Suite**: [`scripts/test_rest_api.sh`](../scripts/test_rest_api.sh)
+**API Test Suite**: [`scripts/testing/test_rest_api.sh`](../scripts/testing/test_rest_api.sh)
 - Comprehensive REST API smoke tests
 - Validates all endpoints and functionality
 - Integrated with regression detection system
@@ -241,7 +241,7 @@ This document establishes the change management workflow for Phase 0 of the Hoku
 |--------|---------|-------|
 | [`baseline_verification.sh`](../scripts/baseline_verification.sh) | Capture and compare build baselines | `--capture-baseline`, `--compare-baseline` |
 | [`regression_check.sh`](../scripts/regression_check.sh) | Automated regression detection | `--quick`, `--full`, `--build-only` |
-| [`test_rest_api.sh`](../scripts/test_rest_api.sh) | API functionality validation | `[base_url] [token]` |
+| [`test_rest_api.sh`](../scripts/testing/test_rest_api.sh) | API functionality validation | `[base_url] [token]` |
 | [`run_macos.command`](../scripts/run_macos.command) | macOS execution helper | Direct execution |
 
 ## Next Phase Preparation

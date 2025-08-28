@@ -421,7 +421,7 @@ ctest --verbose
 
 ```bash
 # Test REST API
-./scripts/test_rest_api.sh
+./scripts/testing/test_rest_api.sh
 
 # Manual testing
 cd dist/darwin-arm64

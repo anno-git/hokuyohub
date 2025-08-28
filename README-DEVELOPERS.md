@@ -922,7 +922,7 @@ TEST_F(IntegrationTest, CompletePipeline) {
 
 ### API Testing
 
-REST API validation using shell scripts in [`scripts/test_rest_api.sh`](scripts/test_rest_api.sh:1):
+REST API validation using shell scripts in [`scripts/testing/test_rest_api.sh`](scripts/testing/test_rest_api.sh:1):
 
 ```bash
 #!/bin/bash
