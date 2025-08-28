@@ -1,5 +1,8 @@
 #include "dbscan.h"
 #include <algorithm>
+#ifdef _WIN32
+#define _USE_MATH_DEFINES
+#endif
 #include <cmath>
 #include <unordered_map>
 #include <queue>
@@ -7,6 +10,10 @@
 #include <iostream>
 #ifdef DBSCAN_PROFILE
 #include <chrono>
+#endif
+
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
 #endif
 
 void DBSCAN2D::setSensorModel(uint8_t sid, float delta_theta_deg, float sigma0, float alpha) {

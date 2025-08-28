@@ -1,3 +1,9 @@
+#ifdef _WIN32
+#ifndef _WIN32_WINNT
+#define _WIN32_WINNT 0x0A00  // Windows 10
+#endif
+#endif
+
 #include "rest_handlers.h"
 #include <json/json.h>
 #include <fstream>

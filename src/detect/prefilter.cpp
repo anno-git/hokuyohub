@@ -1,11 +1,18 @@
 #include "prefilter.h"
 #include <algorithm>
 #include <chrono>
+#ifdef _WIN32
+#define _USE_MATH_DEFINES
+#endif
 #include <cmath>
 #include <iostream>
 #include <numeric>
 #include <unordered_map>
 #include <unordered_set>
+
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
 
 Prefilter::Prefilter(const PrefilterConfig& config) : config_(config) {}
 

@@ -9,6 +9,9 @@
 
 #include <atomic>
 #include <chrono>
+#ifdef _WIN32
+#define _USE_MATH_DEFINES
+#endif
 #include <cmath>
 #include <cstdint>
 #include <iostream>
@@ -18,6 +21,10 @@
 #include <unordered_map>
 #include <vector>
 #include <algorithm>
+
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
 
 using clock_mono = std::chrono::steady_clock;
 using clock_sys  = std::chrono::system_clock;
