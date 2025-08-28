@@ -180,18 +180,30 @@ function(setup_urg_external_project)
     file(MAKE_DIRECTORY ${URG_INCLUDE_DIR})
     file(MAKE_DIRECTORY ${URG_LIB_DIR})
 
+    # Determine the appropriate library file name and build output path
+    if(WIN32)
+        set(URG_LIBRARY_NAME "urg.lib")
+        set(URG_BUILD_OUTPUT_DIR "${URG_SRC_DIR}/vs2019/c/x64/Release")
+        set(URG_BUILD_OUTPUT_LIB "${URG_BUILD_OUTPUT_DIR}/${URG_LIBRARY_NAME}")
+        set(URG_FINAL_LIB_PATH "${URG_LIB_DIR}/${URG_LIBRARY_NAME}")
+    else()
+        set(URG_LIBRARY_NAME "liburg_c.a")
+        set(URG_BUILD_OUTPUT_LIB "${URG_SRC_DIR}/src/${URG_LIBRARY_NAME}")
+        set(URG_FINAL_LIB_PATH "${URG_LIB_DIR}/${URG_LIBRARY_NAME}")
+    endif()
+
     # Check if library is already built
-    if(EXISTS "${URG_SRC_DIR}/src/liburg_c.a")
-        message(STATUS "Found pre-built urg_library, using existing library")
+    if(EXISTS "${URG_BUILD_OUTPUT_LIB}")
+        message(STATUS "Found pre-built urg_library at ${URG_BUILD_OUTPUT_LIB}")
         
         # Copy headers and library directly without building
         file(COPY ${URG_SRC_DIR}/include/c/ DESTINATION ${URG_INCLUDE_DIR})
-        file(COPY ${URG_SRC_DIR}/src/liburg_c.a DESTINATION ${URG_LIB_DIR})
+        file(COPY ${URG_BUILD_OUTPUT_LIB} DESTINATION ${URG_LIB_DIR})
         
         # Create imported target
         add_library(urg_c STATIC IMPORTED GLOBAL)
         set_target_properties(urg_c PROPERTIES
-            IMPORTED_LOCATION             ${URG_LIB_DIR}/liburg_c.a
+            IMPORTED_LOCATION             ${URG_FINAL_LIB_PATH}
             INTERFACE_INCLUDE_DIRECTORIES ${URG_INCLUDE_DIR}
         )
         
@@ -199,8 +211,33 @@ function(setup_urg_external_project)
     else()
         message(STATUS "Pre-built urg_library not found, building from source")
         
-        # Configure build command based on cross-compilation
-        if(CMAKE_CROSSCOMPILING)
+        # Configure build command based on platform
+        if(WIN32)
+            # Use Visual Studio on Windows for MSVC compatibility
+            set(URG_VS_PROJECT_DIR "${URG_SRC_DIR}/vs2019/c")
+            set(URG_BUILD_COMMAND
+                ${CMAKE_VS_MSBUILD_COMMAND} "${URG_VS_PROJECT_DIR}/urg.sln"
+                "/p:Configuration=Release"
+                "/p:Platform=x64"
+                "/p:PlatformToolset=v142"
+            )
+            message(STATUS "Configuring urg_library for Windows using Visual Studio 2019")
+            
+            # Alternative fallback to devenv if msbuild not available
+            if(NOT CMAKE_VS_MSBUILD_COMMAND)
+                find_program(DEVENV_COMMAND devenv.exe)
+                if(DEVENV_COMMAND)
+                    set(URG_BUILD_COMMAND
+                        ${DEVENV_COMMAND} "${URG_VS_PROJECT_DIR}/urg.sln"
+                        /Build "Release|x64"
+                    )
+                    message(STATUS "Using devenv.exe for URG library build")
+                else()
+                    message(WARNING "Neither msbuild nor devenv found. Falling back to make - may cause linking issues.")
+                    set(URG_BUILD_COMMAND make -C ${URG_SRC_DIR}/src clean all)
+                endif()
+            endif()
+        elseif(CMAKE_CROSSCOMPILING)
             set(URG_BUILD_COMMAND
                 make -C ${URG_SRC_DIR}/src clean all
                 CC=${CMAKE_C_COMPILER}
@@ -234,7 +271,7 @@ function(setup_urg_external_project)
 
         ExternalProject_Add_Step(urg_library_proj copy_library
             COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                    ${URG_SRC_DIR}/src/liburg_c.a ${URG_LIB_DIR}/liburg_c.a
+                    ${URG_BUILD_OUTPUT_LIB} ${URG_FINAL_LIB_PATH}
             DEPENDEES build
             ALWAYS 1
         )
@@ -242,12 +279,18 @@ function(setup_urg_external_project)
         # Create imported target
         add_library(urg_c STATIC IMPORTED GLOBAL)
         set_target_properties(urg_c PROPERTIES
-            IMPORTED_LOCATION             ${URG_LIB_DIR}/liburg_c.a
+            IMPORTED_LOCATION             ${URG_FINAL_LIB_PATH}
             INTERFACE_INCLUDE_DIRECTORIES ${URG_INCLUDE_DIR}
         )
         add_dependencies(urg_c urg_library_proj)
         
         message(STATUS "urg_library ExternalProject configured")
+    endif()
+    
+    # On Windows, link against additional system libraries required by URG
+    if(WIN32)
+        target_link_libraries(urg_c INTERFACE wsock32 setupapi)
+        message(STATUS "Added Windows system libraries (wsock32, setupapi) to urg_c")
     endif()
 endfunction()
 
@@ -564,6 +607,13 @@ function(link_hokuyo_dependencies TARGET_NAME)
     
     # Link urg_c
     target_link_libraries(${TARGET_NAME} PRIVATE urg_c)
+    
+    # On Windows, add legacy runtime support for MSVC compatibility
+    if(WIN32 AND MSVC)
+        # Link legacy runtime libraries to resolve _vsnprintf and similar symbols
+        target_link_libraries(${TARGET_NAME} PRIVATE legacy_stdio_definitions)
+        message(STATUS "Added legacy MSVC runtime library support for ${TARGET_NAME}")
+    endif()
     
     # Link JsonCpp (handle different target names)
     if(TARGET jsoncpp_lib)
