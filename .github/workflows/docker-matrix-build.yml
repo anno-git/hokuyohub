@@ -74,10 +74,10 @@ jobs:
         include:
         - platform: linux/amd64
           platform-pair: linux-amd64
-          dockerfile: docker/Dockerfile.rpi.optimized.v2
+          dockerfile: docker/Dockerfile.rpi.optimized
         - platform: linux/arm64
           platform-pair: linux-arm64
-          dockerfile: docker/Dockerfile.rpi.optimized.v2
+          dockerfile: docker/Dockerfile.rpi.optimized
     
     # Resource monitoring and limits
     env:
@@ -309,7 +309,7 @@ jobs:
     - uses: actions/checkout@v4
       with:
         fetch-depth: 0
-        
+
     - name: Log in to GHCR
       uses: docker/login-action@v3
       with:

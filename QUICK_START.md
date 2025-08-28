@@ -24,7 +24,7 @@ git clone <repository-url>
 cd HokuyoHub
 
 # Build and install (5-10 minutes)
-./scripts/build_with_presets.sh release --install
+./scripts/build/build_with_presets.sh release --install
 
 # Run HokuyoHub
 cd dist/darwin-arm64
@@ -40,8 +40,8 @@ cd dist/darwin-arm64
 # One-time setup
 ./scripts/setup_cross_compile.sh
 
-# Build for Raspberry Pi 5 (8-12 minutes)
-./scripts/cross_build.sh --preset rpi-release --install
+# Build for Raspberry Pi 5 (8-12 minutes) - OPTIMIZED
+./scripts/build/docker_cross_build.sh --build-all
 
 # Copy to Raspberry Pi
 scp -r dist/linux-arm64/ pi@raspberrypi:~/hokuyo-hub/
@@ -74,8 +74,8 @@ docker version
 # Build container (30-45 minutes first time)
 ./docker/build.sh build-all
 
-# Extract artifacts
-./scripts/extract_docker_artifacts.sh hokuyo-hub:latest
+# Extract artifacts (UPDATED path)
+./scripts/utils/extract_docker_artifacts.sh hokuyo-hub:latest
 
 # Run locally
 cd dist/linux-arm64
@@ -209,9 +209,12 @@ lsof -i :8080
 
 ### Build Issues
 ```bash
-# Clean and rebuild
-./scripts/build_with_presets.sh clean
-./scripts/build_with_presets.sh release --install
+# Clean and rebuild (UPDATED paths)
+./scripts/build/build_with_presets.sh clean
+./scripts/build/build_with_presets.sh release --install
+
+# Or use optimized cross-compilation
+./scripts/build/docker_cross_build.sh --build-all
 
 # Try different dependency mode
 cmake -DDEPS_MODE=fetch --preset mac-release

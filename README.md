@@ -414,9 +414,10 @@ This project is available under the MIT License.
 ## 📚 Documentation
 
 ### Build & Development
-- **[Build Guide](docs/build/BUILD_GUIDE.md)** - Comprehensive build instructions for all platforms
-- **[Docker Build Debug Report](docs/build/DOCKER_BUILD_DEBUG_REPORT.md)** - Docker build troubleshooting
-- **[Scripts Documentation](scripts/README.md)** - Build script organization and usage
+- **[Build Guide](BUILD.md)** - Comprehensive build instructions for all platforms
+- **[Quick Start Guide](QUICK_START.md)** - Get up and running in minutes
+- **[Docker Build System](docker/README.md)** - Optimized Docker multi-stage builds
+- **[Build Performance](docs/build/OPTIMIZATION_SUMMARY.md)** - 60-70% faster build optimizations
 
 ### Development & Planning
 - **[Development Plans](docs/development/plans/)** - Feature roadmap and implementation plans

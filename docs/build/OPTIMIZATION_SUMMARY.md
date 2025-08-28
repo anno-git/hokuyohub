@@ -163,7 +163,7 @@ Actions → Optimized Docker Matrix Build → Run workflow
 ```bash
 # Test with optimized Dockerfile
 docker buildx build --platform linux/amd64,linux/arm64 \
-  -f docker/Dockerfile.rpi.optimized.v2 \
+  -f docker/Dockerfile.rpi.optimized \
   -t hokuyo-hub:test .
 ```
 
