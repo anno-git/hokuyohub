@@ -82,6 +82,10 @@ jobs:
       DOCKER_BUILD_MEMORY_LIMIT: 6g
 
     steps:
+    - name: Set up QEMU
+      uses: docker/setup-qemu-action@v3
+      with:
+        platforms: arm64
     - name: Checkout repository
       uses: actions/checkout@v4
       with:
@@ -216,7 +220,7 @@ jobs:
         echo "::group::Extract Build Artifacts for ${{ matrix.platform }}"
         IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.TAG }}-${{ matrix.platform-pair }}"
         echo "Pulling image: $IMAGE"
-        docker pull "$IMAGE"
+        docker pull --platform=linux/arm64 "$IMAGE"
         ./scripts/utils/extract_docker_artifacts.sh "$IMAGE" || echo "Extraction failed, continuing..."
         echo "::endgroup::"
 
