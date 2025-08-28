@@ -569,9 +569,18 @@ function(resolve_crowcpp_dependency)
             message(STATUS "Using system CrowCpp package")
         else()
             message(WARNING "System CrowCpp package not found, falling back to FetchContent")
-            setup_fetch_content("CrowCpp"
-                "https://github.com/CrowCpp/Crow.git"
-                "master")
+            # Use stable version for Windows compatibility
+            if(WIN32)
+                setup_fetch_content("CrowCpp"
+                    "https://github.com/CrowCpp/Crow.git"
+                    "v1.0+5")
+                message(STATUS "Using FetchContent CrowCpp v1.0+5 (Windows fallback)")
+            else()
+                setup_fetch_content("CrowCpp"
+                    "https://github.com/CrowCpp/Crow.git"
+                    "master")
+                message(STATUS "Using FetchContent CrowCpp master (Unix fallback)")
+            endif()
             
             # Configure CrowCpp options after fetch
             set(CROW_BUILD_DOCS OFF CACHE BOOL "" FORCE)
@@ -579,17 +588,31 @@ function(resolve_crowcpp_dependency)
             set(CROW_BUILD_TESTS OFF CACHE BOOL "" FORCE)
             set(CROW_AMALGAMATE ON CACHE BOOL "" FORCE)
             
+            # Windows-specific CrowCpp configuration
+            if(WIN32)
+                set(CROW_ENABLE_SSL OFF CACHE BOOL "" FORCE)
+                set(CROW_ENABLE_COMPRESSION OFF CACHE BOOL "" FORCE)
+                set(CROW_INSTALL OFF CACHE BOOL "" FORCE)
+            endif()
+            
             # Create alias target if needed
             if(TARGET crow AND NOT TARGET Crow::Crow)
                 add_library(Crow::Crow ALIAS crow)
             endif()
-            
-            message(STATUS "Using FetchContent CrowCpp master (system fallback)")
         endif()
     elseif(CROWCPP_MODE STREQUAL "fetch")
-        setup_fetch_content("CrowCpp"
-            "https://github.com/CrowCpp/Crow.git"
-            "master")
+        # Use stable version for Windows compatibility
+        if(WIN32)
+            setup_fetch_content("CrowCpp"
+                "https://github.com/CrowCpp/Crow.git"
+                "v1.0+5")
+            message(STATUS "Using FetchContent CrowCpp v1.0+5 (Windows)")
+        else()
+            setup_fetch_content("CrowCpp"
+                "https://github.com/CrowCpp/Crow.git"
+                "master")
+            message(STATUS "Using FetchContent CrowCpp master (Unix)")
+        endif()
         
         # Configure CrowCpp options after fetch
         set(CROW_BUILD_DOCS OFF CACHE BOOL "" FORCE)
@@ -597,12 +620,17 @@ function(resolve_crowcpp_dependency)
         set(CROW_BUILD_TESTS OFF CACHE BOOL "" FORCE)
         set(CROW_AMALGAMATE ON CACHE BOOL "" FORCE)
         
+        # Windows-specific CrowCpp configuration
+        if(WIN32)
+            set(CROW_ENABLE_SSL OFF CACHE BOOL "" FORCE)
+            set(CROW_ENABLE_COMPRESSION OFF CACHE BOOL "" FORCE)
+            set(CROW_INSTALL OFF CACHE BOOL "" FORCE)
+        endif()
+        
         # Create alias target if needed
         if(TARGET crow AND NOT TARGET Crow::Crow)
             add_library(Crow::Crow ALIAS crow)
         endif()
-        
-        message(STATUS "Using FetchContent CrowCpp master")
     elseif(CROWCPP_MODE STREQUAL "bundled")
         message(FATAL_ERROR "Bundled CrowCpp not implemented")
     else() # auto mode
@@ -610,9 +638,18 @@ function(resolve_crowcpp_dependency)
         if(Crow_FOUND)
             message(STATUS "Auto-selected system CrowCpp package")
         else()
-            setup_fetch_content("CrowCpp"
-                "https://github.com/CrowCpp/Crow.git"
-                "master")
+            # Use stable version for Windows compatibility
+            if(WIN32)
+                setup_fetch_content("CrowCpp"
+                    "https://github.com/CrowCpp/Crow.git"
+                    "v1.0+5")
+                message(STATUS "Auto-selected FetchContent CrowCpp v1.0+5 (Windows)")
+            else()
+                setup_fetch_content("CrowCpp"
+                    "https://github.com/CrowCpp/Crow.git"
+                    "master")
+                message(STATUS "Auto-selected FetchContent CrowCpp master (Unix)")
+            endif()
             
             # Configure CrowCpp options after fetch
             set(CROW_BUILD_DOCS OFF CACHE BOOL "" FORCE)
@@ -620,12 +657,17 @@ function(resolve_crowcpp_dependency)
             set(CROW_BUILD_TESTS OFF CACHE BOOL "" FORCE)
             set(CROW_AMALGAMATE ON CACHE BOOL "" FORCE)
             
+            # Windows-specific CrowCpp configuration
+            if(WIN32)
+                set(CROW_ENABLE_SSL OFF CACHE BOOL "" FORCE)
+                set(CROW_ENABLE_COMPRESSION OFF CACHE BOOL "" FORCE)
+                set(CROW_INSTALL OFF CACHE BOOL "" FORCE)
+            endif()
+            
             # Create alias target if needed
             if(TARGET crow AND NOT TARGET Crow::Crow)
                 add_library(Crow::Crow ALIAS crow)
             endif()
-            
-            message(STATUS "Auto-selected FetchContent for CrowCpp master")
         endif()
     endif()
 endfunction()
