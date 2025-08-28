@@ -182,7 +182,7 @@ function(setup_urg_external_project)
 
     # Determine the appropriate library file name and build output path
     if(WIN32)
-        set(URG_LIBRARY_NAME "urg_c.lib")
+        set(URG_LIBRARY_NAME "urg.lib")
         set(URG_BUILD_OUTPUT_DIR "${URG_SRC_DIR}/vs2019/c/x64/Release")
         set(URG_BUILD_OUTPUT_LIB "${URG_BUILD_OUTPUT_DIR}/${URG_LIBRARY_NAME}")
         set(URG_FINAL_LIB_PATH "${URG_LIB_DIR}/${URG_LIBRARY_NAME}")
@@ -213,112 +213,30 @@ function(setup_urg_external_project)
         
         # Configure build command based on platform
         if(WIN32)
-            # Use direct CMake-based build for Windows instead of VS project files
-            message(STATUS "Configuring urg_library for Windows using CMake-based build")
-            
-            # Create a custom CMakeLists.txt for URG library
-            set(URG_CMAKE_CONTENT "
-cmake_minimum_required(VERSION 3.10)
-project(urg_library C)
-
-# Set Windows-specific compile options
-if(MSVC)
-    add_compile_options(/W3)
-    add_compile_definitions(_CRT_SECURE_NO_WARNINGS)
-else()
-    add_compile_options(-Wall)
-endif()
-
-# Include directories
-include_directories(\${CMAKE_CURRENT_SOURCE_DIR}/include/c)
-
-# Source files for urg_c library
-set(URG_C_SOURCES
-    src/urg_serial.c
-    src/urg_tcpclient.c
-    src/urg_sensor.c
-    src/urg_utils.c
-    src/urg_debug.c
-    src/urg_connection.c
-    src/urg_ring_buffer.c
-    src/urg_serial_utils.c
-)
-
-# Check if all source files exist
-foreach(SRC \${URG_C_SOURCES})
-    if(NOT EXISTS \"\${CMAKE_CURRENT_SOURCE_DIR}/\${SRC}\")
-        message(STATUS \"Missing source file: \${SRC}\")
-    endif()
-endforeach()
-
-# Create the static library
-add_library(urg_c STATIC \${URG_C_SOURCES})
-
-# Windows-specific libraries
-if(WIN32)
-    target_link_libraries(urg_c wsock32 ws2_32 setupapi)
-endif()
-
-# Set output name and directory
-set_target_properties(urg_c PROPERTIES
-    OUTPUT_NAME \"urg_c\"
-    ARCHIVE_OUTPUT_DIRECTORY \"\${CMAKE_CURRENT_BINARY_DIR}\"
-)
-
-# Install configuration
-install(TARGETS urg_c
-    ARCHIVE DESTINATION lib
-)
-install(DIRECTORY include/c/ DESTINATION include
-    FILES_MATCHING PATTERN \"*.h\"
-)
-")
-            
-            # Write the CMake file
-            file(WRITE "${URG_SRC_DIR}/CMakeLists_Windows.txt" "${URG_CMAKE_CONTENT}")
-            
-            # Use cmake to build instead of VS project files with comprehensive debugging
+            # Use Visual Studio on Windows for MSVC compatibility
+            set(URG_VS_PROJECT_DIR "${URG_SRC_DIR}/vs2019/c")
             set(URG_BUILD_COMMAND
-                ${CMAKE_COMMAND} -E echo "=== URG Library Windows Build Debug START ==="
-                COMMAND ${CMAKE_COMMAND} -E echo "Building URG library with CMake for Windows..."
-                COMMAND ${CMAKE_COMMAND} -E echo "Source directory: ${URG_SRC_DIR}"
-                COMMAND ${CMAKE_COMMAND} -E echo "Build directory: ${URG_SRC_DIR}/build_windows"
-                COMMAND ${CMAKE_COMMAND} -E echo "Expected output: ${URG_BUILD_OUTPUT_LIB}"
-                COMMAND ${CMAKE_COMMAND} -E echo "Step 1: Creating build directory"
-                COMMAND ${CMAKE_COMMAND} -E make_directory "${URG_SRC_DIR}/build_windows"
-                COMMAND ${CMAKE_COMMAND} -E echo "Step 2: Copying CMakeLists.txt"
-                COMMAND ${CMAKE_COMMAND} -E copy "${URG_SRC_DIR}/CMakeLists_Windows.txt" "${URG_SRC_DIR}/CMakeLists.txt"
-                COMMAND ${CMAKE_COMMAND} -E echo "Step 3: Verifying CMakeLists.txt exists"
-                COMMAND if exist "${URG_SRC_DIR}/CMakeLists.txt" (echo "CMakeLists.txt found") else (echo "ERROR: CMakeLists.txt missing")
-                COMMAND ${CMAKE_COMMAND} -E echo "Step 4: Running CMake configure with verbose output"
-                COMMAND ${CMAKE_COMMAND} -S "${URG_SRC_DIR}" -B "${URG_SRC_DIR}/build_windows"
-                    -G "Visual Studio 17 2022" -A x64
-                    -DCMAKE_BUILD_TYPE=Release
-                    --debug-output
-                COMMAND ${CMAKE_COMMAND} -E echo "Step 5: Listing files after configure"
-                COMMAND dir "${URG_SRC_DIR}/build_windows" /b || echo "Build directory empty"
-                COMMAND ${CMAKE_COMMAND} -E echo "Step 6: Running CMake build with maximum verbosity"
-                COMMAND ${CMAKE_COMMAND} --build "${URG_SRC_DIR}/build_windows" --config Release --verbose -- -verbosity:diagnostic
-                COMMAND ${CMAKE_COMMAND} -E echo "Step 7: Comprehensive file search after build"
-                COMMAND ${CMAKE_COMMAND} -E echo "Checking Release directory:"
-                COMMAND dir "${URG_SRC_DIR}/build_windows/Release/" /s || echo "Release directory not found"
-                COMMAND ${CMAKE_COMMAND} -E echo "Checking Debug directory:"
-                COMMAND dir "${URG_SRC_DIR}/build_windows/Debug/" /s || echo "Debug directory not found"
-                COMMAND ${CMAKE_COMMAND} -E echo "Searching entire build tree for urg files:"
-                COMMAND for /r "${URG_SRC_DIR}/build_windows" %%i in (*urg*) do echo Found: %%i
-                COMMAND ${CMAKE_COMMAND} -E echo "Searching entire build tree for .lib files:"
-                COMMAND for /r "${URG_SRC_DIR}/build_windows" %%i in (*.lib) do echo Found lib: %%i
-                COMMAND ${CMAKE_COMMAND} -E echo "Checking specific expected locations:"
-                COMMAND if exist "${URG_SRC_DIR}/build_windows/Release/urg_c.lib" (echo "SUCCESS: urg_c.lib found in Release/") else (echo "MISSING: urg_c.lib NOT in Release/")
-                COMMAND if exist "${URG_SRC_DIR}/build_windows/Debug/urg_c.lib" (echo "SUCCESS: urg_c.lib found in Debug/") else (echo "MISSING: urg_c.lib NOT in Debug/")
-                COMMAND if exist "${URG_SRC_DIR}/build_windows/urg_c.lib" (echo "SUCCESS: urg_c.lib found in root build/") else (echo "MISSING: urg_c.lib NOT in root build/")
-                COMMAND ${CMAKE_COMMAND} -E echo "Step 8: MSBuild log analysis"
-                COMMAND if exist "${URG_SRC_DIR}/build_windows/*.log" (type "${URG_SRC_DIR}/build_windows/*.log") else (echo "No MSBuild log files found")
-                COMMAND ${CMAKE_COMMAND} -E echo "=== URG Library Windows Build Debug END ==="
+                ${CMAKE_VS_MSBUILD_COMMAND} "${URG_VS_PROJECT_DIR}/urg.sln"
+                "/p:Configuration=Release"
+                "/p:Platform=x64"
+                "/p:PlatformToolset=v142"
             )
+            message(STATUS "Configuring urg_library for Windows using Visual Studio 2019")
             
-            # Update library paths for the CMake build output
-            set(URG_BUILD_OUTPUT_LIB "${URG_SRC_DIR}/build_windows/Release/urg_c.lib")
+            # Alternative fallback to devenv if msbuild not available
+            if(NOT CMAKE_VS_MSBUILD_COMMAND)
+                find_program(DEVENV_COMMAND devenv.exe)
+                if(DEVENV_COMMAND)
+                    set(URG_BUILD_COMMAND
+                        ${DEVENV_COMMAND} "${URG_VS_PROJECT_DIR}/urg.sln"
+                        /Build "Release|x64"
+                    )
+                    message(STATUS "Using devenv.exe for URG library build")
+                else()
+                    message(WARNING "Neither msbuild nor devenv found. Falling back to make - may cause linking issues.")
+                    set(URG_BUILD_COMMAND make -C ${URG_SRC_DIR}/src clean all)
+                endif()
+            endif()
         elseif(CMAKE_CROSSCOMPILING)
             set(URG_BUILD_COMMAND
                 make -C ${URG_SRC_DIR}/src clean all
@@ -343,7 +261,7 @@ install(DIRECTORY include/c/ DESTINATION include
             LOG_BUILD         1
         )
 
-        # Copy headers and library with improved Windows compatibility
+        # Copy headers and library
         ExternalProject_Add_Step(urg_library_proj copy_headers
             COMMAND ${CMAKE_COMMAND} -E copy_directory
                     ${URG_SRC_DIR}/include/c ${URG_INCLUDE_DIR}
@@ -351,38 +269,12 @@ install(DIRECTORY include/c/ DESTINATION include
             ALWAYS 1
         )
 
-        if(WIN32)
-            # Windows - enhanced debugging for copy operation
-            ExternalProject_Add_Step(urg_library_proj copy_library
-                COMMAND ${CMAKE_COMMAND} -E echo "=== URG Library Copy Debug ==="
-                COMMAND ${CMAKE_COMMAND} -E echo "Copying URG library built with CMake..."
-                COMMAND ${CMAKE_COMMAND} -E echo "Source: ${URG_BUILD_OUTPUT_LIB}"
-                COMMAND ${CMAKE_COMMAND} -E echo "Target: ${URG_FINAL_LIB_PATH}"
-                COMMAND ${CMAKE_COMMAND} -E echo "Checking if source file exists:"
-                COMMAND ${CMAKE_COMMAND} -E echo "Testing: ${URG_BUILD_OUTPUT_LIB}"
-                COMMAND if exist "${URG_BUILD_OUTPUT_LIB}" (echo "Source file found") else (echo "ERROR: Source file NOT found")
-                COMMAND ${CMAKE_COMMAND} -E echo "Creating target directory if needed:"
-                COMMAND ${CMAKE_COMMAND} -E make_directory "${URG_LIB_DIR}"
-                COMMAND ${CMAKE_COMMAND} -E echo "Directory created/verified: ${URG_LIB_DIR}"
-                COMMAND ${CMAKE_COMMAND} -E echo "Attempting file copy..."
-                COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                        "${URG_BUILD_OUTPUT_LIB}" "${URG_FINAL_LIB_PATH}"
-                COMMAND ${CMAKE_COMMAND} -E echo "Copy operation completed"
-                COMMAND ${CMAKE_COMMAND} -E echo "Verifying copied file:"
-                COMMAND if exist "${URG_FINAL_LIB_PATH}" (echo "Target file successfully created") else (echo "ERROR: Target file NOT created")
-                COMMAND ${CMAKE_COMMAND} -E echo "=== URG Library Copy Debug Complete ==="
-                DEPENDEES build copy_headers
-                ALWAYS 1
-            )
-        else()
-            # Unix/macOS - standard copy
-            ExternalProject_Add_Step(urg_library_proj copy_library
-                COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                        ${URG_BUILD_OUTPUT_LIB} ${URG_FINAL_LIB_PATH}
-                DEPENDEES build copy_headers
-                ALWAYS 1
-            )
-        endif()
+        ExternalProject_Add_Step(urg_library_proj copy_library
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                    ${URG_BUILD_OUTPUT_LIB} ${URG_FINAL_LIB_PATH}
+            DEPENDEES build
+            ALWAYS 1
+        )
 
         # Create imported target
         add_library(urg_c STATIC IMPORTED GLOBAL)
@@ -609,18 +501,9 @@ function(resolve_crowcpp_dependency)
             message(STATUS "Using system CrowCpp package")
         else()
             message(WARNING "System CrowCpp package not found, falling back to FetchContent")
-            # Use stable version for Windows compatibility
-            if(WIN32)
-                setup_fetch_content("CrowCpp"
-                    "https://github.com/CrowCpp/Crow.git"
-                    "v1.0+5")
-                message(STATUS "Using FetchContent CrowCpp v1.0+5 (Windows fallback)")
-            else()
-                setup_fetch_content("CrowCpp"
-                    "https://github.com/CrowCpp/Crow.git"
-                    "master")
-                message(STATUS "Using FetchContent CrowCpp master (Unix fallback)")
-            endif()
+            setup_fetch_content("CrowCpp"
+                "https://github.com/CrowCpp/Crow.git"
+                "master")
             
             # Configure CrowCpp options after fetch
             set(CROW_BUILD_DOCS OFF CACHE BOOL "" FORCE)
@@ -628,31 +511,17 @@ function(resolve_crowcpp_dependency)
             set(CROW_BUILD_TESTS OFF CACHE BOOL "" FORCE)
             set(CROW_AMALGAMATE ON CACHE BOOL "" FORCE)
             
-            # Windows-specific CrowCpp configuration
-            if(WIN32)
-                set(CROW_ENABLE_SSL OFF CACHE BOOL "" FORCE)
-                set(CROW_ENABLE_COMPRESSION OFF CACHE BOOL "" FORCE)
-                set(CROW_INSTALL OFF CACHE BOOL "" FORCE)
-            endif()
-            
             # Create alias target if needed
             if(TARGET crow AND NOT TARGET Crow::Crow)
                 add_library(Crow::Crow ALIAS crow)
             endif()
+            
+            message(STATUS "Using FetchContent CrowCpp master (system fallback)")
         endif()
     elseif(CROWCPP_MODE STREQUAL "fetch")
-        # Use stable version for Windows compatibility
-        if(WIN32)
-            setup_fetch_content("CrowCpp"
-                "https://github.com/CrowCpp/Crow.git"
-                "v1.0+5")
-            message(STATUS "Using FetchContent CrowCpp v1.0+5 (Windows)")
-        else()
-            setup_fetch_content("CrowCpp"
-                "https://github.com/CrowCpp/Crow.git"
-                "master")
-            message(STATUS "Using FetchContent CrowCpp master (Unix)")
-        endif()
+        setup_fetch_content("CrowCpp"
+            "https://github.com/CrowCpp/Crow.git"
+            "master")
         
         # Configure CrowCpp options after fetch
         set(CROW_BUILD_DOCS OFF CACHE BOOL "" FORCE)
@@ -660,17 +529,12 @@ function(resolve_crowcpp_dependency)
         set(CROW_BUILD_TESTS OFF CACHE BOOL "" FORCE)
         set(CROW_AMALGAMATE ON CACHE BOOL "" FORCE)
         
-        # Windows-specific CrowCpp configuration
-        if(WIN32)
-            set(CROW_ENABLE_SSL OFF CACHE BOOL "" FORCE)
-            set(CROW_ENABLE_COMPRESSION OFF CACHE BOOL "" FORCE)
-            set(CROW_INSTALL OFF CACHE BOOL "" FORCE)
-        endif()
-        
         # Create alias target if needed
         if(TARGET crow AND NOT TARGET Crow::Crow)
             add_library(Crow::Crow ALIAS crow)
         endif()
+        
+        message(STATUS "Using FetchContent CrowCpp master")
     elseif(CROWCPP_MODE STREQUAL "bundled")
         message(FATAL_ERROR "Bundled CrowCpp not implemented")
     else() # auto mode
@@ -678,18 +542,9 @@ function(resolve_crowcpp_dependency)
         if(Crow_FOUND)
             message(STATUS "Auto-selected system CrowCpp package")
         else()
-            # Use stable version for Windows compatibility
-            if(WIN32)
-                setup_fetch_content("CrowCpp"
-                    "https://github.com/CrowCpp/Crow.git"
-                    "v1.0+5")
-                message(STATUS "Auto-selected FetchContent CrowCpp v1.0+5 (Windows)")
-            else()
-                setup_fetch_content("CrowCpp"
-                    "https://github.com/CrowCpp/Crow.git"
-                    "master")
-                message(STATUS "Auto-selected FetchContent CrowCpp master (Unix)")
-            endif()
+            setup_fetch_content("CrowCpp"
+                "https://github.com/CrowCpp/Crow.git"
+                "master")
             
             # Configure CrowCpp options after fetch
             set(CROW_BUILD_DOCS OFF CACHE BOOL "" FORCE)
@@ -697,17 +552,12 @@ function(resolve_crowcpp_dependency)
             set(CROW_BUILD_TESTS OFF CACHE BOOL "" FORCE)
             set(CROW_AMALGAMATE ON CACHE BOOL "" FORCE)
             
-            # Windows-specific CrowCpp configuration
-            if(WIN32)
-                set(CROW_ENABLE_SSL OFF CACHE BOOL "" FORCE)
-                set(CROW_ENABLE_COMPRESSION OFF CACHE BOOL "" FORCE)
-                set(CROW_INSTALL OFF CACHE BOOL "" FORCE)
-            endif()
-            
             # Create alias target if needed
             if(TARGET crow AND NOT TARGET Crow::Crow)
                 add_library(Crow::Crow ALIAS crow)
             endif()
+            
+            message(STATUS "Auto-selected FetchContent for CrowCpp master")
         endif()
     endif()
 endfunction()
