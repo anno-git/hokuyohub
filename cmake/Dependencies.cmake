@@ -213,46 +213,84 @@ function(setup_urg_external_project)
         
         # Configure build command based on platform
         if(WIN32)
-            # Use Visual Studio on Windows for MSVC compatibility
-            set(URG_VS_PROJECT_DIR "${URG_SRC_DIR}/vs2019/c")
+            # Use direct CMake-based build for Windows instead of VS project files
+            message(STATUS "Configuring urg_library for Windows using CMake-based build")
             
-            # Enhanced Visual Studio build with proper completion waiting
+            # Create a custom CMakeLists.txt for URG library
+            set(URG_CMAKE_CONTENT "
+cmake_minimum_required(VERSION 3.10)
+project(urg_library C)
+
+# Set Windows-specific compile options
+if(MSVC)
+    add_compile_options(/W3)
+    add_compile_definitions(_CRT_SECURE_NO_WARNINGS)
+else()
+    add_compile_options(-Wall)
+endif()
+
+# Include directories
+include_directories(\${CMAKE_CURRENT_SOURCE_DIR}/include/c)
+
+# Source files for urg_c library
+set(URG_C_SOURCES
+    src/urg_serial.c
+    src/urg_tcpclient.c
+    src/urg_sensor.c
+    src/urg_utils.c
+    src/urg_debug.c
+    src/urg_connection.c
+    src/urg_ring_buffer.c
+    src/urg_serial_utils.c
+)
+
+# Check if all source files exist
+foreach(SRC \${URG_C_SOURCES})
+    if(NOT EXISTS \"\${CMAKE_CURRENT_SOURCE_DIR}/\${SRC}\")
+        message(STATUS \"Missing source file: \${SRC}\")
+    endif()
+endforeach()
+
+# Create the static library
+add_library(urg_c STATIC \${URG_C_SOURCES})
+
+# Windows-specific libraries
+if(WIN32)
+    target_link_libraries(urg_c wsock32 ws2_32 setupapi)
+endif()
+
+# Set output name and directory
+set_target_properties(urg_c PROPERTIES
+    OUTPUT_NAME \"urg\"
+    ARCHIVE_OUTPUT_DIRECTORY \"\${CMAKE_CURRENT_BINARY_DIR}\"
+)
+
+# Install configuration
+install(TARGETS urg_c
+    ARCHIVE DESTINATION lib
+)
+install(DIRECTORY include/c/ DESTINATION include
+    FILES_MATCHING PATTERN \"*.h\"
+)
+")
+            
+            # Write the CMake file
+            file(WRITE "${URG_SRC_DIR}/CMakeLists_Windows.txt" "${URG_CMAKE_CONTENT}")
+            
+            # Use cmake to build instead of VS project files
             set(URG_BUILD_COMMAND
-                ${CMAKE_COMMAND} -E echo "Starting Visual Studio build..."
+                ${CMAKE_COMMAND} -E echo "Building URG library with CMake for Windows..."
+                COMMAND ${CMAKE_COMMAND} -E make_directory "${URG_SRC_DIR}/build_windows"
+                COMMAND ${CMAKE_COMMAND} -S "${URG_SRC_DIR}" -B "${URG_SRC_DIR}/build_windows"
+                    -f "${URG_SRC_DIR}/CMakeLists_Windows.txt"
+                    -G "Visual Studio 17 2022" -A x64
+                    -DCMAKE_BUILD_TYPE=Release
+                COMMAND ${CMAKE_COMMAND} --build "${URG_SRC_DIR}/build_windows" --config Release
+                COMMAND ${CMAKE_COMMAND} -E echo "URG library build completed"
             )
             
-            if(CMAKE_VS_MSBUILD_COMMAND)
-                list(APPEND URG_BUILD_COMMAND
-                    COMMAND ${CMAKE_VS_MSBUILD_COMMAND} "${URG_VS_PROJECT_DIR}/urg.sln"
-                    "/p:Configuration=Release"
-                    "/p:Platform=x64"
-                    "/p:PlatformToolset=v142"
-                    "/m:1"
-                    "/verbosity:minimal"
-                )
-                message(STATUS "Configuring urg_library for Windows using MSBuild")
-            else()
-                # Alternative fallback to devenv if msbuild not available
-                find_program(DEVENV_COMMAND devenv.exe)
-                if(DEVENV_COMMAND)
-                    list(APPEND URG_BUILD_COMMAND
-                        COMMAND ${DEVENV_COMMAND} "${URG_VS_PROJECT_DIR}/urg.sln"
-                        /Build "Release|x64"
-                    )
-                    message(STATUS "Using devenv.exe for URG library build")
-                else()
-                    message(WARNING "Neither msbuild nor devenv found. Falling back to make - may cause linking issues.")
-                    set(URG_BUILD_COMMAND make -C ${URG_SRC_DIR}/src clean all)
-                endif()
-            endif()
-            
-            # Add completion verification
-            if(CMAKE_VS_MSBUILD_COMMAND OR DEVENV_COMMAND)
-                list(APPEND URG_BUILD_COMMAND
-                    COMMAND ${CMAKE_COMMAND} -E echo "Visual Studio build completed"
-                    COMMAND ${CMAKE_COMMAND} -E sleep 1
-                )
-            endif()
+            # Update library paths for the CMake build output
+            set(URG_BUILD_OUTPUT_LIB "${URG_SRC_DIR}/build_windows/Release/urg.lib")
         elseif(CMAKE_CROSSCOMPILING)
             set(URG_BUILD_COMMAND
                 make -C ${URG_SRC_DIR}/src clean all
@@ -286,139 +324,16 @@ function(setup_urg_external_project)
         )
 
         if(WIN32)
-            # Create script directory and copy script file path
-            set(COPY_SCRIPT_PATH "${CMAKE_BINARY_DIR}/copy_urg_windows.cmake")
-            
-            # Windows-specific copy with retry logic and path normalization
+            # Windows - simple copy since we're building with CMake now
             ExternalProject_Add_Step(urg_library_proj copy_library
-                COMMAND ${CMAKE_COMMAND} -E echo "Waiting for Visual Studio build to complete..."
-                COMMAND ${CMAKE_COMMAND} -E sleep 2
-                COMMAND ${CMAKE_COMMAND} -E echo "Checking for URG library: ${URG_BUILD_OUTPUT_LIB}"
-                COMMAND ${CMAKE_COMMAND} -E echo "Target location: ${URG_FINAL_LIB_PATH}"
-                COMMAND ${CMAKE_COMMAND} -P "${COPY_SCRIPT_PATH}"
+                COMMAND ${CMAKE_COMMAND} -E echo "Copying URG library built with CMake..."
+                COMMAND ${CMAKE_COMMAND} -E echo "Source: ${URG_BUILD_OUTPUT_LIB}"
+                COMMAND ${CMAKE_COMMAND} -E echo "Target: ${URG_FINAL_LIB_PATH}"
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                        ${URG_BUILD_OUTPUT_LIB} ${URG_FINAL_LIB_PATH}
                 DEPENDEES build copy_headers
                 ALWAYS 1
             )
-            
-            # Create the Windows copy script with enhanced diagnostics
-            file(WRITE "${COPY_SCRIPT_PATH}" "
-# Windows URG library copy script with retry logic and diagnostics
-set(SOURCE_FILE \"${URG_BUILD_OUTPUT_LIB}\")
-set(TARGET_FILE \"${URG_FINAL_LIB_PATH}\")
-
-# Normalize paths for Windows
-file(TO_CMAKE_PATH \"\${SOURCE_FILE}\" SOURCE_FILE)
-file(TO_CMAKE_PATH \"\${TARGET_FILE}\" TARGET_FILE)
-
-message(STATUS \"=== URG Library Copy Diagnostics ===\")
-message(STATUS \"Source file: \${SOURCE_FILE}\")
-message(STATUS \"Target file: \${TARGET_FILE}\")
-
-# Check Visual Studio directories
-get_filename_component(VS_DIR \"\${SOURCE_FILE}\" DIRECTORY)
-message(STATUS \"Visual Studio output directory: \${VS_DIR}\")
-if(EXISTS \"\${VS_DIR}\")
-    file(GLOB VS_FILES \"\${VS_DIR}/*\")
-    message(STATUS \"Files in VS directory: \${VS_FILES}\")
-endif()
-
-# Ensure target directory exists
-get_filename_component(TARGET_DIR \"\${TARGET_FILE}\" DIRECTORY)
-file(MAKE_DIRECTORY \"\${TARGET_DIR}\")
-message(STATUS \"Target directory: \${TARGET_DIR}\")
-
-# Retry logic for file copy
-set(MAX_RETRIES 8)
-set(RETRY_COUNT 0)
-set(COPY_SUCCESS FALSE)
-
-while(RETRY_COUNT LESS MAX_RETRIES AND NOT COPY_SUCCESS)
-    math(EXPR ATTEMPT_NUM \"\${RETRY_COUNT} + 1\")
-    message(STATUS \"=== Copy Attempt \${ATTEMPT_NUM}/\${MAX_RETRIES} ===\")
-    
-    if(EXISTS \"\${SOURCE_FILE}\")
-        # Get file info for diagnostics
-        file(SIZE \"\${SOURCE_FILE}\" SOURCE_SIZE)
-        message(STATUS \"Found source file (size: \${SOURCE_SIZE} bytes): \${SOURCE_FILE}\")
-        
-        # Try to copy the file
-        execute_process(
-            COMMAND \${CMAKE_COMMAND} -E copy_if_different \"\${SOURCE_FILE}\" \"\${TARGET_FILE}\"
-            RESULT_VARIABLE COPY_RESULT
-            ERROR_VARIABLE COPY_ERROR
-            OUTPUT_VARIABLE COPY_OUTPUT
-        )
-        
-        if(COPY_RESULT EQUAL 0)
-            # Verify the copy was successful
-            if(EXISTS \"\${TARGET_FILE}\")
-                file(SIZE \"\${TARGET_FILE}\" TARGET_SIZE)
-                if(SOURCE_SIZE EQUAL TARGET_SIZE)
-                    message(STATUS \"✅ URG library copied successfully (\${TARGET_SIZE} bytes)\")
-                    set(COPY_SUCCESS TRUE)
-                else()
-                    message(WARNING \"❌ File copied but sizes don't match (source: \${SOURCE_SIZE}, target: \${TARGET_SIZE})\")
-                endif()
-            else()
-                message(WARNING \"❌ Copy command succeeded but target file doesn't exist\")
-            endif()
-        else()
-            message(WARNING \"❌ Copy command failed (exit code: \${COPY_RESULT})\")
-            if(COPY_ERROR)
-                message(WARNING \"Error: \${COPY_ERROR}\")
-            endif()
-            if(COPY_OUTPUT)
-                message(STATUS \"Output: \${COPY_OUTPUT}\")
-            endif()
-        endif()
-        
-        if(NOT COPY_SUCCESS)
-            math(EXPR RETRY_COUNT \"\${RETRY_COUNT} + 1\")
-            if(RETRY_COUNT LESS MAX_RETRIES)
-                set(WAIT_TIME 2)
-                math(EXPR WAIT_SCALED \"\${RETRY_COUNT} + \${WAIT_TIME}\")
-                message(STATUS \"Waiting \${WAIT_SCALED} seconds before retry...\")
-                execute_process(COMMAND \${CMAKE_COMMAND} -E sleep \${WAIT_SCALED})
-            endif()
-        endif()
-    else()
-        message(WARNING \"❌ Source file does not exist: \${SOURCE_FILE}\")
-        
-        # List alternative locations where the file might be
-        get_filename_component(SOURCE_DIR \"\${SOURCE_FILE}\" DIRECTORY)
-        get_filename_component(VS_ROOT_DIR \"\${SOURCE_DIR}\" DIRECTORY)
-        message(STATUS \"Checking alternative locations in \${VS_ROOT_DIR}...\")
-        
-        file(GLOB_RECURSE FOUND_LIBS \"\${VS_ROOT_DIR}/**/urg.lib\")
-        if(FOUND_LIBS)
-            message(STATUS \"Found potential URG libraries: \${FOUND_LIBS}\")
-        else()
-            message(WARNING \"No urg.lib files found in \${VS_ROOT_DIR}\")
-        endif()
-        
-        set(WAIT_TIME 5)
-        math(EXPR WAIT_SCALED \"\${RETRY_COUNT} + \${WAIT_TIME}\")
-        message(STATUS \"Waiting \${WAIT_SCALED} seconds for build to complete...\")
-        execute_process(COMMAND \${CMAKE_COMMAND} -E sleep \${WAIT_SCALED})
-        
-        math(EXPR RETRY_COUNT \"\${RETRY_COUNT} + 1\")
-    endif()
-endwhile()
-
-if(NOT COPY_SUCCESS)
-    message(STATUS \"=== Final Diagnostics ===\")
-    message(STATUS \"Visual Studio build directory listing:\")
-    if(EXISTS \"\${VS_DIR}\")
-        file(GLOB_RECURSE ALL_FILES \"\${VS_DIR}/**/*\")
-        foreach(FILE \${ALL_FILES})
-            message(STATUS \"  \${FILE}\")
-        endforeach()
-    endif()
-    message(FATAL_ERROR \"Failed to copy URG library after \${MAX_RETRIES} attempts. Source: \${SOURCE_FILE}, Target: \${TARGET_FILE}\")
-else()
-    message(STATUS \"=== URG Library Copy Completed Successfully ===\")
-endif()
-")
         else()
             # Unix/macOS - standard copy
             ExternalProject_Add_Step(urg_library_proj copy_library
