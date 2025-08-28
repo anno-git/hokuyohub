@@ -113,8 +113,8 @@ RUN cd build/linux-arm64 && \
 
 # Verify build output
 RUN echo "=== Build Verification ===" && \
-    file build/linux-arm64/hokuyo_hub && \
-    ldd build/linux-arm64/hokuyo_hub && \
+    file build/linux-arm64/bin/hokuyo_hub && \
+    ldd build/linux-arm64/bin/hokuyo_hub && \
     ls -la /staging/opt/hokuyohub/
 
 # =============================================================================
