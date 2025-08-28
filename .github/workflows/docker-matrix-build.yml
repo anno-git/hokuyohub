@@ -193,8 +193,8 @@ jobs:
           git clone https://github.com/Microsoft/vcpkg.git C:\vcpkg
           C:\vcpkg\bootstrap-vcpkg.bat -disableMetrics
         }
-        # Install required dependencies
-        C:\vcpkg\vcpkg.exe install yaml-cpp:x64-windows jsoncpp:x64-windows nng:x64-windows asio:x64-windows
+        # Install required dependencies (including Boost for CrowCpp)
+        C:\vcpkg\vcpkg.exe install yaml-cpp:x64-windows jsoncpp:x64-windows nng:x64-windows asio:x64-windows boost-system:x64-windows boost-date-time:x64-windows
         echo "CMAKE_TOOLCHAIN_FILE=C:\vcpkg\scripts\buildsystems\vcpkg.cmake" >> $env:GITHUB_ENV
         echo "::endgroup::"
 
