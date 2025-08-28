@@ -277,28 +277,44 @@ install(DIRECTORY include/c/ DESTINATION include
             # Write the CMake file
             file(WRITE "${URG_SRC_DIR}/CMakeLists_Windows.txt" "${URG_CMAKE_CONTENT}")
             
-            # Use cmake to build instead of VS project files
+            # Use cmake to build instead of VS project files with comprehensive debugging
             set(URG_BUILD_COMMAND
-                ${CMAKE_COMMAND} -E echo "=== URG Library Windows Build Debug ==="
+                ${CMAKE_COMMAND} -E echo "=== URG Library Windows Build Debug START ==="
                 COMMAND ${CMAKE_COMMAND} -E echo "Building URG library with CMake for Windows..."
                 COMMAND ${CMAKE_COMMAND} -E echo "Source directory: ${URG_SRC_DIR}"
                 COMMAND ${CMAKE_COMMAND} -E echo "Build directory: ${URG_SRC_DIR}/build_windows"
                 COMMAND ${CMAKE_COMMAND} -E echo "Expected output: ${URG_BUILD_OUTPUT_LIB}"
+                COMMAND ${CMAKE_COMMAND} -E echo "Step 1: Creating build directory"
                 COMMAND ${CMAKE_COMMAND} -E make_directory "${URG_SRC_DIR}/build_windows"
+                COMMAND ${CMAKE_COMMAND} -E echo "Step 2: Copying CMakeLists.txt"
                 COMMAND ${CMAKE_COMMAND} -E copy "${URG_SRC_DIR}/CMakeLists_Windows.txt" "${URG_SRC_DIR}/CMakeLists.txt"
-                COMMAND ${CMAKE_COMMAND} -E echo "CMakeLists.txt copied for Windows build"
+                COMMAND ${CMAKE_COMMAND} -E echo "Step 3: Verifying CMakeLists.txt exists"
+                COMMAND if exist "${URG_SRC_DIR}/CMakeLists.txt" (echo "CMakeLists.txt found") else (echo "ERROR: CMakeLists.txt missing")
+                COMMAND ${CMAKE_COMMAND} -E echo "Step 4: Running CMake configure with verbose output"
                 COMMAND ${CMAKE_COMMAND} -S "${URG_SRC_DIR}" -B "${URG_SRC_DIR}/build_windows"
                     -G "Visual Studio 17 2022" -A x64
                     -DCMAKE_BUILD_TYPE=Release
-                COMMAND ${CMAKE_COMMAND} -E echo "CMake configure completed"
-                COMMAND ${CMAKE_COMMAND} --build "${URG_SRC_DIR}/build_windows" --config Release --verbose
-                COMMAND ${CMAKE_COMMAND} -E echo "CMake build completed"
-                COMMAND ${CMAKE_COMMAND} -E echo "Listing build output directory:"
-                COMMAND ${CMAKE_COMMAND} -E echo "Directory: ${URG_SRC_DIR}/build_windows/Release/"
-                COMMAND dir "${URG_SRC_DIR}/build_windows/Release/" || echo "Release directory not found"
-                COMMAND ${CMAKE_COMMAND} -E echo "Searching for urg_c.lib files:"
-                COMMAND dir "${URG_SRC_DIR}/build_windows" /s /b | findstr "urg_c" || echo "No urg_c files found"
-                COMMAND ${CMAKE_COMMAND} -E echo "=== URG Library Build Debug Complete ==="
+                    --debug-output
+                COMMAND ${CMAKE_COMMAND} -E echo "Step 5: Listing files after configure"
+                COMMAND dir "${URG_SRC_DIR}/build_windows" /b || echo "Build directory empty"
+                COMMAND ${CMAKE_COMMAND} -E echo "Step 6: Running CMake build with maximum verbosity"
+                COMMAND ${CMAKE_COMMAND} --build "${URG_SRC_DIR}/build_windows" --config Release --verbose -- -verbosity:diagnostic
+                COMMAND ${CMAKE_COMMAND} -E echo "Step 7: Comprehensive file search after build"
+                COMMAND ${CMAKE_COMMAND} -E echo "Checking Release directory:"
+                COMMAND dir "${URG_SRC_DIR}/build_windows/Release/" /s || echo "Release directory not found"
+                COMMAND ${CMAKE_COMMAND} -E echo "Checking Debug directory:"
+                COMMAND dir "${URG_SRC_DIR}/build_windows/Debug/" /s || echo "Debug directory not found"
+                COMMAND ${CMAKE_COMMAND} -E echo "Searching entire build tree for urg files:"
+                COMMAND for /r "${URG_SRC_DIR}/build_windows" %%i in (*urg*) do echo Found: %%i
+                COMMAND ${CMAKE_COMMAND} -E echo "Searching entire build tree for .lib files:"
+                COMMAND for /r "${URG_SRC_DIR}/build_windows" %%i in (*.lib) do echo Found lib: %%i
+                COMMAND ${CMAKE_COMMAND} -E echo "Checking specific expected locations:"
+                COMMAND if exist "${URG_SRC_DIR}/build_windows/Release/urg_c.lib" (echo "SUCCESS: urg_c.lib found in Release/") else (echo "MISSING: urg_c.lib NOT in Release/")
+                COMMAND if exist "${URG_SRC_DIR}/build_windows/Debug/urg_c.lib" (echo "SUCCESS: urg_c.lib found in Debug/") else (echo "MISSING: urg_c.lib NOT in Debug/")
+                COMMAND if exist "${URG_SRC_DIR}/build_windows/urg_c.lib" (echo "SUCCESS: urg_c.lib found in root build/") else (echo "MISSING: urg_c.lib NOT in root build/")
+                COMMAND ${CMAKE_COMMAND} -E echo "Step 8: MSBuild log analysis"
+                COMMAND if exist "${URG_SRC_DIR}/build_windows/*.log" (type "${URG_SRC_DIR}/build_windows/*.log") else (echo "No MSBuild log files found")
+                COMMAND ${CMAKE_COMMAND} -E echo "=== URG Library Windows Build Debug END ==="
             )
             
             # Update library paths for the CMake build output
