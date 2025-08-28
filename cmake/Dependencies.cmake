@@ -215,14 +215,17 @@ function(setup_urg_external_project)
         if(WIN32)
             # Use Visual Studio on Windows for MSVC compatibility
             set(URG_VS_PROJECT_DIR "${URG_SRC_DIR}/vs2019/c")
+            # Explicitly set the output directory to ensure consistent build location
             set(URG_BUILD_COMMAND
                 ${CMAKE_VS_MSBUILD_COMMAND} "${URG_VS_PROJECT_DIR}/urg.sln"
                 "/p:Configuration=Release"
                 "/p:Platform=x64"
                 "/p:PlatformToolset=v142"
+                "/p:OutDir=${URG_BUILD_OUTPUT_DIR}/"
                 "/t:urg"
             )
             message(STATUS "Configuring urg_library for Windows using Visual Studio 2019")
+            message(STATUS "Build output will be directed to: ${URG_BUILD_OUTPUT_DIR}")
             
             # Alternative fallback to devenv if msbuild not available
             if(NOT CMAKE_VS_MSBUILD_COMMAND)
