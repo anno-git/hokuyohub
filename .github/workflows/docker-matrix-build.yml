@@ -232,7 +232,7 @@ jobs:
         IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.TAG }}-${{ matrix.platform-pair }}"
         echo "Pulling image: $IMAGE"
         docker pull --platform=${{ matrix.platform }} "$IMAGE"
-        ./scripts/utils/extract_docker_artifacts.sh "$IMAGE" || echo "Extraction failed, continuing..."
+        ./scripts/utils/extract_docker_artifacts.sh "$IMAGE" "${{ matrix.platform-pair }}" || echo "Extraction failed, continuing..."
         echo "::endgroup::"
 
     - name: Upload platform-specific artifacts

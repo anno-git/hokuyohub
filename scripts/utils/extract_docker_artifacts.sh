@@ -15,8 +15,12 @@ set -e
 
 # Configuration
 IMAGE_NAME="${1:-hokuyo-hub:build-rebuild}"
-DIST_DIR="./dist/linux-arm64"
+PLATFORM_PAIR="${2:-linux-arm64}"
+DIST_DIR="./dist/${PLATFORM_PAIR}"
 TEMP_CONTAINER="hokuyo-extract-temp"
+
+# Extract platform from platform-pair (e.g., linux-amd64 -> linux/amd64)
+PLATFORM="${PLATFORM_PAIR//-//}"
 
 # Colors for output
 RED='\033[0;31m'
@@ -73,7 +77,7 @@ extract_artifacts() {
     
     # Create temporary container
     log_info "Creating temporary container..."
-    docker create --name "$TEMP_CONTAINER" --platform linux/arm64 "$IMAGE_NAME" >/dev/null
+    docker create --name "$TEMP_CONTAINER" --platform "$PLATFORM" "$IMAGE_NAME" >/dev/null
     
     # Extract main binary
     log_info "Extracting main binary..."
