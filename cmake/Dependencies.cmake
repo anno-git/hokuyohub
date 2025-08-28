@@ -281,8 +281,8 @@ install(DIRECTORY include/c/ DESTINATION include
             set(URG_BUILD_COMMAND
                 ${CMAKE_COMMAND} -E echo "Building URG library with CMake for Windows..."
                 COMMAND ${CMAKE_COMMAND} -E make_directory "${URG_SRC_DIR}/build_windows"
+                COMMAND ${CMAKE_COMMAND} -E copy "${URG_SRC_DIR}/CMakeLists_Windows.txt" "${URG_SRC_DIR}/CMakeLists.txt"
                 COMMAND ${CMAKE_COMMAND} -S "${URG_SRC_DIR}" -B "${URG_SRC_DIR}/build_windows"
-                    -f "${URG_SRC_DIR}/CMakeLists_Windows.txt"
                     -G "Visual Studio 17 2022" -A x64
                     -DCMAKE_BUILD_TYPE=Release
                 COMMAND ${CMAKE_COMMAND} --build "${URG_SRC_DIR}/build_windows" --config Release
