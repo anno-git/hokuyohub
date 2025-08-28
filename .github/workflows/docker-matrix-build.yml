@@ -214,7 +214,10 @@ jobs:
       if: matrix.platform == 'linux/arm64' && github.event_name != 'pull_request'
       run: |
         echo "::group::Extract Build Artifacts for ${{ matrix.platform }}"
-        ./scripts/utils/extract_docker_artifacts.sh ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.TAG }}-${{ matrix.platform-pair }} || echo "Extraction failed, continuing..."
+        IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.TAG }}-${{ matrix.platform-pair }}"
+        echo "Pulling image: $IMAGE"
+        docker pull "$IMAGE"
+        ./scripts/utils/extract_docker_artifacts.sh "$IMAGE" || echo "Extraction failed, continuing..."
         echo "::endgroup::"
 
     - name: Upload platform-specific artifacts
