@@ -85,7 +85,8 @@ jobs:
     - name: Set up QEMU
       uses: docker/setup-qemu-action@v3
       with:
-        platforms: arm64
+        platforms: all
+
     - name: Checkout repository
       uses: actions/checkout@v4
       with:
@@ -178,7 +179,7 @@ jobs:
         echo "=== System Resource Status ==="
         df -h
         free -h
-        echo "Used memory %: $(free -m | awk 'NR==2{printf "%.1f%%\n", $3*100/$2 }')"
+        echo "Used memory %: $(free -m | awk 'NR==2{printf \"%.1f%%\\n\", $3*100/$2 }')"
 
     - name: Build and push Docker image
       uses: docker/build-push-action@v5
@@ -188,7 +189,10 @@ jobs:
         platforms: ${{ matrix.platform }}
         target: runtime
         push: ${{ github.event_name != 'pull_request' }}
-        tags: ${{ steps.meta.outputs.tags }}
+        # ← metadata のタグに加えて「必ず存在する自前タグ」を付与
+        tags: |
+          ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.TAG }}-${{ matrix.platform-pair }}
+          ${{ steps.meta.outputs.tags }}
         labels: ${{ steps.meta.outputs.labels }}
         cache-from: |
           type=local,src=/tmp/.buildx-cache-${{ matrix.platform-pair }}
@@ -203,6 +207,13 @@ jobs:
           PLATFORM=${{ matrix.platform }}
           DOCKER_BUILD_MEMORY_LIMIT=${{ env.DOCKER_BUILD_MEMORY_LIMIT }}
 
+    - name: Verify pushed image exists
+      if: github.event_name != 'pull_request'
+      run: |
+        IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.TAG }}-${{ matrix.platform-pair }}"
+        echo "Verifying image: $IMAGE"
+        docker buildx imagetools inspect "$IMAGE"
+
     - name: Monitor system resources after build
       run: |
         echo "=== Post-build System Resource Status ==="
@@ -215,20 +226,20 @@ jobs:
         fi
 
     - name: Extract build artifacts
-      if: matrix.platform == 'linux/arm64' && github.event_name != 'pull_request'
+      if: github.event_name != 'pull_request'
       run: |
         echo "::group::Extract Build Artifacts for ${{ matrix.platform }}"
         IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.TAG }}-${{ matrix.platform-pair }}"
         echo "Pulling image: $IMAGE"
-        docker pull --platform=linux/arm64 "$IMAGE"
+        docker pull --platform=${{ matrix.platform }} "$IMAGE"
         ./scripts/utils/extract_docker_artifacts.sh "$IMAGE" || echo "Extraction failed, continuing..."
         echo "::endgroup::"
 
     - name: Upload platform-specific artifacts
-      if: matrix.platform == 'linux/arm64' && github.event_name != 'pull_request'
+      if: github.event_name != 'pull_request'
       uses: actions/upload-artifact@v4
       with:
-        name: hokuyohub-${{ matrix.platform-pair }}
+        name: hokuyohub-${{ matrix.platform-pair }}   # linux-amd64 / linux-arm64
         path: |
           dist/
         retention-days: 30
@@ -255,7 +266,7 @@ jobs:
     - name: Set up QEMU
       uses: docker/setup-qemu-action@v3
       with:
-        platforms: arm64
+        platforms: all
 
     - name: Checkout repository
       uses: actions/checkout@v4
@@ -396,7 +407,7 @@ jobs:
         echo "✅ Multi-platform manifest created: ${BASE_IMAGE}:${TAG}"
         echo "::endgroup::"
 
-  # Release job (only for tags)
+  # Release job (only for tags) - 別パッケージを同一リリースに添付
   release:
     name: Create Release
     runs-on: ubuntu-latest
@@ -408,64 +419,71 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v4
 
-    - name: Download build artifacts
+    # ダウンロード（アーキ別）
+    - name: Download amd64 artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: hokuyohub-linux-amd64
+        path: dist/linux-amd64
+
+    - name: Download arm64 artifacts
       uses: actions/download-artifact@v4
       with:
         name: hokuyohub-linux-arm64
+        path: dist/linux-arm64
 
-    - name: Create deployment package
+    # アーキ別に tar.gz を作成
+    - name: Create standalone packages (per-arch)
       run: |
-        echo "::group::Create Deployment Package"
-        mkdir -p deployment/hokuyohub-multiplatform
-        if [ -d "dist/linux-arm64" ]; then
-          cp -r dist/linux-arm64/* deployment/hokuyohub-multiplatform/
-        fi
-        cat > deployment/hokuyohub-multiplatform/install.sh << 'EOF'
+        echo "::group::Create Standalone Packages"
+        mkdir -p deployment/amd64 deployment/arm64
+
+        # AMD64
+        cp -r dist/linux-amd64/* deployment/amd64/ 2>/dev/null || true
+        cat > deployment/amd64/install.sh << 'EOF'
         #!/bin/bash
         set -e
-        echo "Installing HokuyoHub..."
-        ARCH=$(uname -m)
-        case $ARCH in
-          x86_64) echo "Detected: AMD64";;
-          aarch64|arm64) echo "Detected: ARM64";;
-          *) echo "Unsupported architecture: $ARCH"; exit 1;;
-        esac
-        if command -v docker &> /dev/null; then
-          echo "Installing via Docker..."
-          docker pull ghcr.io/${{ github.repository }}:${{ github.ref_name }}
-          echo "Installation complete!"
-          echo "Run: docker run -d -p 8080:8080 --name hokuyohub ghcr.io/${{ github.repository }}:${{ github.ref_name }}"
-        else
-          echo "Docker not found. Please install Docker."
-          exit 1
-        fi
+        chmod +x hokuyo_hub || true
+        echo "AMD64 package ready. Run: ./hokuyo_hub --config default.yaml"
         EOF
-        chmod +x deployment/hokuyohub-multiplatform/install.sh
-        cd deployment
-        tar -czf hokuyohub-${{ github.ref_name }}-multiplatform.tar.gz hokuyohub-multiplatform/
-        cd ..
+        chmod +x deployment/amd64/install.sh
+        tar -czf deployment/hokuyohub-${{ github.ref_name }}-amd64.tar.gz -C deployment/amd64 .
+
+        # ARM64
+        cp -r dist/linux-arm64/* deployment/arm64/ 2>/dev/null || true
+        cat > deployment/arm64/install.sh << 'EOF'
+        #!/bin/bash
+        set -e
+        chmod +x hokuyo_hub || true
+        echo "ARM64 package ready. Run: ./hokuyo_hub --config default.yaml"
+        EOF
+        chmod +x deployment/arm64/install.sh
+        tar -czf deployment/hokuyohub-${{ github.ref_name }}-arm64.tar.gz -C deployment/arm64 .
+
+        ls -lh deployment/
         echo "::endgroup::"
 
     - name: Create Release
       uses: softprops/action-gh-release@v1
       with:
         files: |
-          deployment/hokuyohub-${{ github.ref_name }}-multiplatform.tar.gz
+          deployment/hokuyohub-${{ github.ref_name }}-amd64.tar.gz
+          deployment/hokuyohub-${{ github.ref_name }}-arm64.tar.gz
         generate_release_notes: true
         draft: false
         prerelease: ${{ contains(github.ref, 'alpha') || contains(github.ref, 'beta') || contains(github.ref, 'rc') }}
         body: |
-          ## HokuyoHub ${{ github.ref_name }} - Multi-Platform Release
+          ## HokuyoHub ${{ github.ref_name }} - Standalone Packages
 
-          ### 🚀 Quick Start (Docker - Recommended)
+          ### 🐳 Docker (multi-arch)
           ```bash
           docker pull ghcr.io/${{ github.repository }}:${{ github.ref_name }}
           docker run -d -p 8080:8080 --name hokuyohub ghcr.io/${{ github.repository }}:${{ github.ref_name }}
           ```
 
-          ### 🏗️ Supported Platforms
-          - **linux/amd64**
-          - **linux/arm64**
+          ### 📦 Standalone (pick your arch)
+          - **AMD64**: `hokuyohub-${{ github.ref_name }}-amd64.tar.gz`
+          - **ARM64**: `hokuyohub-${{ github.ref_name }}-arm64.tar.gz`
 
           ### 🌐 Web Interface
           http://localhost:8080
