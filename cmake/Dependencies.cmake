@@ -220,6 +220,7 @@ function(setup_urg_external_project)
                 "/p:Configuration=Release"
                 "/p:Platform=x64"
                 "/p:PlatformToolset=v142"
+                "/t:urg"
             )
             message(STATUS "Configuring urg_library for Windows using Visual Studio 2019")
             
@@ -230,6 +231,7 @@ function(setup_urg_external_project)
                     set(URG_BUILD_COMMAND
                         ${DEVENV_COMMAND} "${URG_VS_PROJECT_DIR}/urg.sln"
                         /Build "Release|x64"
+                        /Project "urg"
                     )
                     message(STATUS "Using devenv.exe for URG library build")
                 else()
