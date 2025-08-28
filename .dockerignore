@@ -1,19 +1,18 @@
-# =============================================================================
-# Docker Ignore File for Hokuyo Hub
-# =============================================================================
-# This file specifies which files and directories should be excluded from
-# the Docker build context to optimize build performance and security.
+# Docker ignore file for optimized builds
+# Excludes unnecessary files to reduce build context size and improve caching
 
-# Build artifacts and directories
+# Build artifacts and temporary files
 build/
 dist/
-dist-traditional/
-.cmake/
-CMakeCache.txt
-CMakeFiles/
-cmake_install.cmake
-Makefile
-*.make
+*.tmp
+*.log
+*.cache
+
+# Version control
+.git/
+.gitignore
+.github/workflows/build.yml
+.github/workflows/test.yml
 
 # IDE and editor files
 .vscode/
@@ -21,59 +20,37 @@ Makefile
 *.swp
 *.swo
 *~
+
+# OS generated files
 .DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
 Thumbs.db
 
-# Version control
-.git/
-.gitignore
-.gitmodules
-.github/
-
-# Documentation (not needed in container)
-docs/
+# Documentation (included selectively)
+docs/development/
+docs/legacy/
 *.md
-LICENSE
-CHANGELOG*
+!README.md
 
-# Test and validation files
-validation/
+# Test files and scripts (build will copy specific test scripts)
 test/
 tests/
-*.test
-*.spec
+*_test.*
+*_test_*
 
-# Temporary files
-*.tmp
-*.temp
-*.log
-*.pid
-*.lock
-
-# macOS specific
-.DS_Store
-.AppleDouble
-.LSOverride
-Icon?
-._*
-
-# Windows specific
-Thumbs.db
-ehthumbs.db
-Desktop.ini
-$RECYCLE.BIN/
-
-# Linux specific
-*~
-.fuse_hidden*
-.directory
-.Trash-*
+# Deployment and packaging files
+deployment/
+packaging/
+*.tar.gz
+*.zip
 
 # Node.js (if any)
 node_modules/
 npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
 
 # Python (if any)
 __pycache__/
@@ -83,66 +60,33 @@ __pycache__/
 .Python
 env/
 venv/
-.venv/
 
-# Rust (if any)
-target/
-Cargo.lock
+# CMake build files (will be regenerated)
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+compile_commands.json
 
-# Go (if any)
-vendor/
-
-# Docker files (avoid recursion)
-docker/build.sh
-docker/docker-compose.yml
-docker/*.md
-
-# CI/CD files
-.github/
-.gitlab-ci.yml
-.travis.yml
-Jenkinsfile
-
-# Package managers
-*.deb
-*.rpm
-*.pkg
-*.dmg
-
-# Archives
-*.zip
-*.tar
-*.tar.gz
-*.tar.bz2
-*.tar.xz
-*.rar
-*.7z
-
-# Backup files
+# Backup and temporary files
 *.bak
 *.backup
 *.old
 *.orig
+*.rej
 
-# Local configuration that shouldn't be in container
-.env
-.env.local
-.env.*.local
-local.properties
+# Large binary files that shouldn't be in Docker context
+*.iso
+*.img
+*.dmg
+*.exe
 
-# IDE project files
-*.pro.user
-*.pro.user.*
-*.vcxproj.user
-*.sln.docstates
-
-# Keep these files (explicitly include important ones)
-!CMakeLists.txt
-!CMakePresets.json
+# Keep essential files for builds
 !cmake/
 !src/
 !external/
-!external/**
-!configs/
 !webui/
+!configs/
 !scripts/
+!docker/
+!CMakeLists.txt
