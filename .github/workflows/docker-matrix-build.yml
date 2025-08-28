@@ -188,13 +188,11 @@ jobs:
         cache-to: |
           type=local,dest=/tmp/.buildx-cache-${{ matrix.platform-pair }},mode=max
           type=gha,scope=build-${{ matrix.platform-pair }},mode=max
-        build-args: |
-          BUILDKIT_INLINE_CACHE=1
-          PLATFORM=${{ matrix.platform }}
         build-contexts: |
           urg-cache=build-cache/urg-${{ matrix.platform-pair }}
         build-args: |
           BUILDKIT_INLINE_CACHE=1
+          PLATFORM=${{ matrix.platform }}
           DOCKER_BUILD_MEMORY_LIMIT=${{ env.DOCKER_BUILD_MEMORY_LIMIT }}
 
     - name: Monitor system resources after build
