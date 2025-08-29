@@ -92,7 +92,7 @@ jobs:
         # Native build for Windows
         - platform: windows/amd64
           platform-pair: windows-amd64
-          runner: windows-2019
+          runner: windows-latest
           build-method: cmake
 
     env:
