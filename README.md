@@ -13,7 +13,7 @@ HokuyoHub is a comprehensive solution for collecting, processing, and visualizin
 - **Interactive Configuration**: Live parameter tuning through modern JavaScript ES6+ web interface
 - **ROI Management**: Create include/exclude regions for focused area monitoring with three-panel layout
 - **Filter Pipeline**: Multi-stage filtering system (prefilter → clustering → postfilter)
-- **Cross-Platform**: Runs on Linux, macOS, and supports ARM64/AMD64 multi-architecture deployment
+- **Cross-Platform**: Runs on Linux, macOS, and Windows with ARM64/AMD64 multi-architecture deployment
 - **Fast Build Times**: Uses CrowCpp header-only web framework for 60-70% faster compilation
 
 ## 🌟 Web Framework: CrowCpp
@@ -63,7 +63,7 @@ HokuyoHub employs a modern, high-performance architecture designed for real-time
 
 ### Prerequisites
 
-- **System Requirements**: Linux or macOS
+- **System Requirements**: Linux, macOS, or Windows
 - **Build Tools**: CMake 3.18+, C++20 compatible compiler
 - **Network**: Access to Hokuyo sensors via Ethernet
 
@@ -125,6 +125,15 @@ brew install cmake yaml-cpp
 
 # Note: CrowCpp is a lightweight, header-only web framework
 # No additional web framework dependencies needed
+```
+
+**Windows:**
+```cmd
+# Install dependencies via vcpkg
+vcpkg install yaml-cpp jsoncpp asio --triplet x64-windows
+
+# Or use Visual Studio 2022 with vcpkg integration
+# Dependencies will be automatically resolved via CMake
 ```
 
 ### Build Options
@@ -437,6 +446,7 @@ This project is available under the MIT License.
 - **Recommended**: 4GB+ RAM, quad-core CPU for multiple sensors with 30 FPS processing
 - **Network**: Gigabit Ethernet for high-frequency scanning and real-time data publishing
 - **Architecture**: ARM64/AMD64 multi-architecture support for diverse deployment scenarios
+- **Windows**: Windows 10/11 x64, Visual Studio 2022, vcpkg for dependency management
 
 ## 📚 Documentation
 

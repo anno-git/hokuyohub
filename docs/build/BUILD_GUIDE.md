@@ -12,6 +12,15 @@ This guide provides comprehensive instructions for building Hokuyo Hub across di
 ./scripts/build/build_with_presets.sh
 ```
 
+### For Development (Windows)
+```cmd
+# Native Windows build for development with Visual Studio 2022
+cmake -B build/windows-amd64 -G "Visual Studio 17 2022" -A x64 ^
+  -DCMAKE_TOOLCHAIN_FILE=%VCPKG_ROOT%/scripts/buildsystems/vcpkg.cmake ^
+  -DVCPKG_TARGET_TRIPLET=x64-windows
+cmake --build build/windows-amd64 --config Release --parallel
+```
+
 ### For Production (Raspberry Pi 5)
 ```bash
 # Docker cross-compilation build for ARM64 Linux
@@ -40,7 +49,34 @@ This guide provides comprehensive instructions for building Hokuyo Hub across di
 
 **Output**: `dist/darwin-arm64/Release/hokuyo_hub`
 
-### 2. Docker Cross-Compilation Build
+### 3. Native Windows Build
+
+**Purpose**: Development and production deployment on Windows systems.
+
+**Requirements**:
+- Windows 10/11
+- Visual Studio 2022 with C++ development tools
+- vcpkg (for dependency management)
+- CMake 3.18+
+
+**Build Command**:
+```cmd
+# Configure CMake build
+cmake -B build/windows-amd64 -G "Visual Studio 17 2022" -A x64 ^
+  -DCMAKE_TOOLCHAIN_FILE=%VCPKG_ROOT%/scripts/buildsystems/vcpkg.cmake ^
+  -DVCPKG_TARGET_TRIPLET=x64-windows ^
+  -DCMAKE_BUILD_TYPE=Release
+
+# Build
+cmake --build build/windows-amd64 --config Release --parallel
+
+# Install
+cmake --install build/windows-amd64 --prefix dist/windows-amd64
+```
+
+**Output**: `dist/windows-amd64/hokuyo_hub.exe`
+
+### 4. Docker Cross-Compilation Build
 
 **Purpose**: Production deployment to ARM64 Linux systems (Raspberry Pi 5).
 
@@ -63,7 +99,7 @@ This guide provides comprehensive instructions for building Hokuyo Hub across di
 - Docker runtime container: `hokuyo-hub:latest`
 - Extracted artifacts: `dist/linux-arm64/`
 
-### 3. Direct Docker Build
+### 5. Direct Docker Build
 
 **Purpose**: Advanced users who need direct control over Docker build process.
 
@@ -86,6 +122,7 @@ cd docker/
 The project uses CMake presets for consistent builds:
 
 - **`mac-release`**: Native macOS release build
+- **`win-release`**: Native Windows release build
 - **`rpi-release`**: ARM64 Linux release build (used in Docker)
 - **`rpi-debug`**: ARM64 Linux debug build
 - **`rpi-relwithdebinfo`**: ARM64 Linux release with debug info
@@ -127,6 +164,16 @@ dist/linux-arm64/
 brew install cmake yaml-cpp nng jsoncpp openssl
 ```
 
+### System Dependencies (Windows)
+```cmd
+# Install via vcpkg
+vcpkg install yaml-cpp jsoncpp asio --triplet x64-windows
+
+# Windows-specific libraries
+# wsock32.lib and setupapi.lib (for URG library serial communication)
+# legacy_stdio_definitions.lib (for MSVC compatibility)
+```
+
 ### System Dependencies (Docker/Linux ARM64)
 ```bash
 # Managed automatically in Docker container
@@ -135,9 +182,11 @@ libyaml-cpp0.7 libnng1 libssl3 libjsoncpp25 libbrotli1 libuuid1
 
 ### Third-Party Libraries
 - **CrowCpp**: Modern header-only HTTP framework (replaces the previous web framework for faster builds)
-- **URG Library**: Hokuyo sensor interface (rebuilt for target platform)
+- **URG Library**: Hokuyo sensor interface with Windows serial communication support
 - **yaml-cpp**: YAML configuration parsing
 - **NNG**: High-performance messaging library
+- **jsoncpp**: JSON parsing (Windows dependency via vcpkg)
+- **asio**: Network library required by CrowCpp (Windows dependency via vcpkg)
 
 ## Troubleshooting
 
@@ -255,17 +304,21 @@ docker run -p 8080:8080 -p 8081:8081 hokuyo-hub:latest
 
 ### Build Times (Improved with CrowCpp Migration)
 - **macOS Native**: ~1-3 minutes (previously ~2-5 with the previous web framework)
+- **Windows Native**: ~2-4 minutes (with vcpkg cache, previously N/A - not supported)
 - **Docker Cross-compilation**: ~3-6 minutes (with cache, previously ~5-10)
 - **Docker Clean Build**: ~8-12 minutes (previously ~15-20)
 
 **Performance Improvements:**
 - CrowCpp header-only design eliminates framework compilation
+- Windows CMake build system replaces Visual Studio 2019 project files
+- vcpkg dependency management provides consistent Windows builds
 - Reduced dependency chain complexity
 - Faster CI/CD pipeline execution
 
 ### Artifact Sizes
 - **macOS Binary**: ~3MB
-- **ARM64 Binary**: ~3MB  
+- **Windows Binary**: ~3.5MB (including Windows-specific runtime)
+- **ARM64 Binary**: ~3MB
 - **Total Distribution**: ~3.2MB
 - **Docker Runtime Container**: 208MB
 

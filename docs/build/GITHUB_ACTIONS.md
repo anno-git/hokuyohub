@@ -5,11 +5,11 @@ This document describes the GitHub Actions workflow for automated building, test
 ## Overview
 
 The CI/CD pipeline automatically:
-- **Builds** ARM64 Docker containers for Raspberry Pi 5 deployment
+- **Builds** multi-platform binaries (Linux ARM64/AMD64, macOS ARM64/AMD64, Windows AMD64)
 - **Tests** the built application with API validation
 - **Scans** for security vulnerabilities
 - **Publishes** Docker images to GitHub Container Registry
-- **Creates** releases with deployment artifacts
+- **Creates** releases with deployment artifacts for all platforms
 
 ## Workflow Triggers
 
@@ -23,37 +23,45 @@ The CI/CD pipeline automatically:
 
 ## Jobs Overview
 
-### 1. `build-arm64` - Primary Build Job
+### 1. `build-matrix` - Multi-Platform Build Matrix
 
-**Purpose**: Cross-compile HokuyoHub for ARM64 Linux using Docker
+**Purpose**: Build HokuyoHub for all supported platforms using parallel matrix builds
+
+**Supported Platforms**:
+- **Linux**: AMD64/ARM64 (Docker builds)
+- **macOS**: Intel/Apple Silicon (Native CMake builds)
+- **Windows**: AMD64 (Native CMake builds with Visual Studio 2022)
 
 **Key Steps**:
 ```yaml
-- Checkout code
-- Set up Docker Buildx for multi-platform builds
-- Run: ./scripts/build/docker_cross_build.sh --build-all
-- Extract build artifacts to dist/linux-arm64/
-- Upload artifacts for other jobs
-- Tag and push Docker images to GHCR
+- Platform-specific setup (Docker, Homebrew, vcpkg)
+- Parallel builds across 5 platforms simultaneously
+- Docker builds: Use optimized multi-stage Dockerfiles
+- Native builds: CMake with platform-specific toolchains
+- Extract and upload artifacts for all platforms
+- Tag and push Docker images to GHCR (Linux only)
 ```
 
 **Outputs**:
-- ARM64 Linux binary: `hokuyo_hub`
-- Complete deployment package: `dist/linux-arm64/`
-- Docker runtime container: `ghcr.io/[username]/hokuyohub:latest`
+- **Linux binaries**: `hokuyo_hub` (AMD64/ARM64)
+- **macOS binaries**: `hokuyo_hub` (Intel/Apple Silicon)
+- **Windows binaries**: `hokuyo_hub.exe` (AMD64)
+- **Docker containers**: `ghcr.io/[username]/hokuyohub:latest`
+- **Platform-specific packages**: `dist/{platform}/`
 
-### 2. `test-api` - API Testing
+### 2. `test-matrix` - Multi-Platform Testing
 
-**Purpose**: Validate the built application functionality
+**Purpose**: Validate the built application functionality across platforms
 
 **Key Steps**:
 ```yaml
-- Download build artifacts
-- Start HokuyoHub server
-- Run API tests: ./scripts/testing/test_rest_api.sh
+- Test Docker containers (Linux AMD64/ARM64)
+- Container startup validation
+- API endpoint testing
+- Runtime dependency verification
 ```
 
-**Dependencies**: Requires `build-arm64` to complete successfully
+**Dependencies**: Requires `build-matrix` to complete successfully
 
 ### 3. `security-scan` - Vulnerability Assessment
 
@@ -67,15 +75,18 @@ The CI/CD pipeline automatically:
 
 **Output**: Security findings in GitHub Security & Insights
 
-### 4. `create-release` - Automated Releases
+### 4. `release` - Automated Multi-Platform Releases
 
-**Purpose**: Create GitHub releases for version tags
+**Purpose**: Create GitHub releases for version tags with all platform artifacts
 
 **Triggers**: Only on version tags (e.g., `v1.0.0`, `v1.0.0-beta`)
 
 **Artifacts Created**:
-- `hokuyo-hub-[version]-linux-arm64.tar.gz` - Core binary package
-- `hokuyo-hub-[version]-deployment.tar.gz` - Complete deployment package
+- `hokuyohub-[version]-linux-amd64.tar.gz` - Linux x64 package
+- `hokuyohub-[version]-linux-arm64.tar.gz` - Linux ARM64 package (Raspberry Pi 5)
+- `hokuyohub-[version]-darwin-amd64.tar.gz` - macOS Intel package
+- `hokuyohub-[version]-darwin-arm64.tar.gz` - macOS Apple Silicon package
+- `hokuyohub-[version]-windows-amd64.zip` - Windows x64 package
 
 ### 5. `update-docs` - Documentation Maintenance
 
@@ -123,7 +134,7 @@ The CI/CD pipeline automatically:
 
 ### For Deployment
 
-#### Using Docker Image
+#### Using Docker Image (Linux)
 ```bash
 # Pull the latest image
 docker pull ghcr.io/[username]/hokuyohub:latest
@@ -132,17 +143,36 @@ docker pull ghcr.io/[username]/hokuyohub:latest
 docker run -p 8080:8080 -p 8081:8081 ghcr.io/[username]/hokuyohub:latest
 ```
 
-#### Using Release Artifacts
-```bash
-# Download from GitHub Releases
-curl -L -o hokuyo-hub-deployment.tar.gz \
-  https://github.com/[username]/hokuyohub/releases/download/v1.0.0/hokuyo-hub-v1.0.0-deployment.tar.gz
+#### Using Platform-Specific Release Artifacts
 
-# Extract and run
-tar -xzf hokuyo-hub-deployment.tar.gz
-cd release-package
+**Linux (Ubuntu/Debian)**:
+```bash
+# Download and extract
+curl -L -o hokuyohub-linux-arm64.tar.gz \
+  https://github.com/[username]/hokuyohub/releases/download/v1.0.0/hokuyohub-v1.0.0-linux-arm64.tar.gz
+tar -xzf hokuyohub-linux-arm64.tar.gz
 chmod +x hokuyo_hub
 ./hokuyo_hub --config configs/default.yaml
+```
+
+**macOS**:
+```bash
+# Download and extract
+curl -L -o hokuyohub-darwin-arm64.tar.gz \
+  https://github.com/[username]/hokuyohub/releases/download/v1.0.0/hokuyohub-v1.0.0-darwin-arm64.tar.gz
+tar -xzf hokuyohub-darwin-arm64.tar.gz
+chmod +x hokuyo_hub
+./hokuyo_hub --config configs/default.yaml
+```
+
+**Windows**:
+```cmd
+# Download from GitHub Releases page and extract
+# Or use PowerShell
+Invoke-WebRequest -Uri "https://github.com/[username]/hokuyohub/releases/download/v1.0.0/hokuyohub-v1.0.0-windows-amd64.zip" -OutFile "hokuyohub-windows.zip"
+Expand-Archive -Path "hokuyohub-windows.zip" -DestinationPath "hokuyohub"
+cd hokuyohub
+.\hokuyo_hub.exe --config configs\default.yaml
 ```
 
 ## Configuration
@@ -293,4 +323,23 @@ file dist/linux-arm64/hokuyo_hub
 
 ---
 
-This CI/CD pipeline provides automated, reliable deployment of HokuyoHub with comprehensive testing and security scanning integrated into the development workflow.
+This CI/CD pipeline provides automated, reliable multi-platform deployment of HokuyoHub with comprehensive testing and security scanning integrated into the development workflow.
+
+## Windows Build Integration
+
+### Key Windows Features
+
+**Visual Studio 2022 Integration**:
+- Native CMake builds using VS2022 toolchain
+- vcpkg dependency management for consistent library versions
+- Automatic Windows SDK and runtime library detection
+
+**Platform-Specific Optimizations**:
+- Windows-specific URG library serial communication
+- MSVC legacy runtime compatibility for older Windows versions
+- Windows service integration support
+
+**Deployment Artifacts**:
+- Self-contained Windows executables with minimal dependencies
+- Windows installer packages (planned for future releases)
+- Portable distribution packages for easy deployment

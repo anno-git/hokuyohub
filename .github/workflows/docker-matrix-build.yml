@@ -67,9 +67,7 @@ jobs:
       fail-fast: false
       max-parallel: 4
       matrix:
-        # WINDOWS BUILDS TEMPORARILY DISABLED - Can be re-enabled by uncommenting the following line and related Windows configurations below
-        platform: [linux/amd64, linux/arm64, darwin/amd64, darwin/arm64]
-        # platform: [linux/amd64, linux/arm64, darwin/amd64, darwin/arm64, windows/amd64]
+        platform: [linux/amd64, linux/arm64, darwin/amd64, darwin/arm64, windows/amd64]
         include:
         # Docker builds for Linux
         - platform: linux/amd64
@@ -91,12 +89,11 @@ jobs:
           platform-pair: darwin-arm64
           runner: macos-latest
           build-method: cmake
-        # WINDOWS BUILDS TEMPORARILY DISABLED - Uncomment the following lines to re-enable Windows builds
         # Native build for Windows
-        # - platform: windows/amd64
-        #   platform-pair: windows-amd64
-        #   runner: windows-latest
-        #   build-method: cmake
+        - platform: windows/amd64
+          platform-pair: windows-amd64
+          runner: windows-latest
+          build-method: cmake
 
     env:
       DOCKER_BUILDKIT: 1
@@ -180,28 +177,22 @@ jobs:
         brew install pkg-config yaml-cpp jsoncpp nng asio
         echo "::endgroup::"
 
-    # WINDOWS BUILDS TEMPORARILY DISABLED - Uncomment the following sections to re-enable Windows builds
     # Windows-specific setup
-    # - name: Set up MSVC (Windows)
-    #   if: runner.os == 'Windows'
-    #   uses: ilammy/msvc-dev-cmd@v1
-    #   with:
-    #     arch: x64
-    #     vsversion: 2019
+    - name: Set up MSVC (Windows)
+      if: runner.os == 'Windows'
+      uses: ilammy/msvc-dev-cmd@v1
+      with:
+        arch: x64
 
-    # - name: Set up vcpkg (Windows)
-    #   if: runner.os == 'Windows'
-    #   run: |
-    #     echo "::group::Install Windows dependencies"
-    #     # Install vcpkg if not present
-    #     if (!(Test-Path "C:\vcpkg")) {
-    #       git clone https://github.com/Microsoft/vcpkg.git C:\vcpkg
-    #       C:\vcpkg\bootstrap-vcpkg.bat -disableMetrics
-    #     }
-    #     # Install required dependencies
-    #     C:\vcpkg\vcpkg.exe install yaml-cpp:x64-windows jsoncpp:x64-windows nng:x64-windows asio:x64-windows
-    #     echo "CMAKE_TOOLCHAIN_FILE=C:\vcpkg\scripts\buildsystems\vcpkg.cmake" >> $env:GITHUB_ENV
-    #     echo "::endgroup::"
+    - name: Set up vcpkg (Windows)
+      if: runner.os == 'Windows'
+      run: |
+        echo "::group::Install Windows dependencies"
+        # Use built-in vcpkg
+        vcpkg install yaml-cpp jsoncpp asio --triplet x64-windows
+        echo "CMAKE_TOOLCHAIN_FILE=$env:VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake" >> $env:GITHUB_ENV
+        echo "VCPKG_TARGET_TRIPLET=x64-windows" >> $env:GITHUB_ENV
+        echo "::endgroup::"
 
     # Unified caching for all platforms
     - name: Cache URG Library Build
@@ -335,14 +326,13 @@ jobs:
         mkdir -p build/${{ matrix.platform-pair }}
         cd build/${{ matrix.platform-pair }}
         
-        # WINDOWS BUILDS TEMPORARILY DISABLED - Uncomment the following Windows-specific cmake configuration
-        # if [ "${{ runner.os }}" = "Windows" ]; then
-        #   cmake ../.. -G "Visual Studio 16 2019" -A x64 \
-        #     -DCMAKE_BUILD_TYPE=Release \
-        #     -DCMAKE_TOOLCHAIN_FILE="${CMAKE_TOOLCHAIN_FILE}" \
-        #     -DDEPS_MODE=auto
-        # else
-        if true; then
+        if [ "${{ runner.os }}" = "Windows" ]; then
+          cmake ../.. -G "Visual Studio 17 2022" -A x64 \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_TOOLCHAIN_FILE="${CMAKE_TOOLCHAIN_FILE}" \
+            -DVCPKG_TARGET_TRIPLET="${VCPKG_TARGET_TRIPLET}" \
+            -DDEPS_MODE=auto
+        else
           # For macOS, add ASIO hints to help CMake find ASIO headers
           if [ "${{ runner.os }}" = "macOS" ]; then
             ASIO_INCLUDE_DIR=$(brew --prefix asio)/include
@@ -365,11 +355,9 @@ jobs:
         echo "::group::Build with CMake for ${{ matrix.platform }}"
         cd build/${{ matrix.platform-pair }}
         
-        # WINDOWS BUILDS TEMPORARILY DISABLED - Uncomment the following Windows-specific build command
-        # if [ "${{ runner.os }}" = "Windows" ]; then
-        #   cmake --build . --config Release --parallel 4
-        # else
-        if true; then
+        if [ "${{ runner.os }}" = "Windows" ]; then
+          cmake --build . --config Release --parallel 4
+        else
           cmake --build . --config Release --parallel $(sysctl -n hw.ncpu 2>/dev/null || nproc)
         fi
         echo "::endgroup::"
@@ -657,12 +645,11 @@ jobs:
         name: hokuyohub-darwin-arm64
         path: dist/darwin-arm64
 
-    # WINDOWS BUILDS TEMPORARILY DISABLED - Uncomment the following to re-enable Windows artifact download
-    # - name: Download Windows AMD64 artifacts
-    #   uses: actions/download-artifact@v4
-    #   with:
-    #     name: hokuyohub-windows-amd64
-    #     path: dist/windows-amd64
+    - name: Download Windows AMD64 artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: hokuyohub-windows-amd64
+        path: dist/windows-amd64
 
     # Create platform-specific packages
     - name: Create standalone packages (all platforms)
@@ -726,17 +713,16 @@ jobs:
           tar -czf deployment/hokuyohub-${{ github.ref_name }}-darwin-arm64.tar.gz -C deployment/darwin-arm64 .
         fi
 
-        # WINDOWS BUILDS TEMPORARILY DISABLED - Uncomment the following Windows packaging section
         # Windows AMD64
-        # if [ -d "dist/windows-amd64" ]; then
-        #   mkdir -p deployment/windows-amd64
-        #   cp -r dist/windows-amd64/* deployment/windows-amd64/ 2>/dev/null || true
-        #   cat > deployment/windows-amd64/install.bat << 'EOF'
-        # @echo off
-        # echo Windows x64 package ready. Run: hokuyo_hub.exe --config configs/default.yaml
-        # EOF
-        #   cd deployment/windows-amd64 && zip -r ../hokuyohub-${{ github.ref_name }}-windows-amd64.zip . && cd ../..
-        # fi
+        if [ -d "dist/windows-amd64" ]; then
+          mkdir -p deployment/windows-amd64
+          cp -r dist/windows-amd64/* deployment/windows-amd64/ 2>/dev/null || true
+          cat > deployment/windows-amd64/install.bat << 'EOF'
+        @echo off
+        echo Windows x64 package ready. Run: hokuyo_hub.exe --config configs/default.yaml
+        EOF
+          cd deployment/windows-amd64 && zip -r ../hokuyohub-${{ github.ref_name }}-windows-amd64.zip . && cd ../..
+        fi
 
         ls -lh deployment/
         echo "::endgroup::"
@@ -749,8 +735,7 @@ jobs:
           deployment/hokuyohub-${{ github.ref_name }}-linux-arm64.tar.gz
           deployment/hokuyohub-${{ github.ref_name }}-darwin-amd64.tar.gz
           deployment/hokuyohub-${{ github.ref_name }}-darwin-arm64.tar.gz
-          # WINDOWS BUILDS TEMPORARILY DISABLED - Uncomment the following line to re-enable Windows release assets
-          # deployment/hokuyohub-${{ github.ref_name }}-windows-amd64.zip
+          deployment/hokuyohub-${{ github.ref_name }}-windows-amd64.zip
         generate_release_notes: true
         draft: false
         prerelease: ${{ contains(github.ref, 'alpha') || contains(github.ref, 'beta') || contains(github.ref, 'rc') }}
@@ -774,8 +759,7 @@ jobs:
           - **macOS Apple Silicon**: `hokuyohub-${{ github.ref_name }}-darwin-arm64.tar.gz`
           
           #### Windows
-          <!-- WINDOWS BUILDS TEMPORARILY DISABLED -->
-          <!-- - **Windows x64**: `hokuyohub-${{ github.ref_name }}-windows-amd64.zip` -->
+          - **Windows x64**: `hokuyohub-${{ github.ref_name }}-windows-amd64.zip`
 
           ### 🚀 Quick Start
           1. Download the appropriate package for your platform
