@@ -183,9 +183,15 @@ function(setup_urg_external_project)
     # Determine the appropriate library file name and build output path
     if(WIN32)
         set(URG_LIBRARY_NAME "urg.lib")
+        # Fix: VS project outputs to $(SolutionDir)$(Platform)\$(Configuration)\ = vs2019/c/x64/Release/
         set(URG_BUILD_OUTPUT_DIR "${URG_SRC_DIR}/vs2019/c/x64/Release")
         set(URG_BUILD_OUTPUT_LIB "${URG_BUILD_OUTPUT_DIR}/${URG_LIBRARY_NAME}")
         set(URG_FINAL_LIB_PATH "${URG_LIB_DIR}/${URG_LIBRARY_NAME}")
+        message(STATUS "URG library build paths:")
+        message(STATUS "  Source directory: ${URG_SRC_DIR}")
+        message(STATUS "  VS project directory: ${URG_SRC_DIR}/vs2019/c")
+        message(STATUS "  Expected output directory: ${URG_BUILD_OUTPUT_DIR}")
+        message(STATUS "  Expected library file: ${URG_BUILD_OUTPUT_LIB}")
     else()
         set(URG_LIBRARY_NAME "liburg_c.a")
         set(URG_BUILD_OUTPUT_LIB "${URG_SRC_DIR}/src/${URG_LIBRARY_NAME}")
@@ -221,11 +227,19 @@ function(setup_urg_external_project)
                 "/p:Configuration=Release"
                 "/p:Platform=x64"
                 "/p:PlatformToolset=v142"
-                "/p:OutDir=${URG_BUILD_OUTPUT_DIR}/"
                 "/t:urg"
+                "/verbosity:detailed"
+                "/fileLogger"
+                "/fileLoggerParameters:LogFile=${URG_VS_PROJECT_DIR}/msbuild.log;Verbosity=detailed"
             )
             message(STATUS "Configuring urg_library for Windows using Visual Studio 2019")
-            message(STATUS "Build output will be directed to: ${URG_BUILD_OUTPUT_DIR}")
+            message(STATUS "Expected build output directory: ${URG_BUILD_OUTPUT_DIR}")
+            message(STATUS "MSBuild command: ${URG_BUILD_COMMAND}")
+            message(STATUS "=== URG MSBuild Command Debug ===")
+            message(STATUS "CMAKE_VS_MSBUILD_COMMAND: ${CMAKE_VS_MSBUILD_COMMAND}")
+            message(STATUS "URG_VS_PROJECT_DIR: ${URG_VS_PROJECT_DIR}")
+            message(STATUS "Solution file: ${URG_VS_PROJECT_DIR}/urg.sln")
+            message(STATUS "Log file will be written to: ${URG_VS_PROJECT_DIR}/msbuild.log")
             
             # Alternative fallback to devenv if msbuild not available
             if(NOT CMAKE_VS_MSBUILD_COMMAND)
@@ -266,14 +280,20 @@ function(setup_urg_external_project)
             LOG_BUILD         1
         )
 
-        # Add verification step to check build output directory after build
+        # Add step to display MSBuild log and verify build output directory after build
         ExternalProject_Add_Step(urg_library_proj verify_build_output
             COMMAND ${CMAKE_COMMAND} -E echo "=== URG Library Build Verification ==="
             COMMAND ${CMAKE_COMMAND} -E echo "Expected output directory: ${URG_BUILD_OUTPUT_DIR}"
             COMMAND ${CMAKE_COMMAND} -E echo "Expected library file: ${URG_BUILD_OUTPUT_LIB}"
-            COMMAND ${CMAKE_COMMAND} -E echo "Listing contents of build output directory:"
+            COMMAND ${CMAKE_COMMAND} -E echo "=== MSBuild Log Contents ==="
+            COMMAND ${CMAKE_COMMAND} -E echo "Reading MSBuild log from: ${URG_VS_PROJECT_DIR}/msbuild.log"
+            COMMAND ${CMAKE_COMMAND} -DLOG_FILE=${URG_VS_PROJECT_DIR}/msbuild.log -P ${CMAKE_SOURCE_DIR}/cmake/display_log.cmake
+            COMMAND ${CMAKE_COMMAND} -E echo "=== Build Output Directory Contents ==="
             COMMAND ${CMAKE_COMMAND} -E make_directory ${URG_BUILD_OUTPUT_DIR}
             COMMAND ${CMAKE_COMMAND} -DDIR_TO_LIST=${URG_BUILD_OUTPUT_DIR} -P ${CMAKE_SOURCE_DIR}/cmake/list_directory.cmake
+            COMMAND ${CMAKE_COMMAND} -E echo "=== VS Project Output Directories ==="
+            COMMAND ${CMAKE_COMMAND} -E echo "Checking default VS project output locations:"
+            COMMAND ${CMAKE_COMMAND} -DDIR_TO_LIST=${URG_VS_PROJECT_DIR}/x64/Release -P ${CMAKE_SOURCE_DIR}/cmake/list_directory.cmake
             DEPENDEES build
             ALWAYS 1
         )
