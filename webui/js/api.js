@@ -280,6 +280,33 @@ export const configs = {
   }
 };
 
+// Server API functions
+export const server = {
+  /**
+   * Restart the server
+   * @param {string} token - Authentication token
+   * @returns {Promise<Object>} Restart result
+   */
+  async restart(token) {
+    return post('/api/v1/server/restart', null, {
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    });
+  }
+};
+
+/**
+ * Get authentication token (for development/testing)
+ * This is a simplified implementation - in production you'd have proper auth
+ * @returns {string} A temporary token
+ */
+export function getAuthToken() {
+  // For now, return a simple timestamp-based token
+  // In production, this would be a proper JWT or session token
+  return btoa(`hokuyo_restart_${Date.now()}`);
+}
+
 /**
  * Handle API errors with user-friendly notifications
  * @param {Error} error - The error to handle

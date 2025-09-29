@@ -66,4 +66,11 @@ private:
   crow::response postConfigsImport(const crow::request& req);
   crow::response postConfigsSave(const crow::request& req);
   crow::response getConfigsExport();
+  
+  // Server management
+  crow::response postServerRestart(const crow::request& req);
+  
+private:
+  // Helper method for executing restart command
+  bool executeRestartCommand();
 };
