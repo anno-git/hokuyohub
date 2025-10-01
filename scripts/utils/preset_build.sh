@@ -12,11 +12,11 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 case "${1:-release}" in
     debug)
         echo "Building Debug with presets..."
-        "$SCRIPT_DIR/../build/build_with_presets.sh" debug --install
+        "$SCRIPT_DIR/../build/build_with_presets.sh" debug
         ;;
     release)
         echo "Building Release with presets..."
-        "$SCRIPT_DIR/../build/build_with_presets.sh" release --install
+        "$SCRIPT_DIR/../build/build_with_presets.sh" release
         ;;
     clean)
         echo "Cleaning build directories..."

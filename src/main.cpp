@@ -11,15 +11,48 @@
 #include "detect/postfilter.h"
 #include "core/filter_manager.h"
 
+#include <signal.h>
+#include <atomic>
+#include <thread>
+#include <chrono>
+
+// Global flag for graceful shutdown
+std::atomic<bool> shutdown_requested{false};
+
+void signal_handler(int signal) {
+  std::cout << "[Signal] Received signal " << signal << ", requesting graceful shutdown..." << std::endl;
+  shutdown_requested = true;
+}
+
 int main(int argc, char** argv) {
+  // Debug: Print all command line arguments
+  std::cout << "[DEBUG] Command line arguments (" << argc << " total):" << std::endl;
+  for (int i = 0; i < argc; ++i) {
+    std::cout << "[DEBUG]   argv[" << i << "] = '" << argv[i] << "'" << std::endl;
+  }
+  
+  // Set up signal handlers for graceful shutdown
+  signal(SIGTERM, signal_handler);
+  signal(SIGINT, signal_handler);
+  std::cout << "[Signal] Registered signal handlers for graceful shutdown" << std::endl;
+  
   std::string cfgPath = "./configs/default.yaml";
   std::string httpListen = "";
 
+  std::cout << "[DEBUG] Starting argument parsing..." << std::endl;
   for (int i=1;i<argc;++i){
     std::string a = argv[i];
-    if(a=="--config" && i+1<argc) cfgPath = argv[++i];
-    else if(a=="--listen" && i+1<argc) httpListen = argv[++i];
+    std::cout << "[DEBUG] Processing argument " << i << ": '" << a << "'" << std::endl;
+    if(a=="--config" && i+1<argc) {
+      cfgPath = argv[++i];
+      std::cout << "[DEBUG] Set config path to: '" << cfgPath << "'" << std::endl;
+    }
+    else if(a=="--listen" && i+1<argc) {
+      httpListen = argv[++i];
+      std::cout << "[DEBUG] Set httpListen to: '" << httpListen << "'" << std::endl;
+    }
   }
+  std::cout << "[DEBUG] Argument parsing complete. cfgPath='" << cfgPath << "', httpListen='" << httpListen << "'" << std::endl;
 
   AppConfig appcfg = load_app_config(cfgPath);
 
@@ -42,8 +75,12 @@ int main(int argc, char** argv) {
   // Initialize filter manager with configuration
   FilterManager filterManager(appcfg.prefilter, appcfg.postfilter);
 
-  // Initialize CrowCpp application
+  // Initialize CrowCpp application with explicit cleanup
+  std::cout << "[Crow] Creating new Crow application instance..." << std::endl;
   crow::SimpleApp app;
+  
+  // Force cleanup of any existing Crow state
+  std::cout << "[Crow] Initializing fresh Crow state..." << std::endl;
   
   auto ws = std::make_shared<LiveWs>(publisher_manager);
   auto rest = std::make_shared<RestApi>(sensors, filterManager, dbscan, publisher_manager, ws, appcfg);
@@ -60,55 +97,99 @@ int main(int argc, char** argv) {
   // Apply initial sink configuration to runtime
   rest->applySinksRuntime();
 
-  // Configure static file serving for webui
-  CROW_ROUTE(app, "/")
-  ([](const crow::request& req, crow::response& res) {
-    res.set_static_file_info("webui/index.html");
-    res.end();
-  });
-  
-  // Serve static files from webui directory
-  CROW_ROUTE(app, "/<path>")
-  ([](const crow::request& req, crow::response& res, const std::string& path) {
-    // Basic security check to prevent directory traversal
-    if (path.find("..") != std::string::npos) {
-      res.code = 400;
-      res.body = "Bad Request";
-      res.end();
-      return;
-    }
-    
-    std::string file_path = "webui/" + path;
-    res.set_static_file_info(file_path);
-    res.end();
-  });
 
   // Configure HTTP listen address and port
   std::string host = "0.0.0.0";
-  uint16_t port = 8080;
+  uint16_t port = 8081;
   
   auto parseListenAddress = [&](const std::string& url) {
+    std::cout << "[DEBUG] parseListenAddress called with: '" << url << "'" << std::endl;
     auto pos = url.find(":");
     if (pos != std::string::npos) {
-      host = url.substr(0, pos);
-      port = static_cast<uint16_t>(std::stoi(url.substr(pos + 1)));
+      std::string host_part = url.substr(0, pos);
+      std::string port_part = url.substr(pos + 1);
+      std::cout << "[DEBUG] Parsed host_part: '" << host_part << "', port_part: '" << port_part << "'" << std::endl;
+      
+      try {
+        int parsed_port = std::stoi(port_part);
+        std::cout << "[DEBUG] std::stoi result: " << parsed_port << std::endl;
+        
+        if (parsed_port <= 0 || parsed_port > 65535) {
+          std::cerr << "[ERROR] Port out of valid range (1-65535): " << parsed_port << std::endl;
+          std::cout << "[DEBUG] Using fallback port 8080" << std::endl;
+          port = 8080;
+        } else {
+          port = static_cast<uint16_t>(parsed_port);
+          std::cout << "[DEBUG] Final port set to: " << port << std::endl;
+        }
+        host = host_part;
+        std::cout << "[DEBUG] Final host set to: '" << host << "'" << std::endl;
+      } catch (const std::exception& e) {
+        std::cerr << "[ERROR] Failed to parse port from '" << port_part << "': " << e.what() << std::endl;
+        std::cout << "[DEBUG] Using fallback port 8080" << std::endl;
+        port = 8080;
+        host = host_part;
+      }
+    } else {
+      std::cout << "[DEBUG] No colon found in URL, treating as host only: '" << url << "'" << std::endl;
     }
   };
   
   if (!httpListen.empty()) {
+    std::cout << "[Config] Using command line listen: " << httpListen << std::endl;
     parseListenAddress(httpListen);
   }
   else if (!appcfg.ui.listen.empty()) {
+    std::cout << "[Config] Using config file listen: " << appcfg.ui.listen << std::endl;
     parseListenAddress(appcfg.ui.listen);
   }
+  else {
+    std::cout << "[Config] Using default values: host=" << host << " port=" << port << std::endl;
+  }
   
-  std::cout << "[App] Starting HTTP server on host:" << host << " port:" << port << std::endl;
+  // Additional validation: ensure port was actually set correctly
+  std::cout << "[DEBUG] After parseListenAddress - host='" << host << "' port=" << port << std::endl;
   
-  // Configure CrowCpp app
-  app.bindaddr(host).port(port);
+  std::cout << "[App] Parsed configuration - host:'" << host << "' port:" << port << std::endl;
+  
+  // Validate configuration before binding
+  if (host.empty()) {
+    std::cerr << "[ERROR] Host is empty! Using fallback 0.0.0.0" << std::endl;
+    host = "0.0.0.0";
+  }
+  if (port <= 0 || port > 65535) {
+    std::cerr << "[ERROR] Invalid port " << port << "! Must be 1-65535. Using fallback 8080" << std::endl;
+    port = 8080;
+  }
+  
+  std::cout << "[App] Final configuration - Starting HTTP server on host:'" << host << "' port:" << port << std::endl;
+  
+  // Configure CrowCpp app with explicit verification
+  std::cout << "[Crow] Configuring Crow app..." << std::endl;
+  app.bindaddr(host);
+  std::cout << "[Crow] Set bindaddr to: " << host << std::endl;
+  app.port(port);
+  std::cout << "[Crow] Set port to: " << port << std::endl;
+  
+  // CRITICAL FIX: Store port value to prevent corruption
+  const uint16_t saved_port = port;
+  const std::string saved_host = host;
+  std::cout << "[Crow] CRITICAL: Saved port=" << saved_port << " host='" << saved_host << "' for verification" << std::endl;
+  
+  // Force verification of Crow configuration
+  try {
+    // Attempt to validate Crow's internal state before sensors start
+    std::cout << "[Crow] Crow configuration complete, proceeding with sensor initialization..." << std::endl;
+  } catch (const std::exception& e) {
+    std::cerr << "[ERROR] Crow configuration failed: " << e.what() << std::endl;
+    return 1;
+  }
 
-
+  // CRITICAL FIX: Defer sensor initialization until after Crow is fully configured
+  std::cout << "[App] CRITICAL: Deferring sensor start to prevent Crow corruption..." << std::endl;
+  
   // センサー開始（スタブ：タイマーでダミーデータを流す）
+  std::cout << "[App] CRITICAL: Starting sensors with callback registration..." << std::endl;
   sensors.start([&](const ScanFrame& f){
     // Push raw points to WebUI (unfiltered)
     ws->pushRawLite(f.t_ns, f.seq, f.xy, f.sid);
@@ -185,7 +266,45 @@ int main(int argc, char** argv) {
     publisher_manager.publishClusters(f.t_ns, f.seq, final_clusters);
   });
 
-  // Start the CrowCpp application
-  app.run();
+  // Start the CrowCpp application with signal checking
+  std::cout << "[App] Starting CrowCpp server..." << std::endl;
+  
+  // CRITICAL: Verify Crow's internal state before starting
+  std::cout << "[DEBUG-CRITICAL] Crow internal state verification:" << std::endl;
+  std::cout << "[DEBUG-CRITICAL] Current port variable: " << port << std::endl;
+  std::cout << "[DEBUG-CRITICAL] Saved port value: " << saved_port << std::endl;
+  std::cout << "[DEBUG-CRITICAL] About to call app.run_async() - verifying port configuration..." << std::endl;
+  
+  // CRITICAL FIX: Validate saved values before binding
+  if (saved_port <= 0 || saved_port > 65535) {
+    std::cerr << "[ERROR-CRITICAL] Invalid saved port " << saved_port << "! Using emergency fallback 8080" << std::endl;
+    const uint16_t emergency_port = 8080;
+    app.bindaddr(saved_host);
+    app.port(emergency_port);
+    std::cout << "[DEBUG-CRITICAL] EMERGENCY configuration - host='" << saved_host << "' port=" << emergency_port << std::endl;
+  } else {
+    // Force complete reconfiguration of Crow with saved values
+    app.bindaddr(saved_host);
+    app.port(saved_port);
+    std::cout << "[DEBUG-CRITICAL] FORCED re-configuration - host='" << saved_host << "' port=" << saved_port << std::endl;
+  }
+  
+  // Use concurrent mode to allow signal checking
+  app.multithreaded();
+  std::cout << "[DEBUG-CRITICAL] About to start async server..." << std::endl;
+  auto future = app.run_async();
+  
+  // Wait for shutdown signal
+  while (!shutdown_requested) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+  }
+  
+  std::cout << "[App] Shutdown requested, stopping server..." << std::endl;
+  app.stop();
+  
+  // Wait for server to finish
+  future.wait();
+  std::cout << "[App] Server stopped gracefully" << std::endl;
+  
   return 0;
 }

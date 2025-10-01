@@ -1,12 +1,12 @@
 #!/bin/bash
 
 # =============================================================================
-# HokuyoHub CMake Presets Build Script - Phase 1
+# HokuyoHub CMake Presets Build Script - Phase 3 分離アーキテクチャ対応
 # =============================================================================
 # This script provides convenient access to CMake presets for building
-# HokuyoHub with the new Phase 1 cross-compilation build system.
+# HokuyoHub with the separated architecture system.
 #
-# Usage: ./build_with_presets.sh [preset] [options]
+# Usage: ./build_with_presets.sh [preset|service] [options]
 #
 # Presets:
 #   debug       - Build macOS Debug configuration
@@ -15,10 +15,17 @@
 #   clean       - Clean build directories
 #   list        - List available presets
 #
+# Service Commands:
+#   start       - Start HokuyoHub separated system
+#   stop        - Stop HokuyoHub separated system
+#   restart     - Restart HokuyoHub separated system
+#   status      - Check separated system status
+#   dev         - Start in development mode
+#
 # Options:
 #   --install   - Run install after build
 #   --test      - Run tests after build
-#   --package   - Create package after build
+#   --package   - Create distribution package after build
 #   --verbose   - Enable verbose output
 #   --help      - Show this help message
 
@@ -91,14 +98,14 @@ EOF
 
 # Parse command line arguments
 PRESET="release"
-RUN_INSTALL=false
+RUN_INSTALL=true
 RUN_TEST=false
 RUN_PACKAGE=false
 VERBOSE=false
 
 while [[ $# -gt 0 ]]; do
     case $1 in
-        debug|release|relwithdeb|clean|list)
+        debug|release|relwithdeb|clean|list|start|stop|restart|status|dev)
             PRESET="$1"
             shift
             ;;
@@ -243,20 +250,165 @@ build_with_preset() {
     
     # Package if requested
     if [[ "$RUN_PACKAGE" == "true" ]]; then
-        log_info "Creating package..."
-        if [[ "$VERBOSE" == "true" ]]; then
-            cpack --preset "package-mac-release" 2>/dev/null || log_warning "Packaging not available or failed"
+        log_info "Creating distribution package..."
+        
+        # Create dist directory structure
+        local dist_dir="$PROJECT_ROOT/dist/darwin-arm64"
+        mkdir -p "$dist_dir"/{bin,webui-server,configs}
+        
+        # Copy backend binary
+        if [[ -f "$PROJECT_ROOT/build/darwin-arm64/hokuyo_hub" ]]; then
+            cp "$PROJECT_ROOT/build/darwin-arm64/hokuyo_hub" "$dist_dir/bin/"
+            log_success "Backend binary packaged to: $dist_dir/bin/"
         else
-            cpack --preset "package-mac-release" >/dev/null 2>&1 || log_warning "Packaging not available or failed"
+            log_error "Backend binary not found for packaging"
+            return 1
+        fi
+        
+        # Copy WebUI server
+        if [[ -d "$PROJECT_ROOT/webui-server" ]]; then
+            cp -r "$PROJECT_ROOT/webui-server"/* "$dist_dir/webui-server/"
+            log_success "WebUI server packaged to: $dist_dir/webui-server/"
+        fi
+        
+        # Copy configs
+        if [[ -d "$PROJECT_ROOT/configs" ]]; then
+            cp -r "$PROJECT_ROOT/configs"/* "$dist_dir/configs/"
+            log_success "Configs packaged to: $dist_dir/configs/"
+        fi
+        
+        log_success "Distribution package created: $dist_dir/"
+    fi
+}
+
+# Service management functions
+detect_executable() {
+    # Check preset build system paths (dist first, then build fallback)
+    if [ -f "$PROJECT_ROOT/dist/darwin-arm64/bin/hokuyo_hub" ]; then
+        echo "$PROJECT_ROOT/dist/darwin-arm64/bin/hokuyo_hub"
+    elif [ -f "$PROJECT_ROOT/build/darwin-arm64/hokuyo_hub" ]; then
+        echo "$PROJECT_ROOT/build/darwin-arm64/hokuyo_hub"
+    elif [ -f "$PROJECT_ROOT/dist/linux-arm64/bin/hokuyo_hub" ]; then
+        echo "$PROJECT_ROOT/dist/linux-arm64/bin/hokuyo_hub"
+    elif [ -f "$PROJECT_ROOT/build/linux-arm64/hokuyo_hub" ]; then
+        echo "$PROJECT_ROOT/build/linux-arm64/hokuyo_hub"
+    else
+        return 1
+    fi
+}
+
+service_start() {
+    local executable=$(detect_executable)
+    if [ $? -ne 0 ] || [ ! -f "$executable" ]; then
+        log_error "HokuyoHub executable not found. Please build first with: $0 release --install"
+        exit 1
+    fi
+    
+    log_info "Starting HokuyoHub service..."
+    if [ -f "$PROJECT_ROOT/hokuyo_hub.pid" ]; then
+        local pid=$(cat "$PROJECT_ROOT/hokuyo_hub.pid")
+        if kill -0 "$pid" 2>/dev/null; then
+            log_warning "HokuyoHub is already running (PID: $pid)"
+            return 0
+        else
+            rm -f "$PROJECT_ROOT/hokuyo_hub.pid"
         fi
     fi
+    
+    cd "$PROJECT_ROOT"
+    "$executable" --config configs/default.yaml &
+    echo $! > hokuyo_hub.pid
+    log_success "HokuyoHub started (PID: $(cat hokuyo_hub.pid))"
+}
+
+service_stop() {
+    log_info "Stopping HokuyoHub service..."
+    if [ -f "$PROJECT_ROOT/hokuyo_hub.pid" ]; then
+        local pid=$(cat "$PROJECT_ROOT/hokuyo_hub.pid")
+        if kill -0 "$pid" 2>/dev/null; then
+            kill -TERM "$pid"
+            
+            # Wait for process to terminate (up to 10 seconds)
+            local counter=0
+            while kill -0 "$pid" 2>/dev/null && [ $counter -lt 50 ]; do
+                sleep 0.2
+                counter=$((counter + 1))
+            done
+            
+            # If still running, force kill
+            if kill -0 "$pid" 2>/dev/null; then
+                log_warning "Process still running after TERM signal, sending KILL..."
+                kill -KILL "$pid" 2>/dev/null || true
+                sleep 1
+            fi
+            
+            log_success "HokuyoHub stopped (PID: $pid)"
+        else
+            log_warning "Process not running (stale PID file)"
+        fi
+        rm -f "$PROJECT_ROOT/hokuyo_hub.pid"
+    else
+        log_warning "No PID file found, attempting to kill by name..."
+        pkill -f "hokuyo_hub" && log_success "HokuyoHub stopped" || log_warning "No HokuyoHub process found"
+        
+        # Wait a moment to ensure any processes are fully terminated
+        sleep 1
+    fi
+}
+
+service_restart() {
+    log_info "Restarting HokuyoHub service using external restart script..."
+    
+    # Check if we have the external restart script (from RestartManager)
+    if [ -f "/tmp/hokuyo_restart.sh" ]; then
+        log_info "Using existing restart script from RestartManager..."
+        exec /tmp/hokuyo_restart.sh
+    else
+        # Fallback: simple restart
+        log_info "No external restart script found, performing simple restart..."
+        service_stop
+        sleep 2
+        service_start
+    fi
+}
+
+service_status() {
+    log_info "Checking HokuyoHub service status..."
+    if [ -f "$PROJECT_ROOT/hokuyo_hub.pid" ]; then
+        local pid=$(cat "$PROJECT_ROOT/hokuyo_hub.pid")
+        if kill -0 "$pid" 2>/dev/null; then
+            echo "✓ HokuyoHub is running (PID: $pid)"
+        else
+            echo "✗ HokuyoHub is not running (stale PID file)"
+            rm -f "$PROJECT_ROOT/hokuyo_hub.pid"
+        fi
+    else
+        if pgrep -f "hokuyo_hub" >/dev/null; then
+            echo "✓ HokuyoHub process found (no PID file)"
+            pgrep -f "hokuyo_hub"
+        else
+            echo "✗ HokuyoHub is not running"
+        fi
+    fi
+}
+
+service_dev() {
+    local executable=$(detect_executable)
+    if [ $? -ne 0 ] || [ ! -f "$executable" ]; then
+        log_error "HokuyoHub executable not found. Please build first with: $0 release --install"
+        exit 1
+    fi
+    
+    log_info "Starting HokuyoHub in development mode..."
+    cd "$PROJECT_ROOT"
+    "$executable" --config configs/default.yaml
 }
 
 # Main execution
 main() {
     echo "=== HokuyoHub CMake Presets Build Script - Phase 1 ==="
     echo "Project: $PROJECT_ROOT"
-    echo "Preset: $PRESET"
+    echo "Command: $PRESET"
     echo
     
     case "$PRESET" in
@@ -269,8 +421,24 @@ main() {
         debug|release|relwithdeb)
             build_with_preset "$PRESET"
             ;;
+        start)
+            service_start
+            ;;
+        stop)
+            service_stop
+            ;;
+        restart)
+            service_restart
+            ;;
+        status)
+            service_status
+            ;;
+        dev)
+            service_dev
+            ;;
         *)
-            log_error "Unknown preset: $PRESET"
+            log_error "Unknown command: $PRESET"
+            show_help
             exit 1
             ;;
     esac

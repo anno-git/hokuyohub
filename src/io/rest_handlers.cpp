@@ -113,9 +113,9 @@ void RestApi::registerRoutes(crow::SimpleApp& app) {
     return getConfigsExport();
   });
   
-  // Server management endpoints
-  CROW_ROUTE(app, "/api/v1/server/restart").methods("POST"_method)([this](const crow::request& req) {
-    return postServerRestart(req);
+  // Health check endpoint
+  CROW_ROUTE(app, "/api/v1/health").methods("GET"_method)([this]() {
+    return getHealth();
   });
 }
 
@@ -1537,86 +1537,32 @@ void RestApi::applySinksRuntime() {
             << publisher_manager_.getPublisherCount() << " publishers active" << std::endl;
 }
 
-// Server management endpoints
-crow::response RestApi::postServerRestart(const crow::request& req) {
-  if (!authorize(req)) {
-    return sendUnauthorized();
-  }
-  
+// Health check endpoint
+crow::response RestApi::getHealth() {
   try {
-    // Check if restart command execution is supported
-    bool success = executeRestartCommand();
+    Json::Value result;
+    result["status"] = "healthy";
+    result["server"] = "hokuyo_hub_api";
+    result["version"] = "2.0.0";
+    result["timestamp"] = static_cast<Json::Int64>(std::chrono::system_clock::to_time_t(std::chrono::system_clock::now()));
+    result["port"] = 8081;
+    result["api_endpoints"] = Json::arrayValue;
+    result["api_endpoints"].append("/api/v1/sensors");
+    result["api_endpoints"].append("/api/v1/filters");
+    result["api_endpoints"].append("/api/v1/dbscan");
+    result["api_endpoints"].append("/api/v1/sinks");
+    result["api_endpoints"].append("/api/v1/configs");
+    result["api_endpoints"].append("/api/v1/health");
     
-    if (success) {
-      Json::Value result;
-      result["restarting"] = true;
-      result["message"] = "Server restart initiated successfully";
-      result["timestamp"] = static_cast<Json::Int64>(std::chrono::system_clock::to_time_t(std::chrono::system_clock::now()));
-      
-      crow::response resp(200, result.toStyledString());
-      resp.add_header("Content-Type", "application/json");
-      return resp;
-    } else {
-      Json::Value error;
-      error["error"] = "restart_failed";
-      error["message"] = "Failed to initiate server restart";
-      error["timestamp"] = static_cast<Json::Int64>(std::chrono::system_clock::to_time_t(std::chrono::system_clock::now()));
-      
-      crow::response resp(500, error.toStyledString());
-      resp.add_header("Content-Type", "application/json");
-      return resp;
-    }
+    crow::response resp(200, result.toStyledString());
+    resp.add_header("Content-Type", "application/json");
+    return resp;
   } catch (const std::exception& e) {
     Json::Value error;
     error["error"] = "internal_error";
     error["message"] = e.what();
-    
     crow::response resp(500, error.toStyledString());
     resp.add_header("Content-Type", "application/json");
     return resp;
-  }
-}
-
-bool RestApi::executeRestartCommand() {
-  try {
-#ifdef __APPLE__
-    // macOS - try launchctl first, then brew services as fallback
-    int result = std::system("launchctl kickstart -k system/io.hokuyohub 2>/dev/null");
-    if (result == 0) {
-      std::cout << "[RestApi] Server restart initiated via launchctl" << std::endl;
-      return true;
-    }
-    
-    result = std::system("brew services restart hokuyohub 2>/dev/null");
-    if (result == 0) {
-      std::cout << "[RestApi] Server restart initiated via brew services" << std::endl;
-      return true;
-    }
-    
-    // Development environment fallback
-    std::cout << "[RestApi] Production restart commands not available, simulating restart" << std::endl;
-    return true;
-    
-#elif __linux__
-    // Linux - try systemctl
-    int result = std::system("systemctl restart hokuyohub 2>/dev/null");
-    if (result == 0) {
-      std::cout << "[RestApi] Server restart initiated via systemctl" << std::endl;
-      return true;
-    }
-    
-    // Development environment fallback
-    std::cout << "[RestApi] Production restart commands not available, simulating restart" << std::endl;
-    return true;
-    
-#else
-    // Other platforms - development mode
-    std::cout << "[RestApi] Restart command not implemented for this platform, simulating restart" << std::endl;
-    return true;
-#endif
-    
-  } catch (const std::exception& e) {
-    std::cerr << "[RestApi] Error executing restart command: " << e.what() << std::endl;
-    return false;
   }
 }

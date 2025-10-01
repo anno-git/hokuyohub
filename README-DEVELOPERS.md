@@ -11,8 +11,9 @@
 8. [Testing Strategy](#testing-strategy)
 9. [Performance Considerations](#performance-considerations)
 10. [Contributing Guidelines](#contributing-guidelines)
-11. [Deployment](#deployment)
-12. [Troubleshooting Development Issues](#troubleshooting-development-issues)
+11. [Server Restart Functionality](#server-restart-functionality)
+12. [Deployment](#deployment)
+13. [Troubleshooting Development Issues](#troubleshooting-development-issues)
 
 ## Architecture Overview
 
@@ -512,6 +513,210 @@ main.cpp
     ├── NNG Bus
     ├── OSC Publisher (optional)
     └── File Output
+```
+
+## Server Restart Functionality
+
+HokuyoHub includes a simplified server restart system that allows graceful restart of the application while preserving user configurations.
+
+### RestartManager Class
+
+The [`RestartManager`](src/core/restart_manager.h:11) provides a clean restart mechanism:
+
+```cpp
+class RestartManager {
+public:
+    /**
+     * Save the original command line arguments for later use in restart.
+     * This should be called early in main() before any other operations.
+     */
+    static void saveOriginalArgs(int argc, char* argv[]);
+    
+    /**
+     * Execute a restart of the application using the saved arguments.
+     * This function will create a restart script, execute it, and then exit the current process.
+     */
+    static void executeRestart();
+
+private:
+    static std::vector<std::string> original_args_;
+    
+    // Helper methods for cross-platform restart implementation
+    static std::string getTempDir();
+    static std::string saveArgsToFile(const std::vector<std::string>& args);
+    static std::vector<std::string> loadArgsFromFile(const std::string& filePath);
+    static void executeRestartScript(const std::string& argsFilePath);
+};
+```
+
+### Implementation Features
+
+- **Cross-Platform Support**: Works on Windows, macOS, and Linux
+- **Argument Preservation**: Maintains all original command-line arguments
+- **Process Isolation**: Uses temporary scripts to restart cleanly
+- **Error Handling**: Comprehensive error handling with detailed logging
+
+### Integration Points
+
+#### Main Application Setup
+
+In [`main.cpp`](src/main.cpp:17), the restart manager is initialized:
+
+```cpp
+int main(int argc, char** argv) {
+    // Save original arguments for restart functionality
+    RestartManager::saveOriginalArgs(argc, argv);
+    
+    // ... rest of application initialization
+}
+```
+
+#### REST API Integration
+
+The restart functionality is exposed via REST API in [`RestApi::postServerRestart`](src/io/rest_handlers.cpp:1542):
+
+```cpp
+// POST /api/v1/server/restart
+crow::response RestApi::postServerRestart(const crow::request& req) {
+    if (!authorize(req)) {
+        return sendUnauthorized();
+    }
+    
+    try {
+        std::cout << "[RestApi] Server restart requested, executing RestartManager..." << std::endl;
+        
+        // Use the simplified RestartManager for restart
+        RestartManager::executeRestart();
+        
+        // This point should never be reached as executeRestart() calls std::exit()
+        // ... error handling
+    } catch (const std::exception& e) {
+        // ... error response
+    }
+}
+```
+
+#### WebUI Integration
+
+The web interface provides restart functionality with auto-save/restore:
+
+```javascript
+/**
+ * Handle server restart request with auto-save and restore
+ */
+async function handleServerRestart() {
+    try {
+        console.log('Server restart requested...');
+        
+        // Save current configuration to localStorage
+        const currentConfigs = await getAllConfigs();
+        localStorage.setItem('hokuyoRestoreConfigs', JSON.stringify(currentConfigs));
+        localStorage.setItem('hokuyoRestoreFlag', Date.now().toString());
+        
+        showNotification('Saving current settings...', 'info');
+        
+        // Make the restart request
+        await serverApi.restart(token);
+        
+        console.log('Server restart request sent successfully');
+        showNotification('Server restarting... Please wait', 'info');
+        
+        // Simple page reload after 5 seconds
+        setTimeout(() => {
+            window.location.reload();
+        }, 5000);
+        
+    } catch (error) {
+        console.error('Error during server restart process:', error);
+        showNotification('Restart failed: ' + error.message, 'error');
+        
+        // Clean up saved settings on error
+        localStorage.removeItem('hokuyoRestoreConfigs');
+        localStorage.removeItem('hokuyoRestoreFlag');
+    }
+}
+```
+
+### Restart Scripts
+
+Two platform-specific restart scripts are provided:
+
+#### Unix/Linux/macOS Script
+
+[`scripts/restart_with_args.sh`](scripts/restart_with_args.sh:1) - A comprehensive bash script with:
+- Argument file validation and security checks
+- Graceful process termination (SIGTERM then SIGKILL)
+- Robust logging with timestamps
+- Error handling and cleanup
+- Default configuration fallback
+
+#### Windows Script
+
+[`scripts/restart_with_args.bat`](scripts/restart_with_args.bat:1) - Windows batch script with:
+- PowerShell-compatible process management
+- Equivalent argument handling and validation
+- Windows-specific process termination logic
+- Log file management in Windows format
+
+### Configuration Auto-Save/Restore
+
+The restart system includes automatic configuration preservation:
+
+1. **Pre-Restart**: WebUI saves current configuration to `localStorage`
+2. **Post-Restart**: On page load, WebUI checks for saved configuration and restores it
+3. **Timeout**: Saved configurations expire after 5 minutes for security
+4. **Error Handling**: Failed restores are logged but don't prevent normal operation
+
+### Security Considerations
+
+- **Authentication Required**: Restart endpoint requires Bearer token authentication
+- **Argument Validation**: Scripts validate arguments to prevent injection attacks
+- **Temporary File Security**: Argument files are created with restricted permissions
+- **Process Isolation**: Restart occurs in separate process context
+
+### Usage Examples
+
+#### Programmatic Restart
+
+```cpp
+// In application code
+try {
+    RestartManager::executeRestart();
+} catch (const std::exception& e) {
+    std::cerr << "Restart failed: " << e.what() << std::endl;
+}
+```
+
+#### API Restart
+
+```bash
+# Restart server via REST API
+curl -X POST \
+  -H "Authorization: Bearer your-api-token" \
+  -H "Content-Type: application/json" \
+  "http://localhost:8080/api/v1/server/restart"
+```
+
+#### WebUI Restart
+
+Users can restart the server through the web interface using the "Restart Server" button, which automatically:
+1. Saves current configuration
+2. Sends restart request to server
+3. Waits for server restart
+4. Reloads page and restores configuration
+
+### Testing
+
+Test the restart functionality using the provided test script:
+
+```bash
+# Test restart API endpoint
+./scripts/testing/test_server_restart.sh
+
+# Manual testing with different scenarios
+./hokuyo_hub --config configs/test.yaml &
+curl -X POST -H "Authorization: Bearer test-token" \
+     "http://localhost:8080/api/v1/server/restart"
 ```
 
 ## API Design

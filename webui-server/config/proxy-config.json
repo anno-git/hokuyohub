@@ -1,0 +1,11 @@
+{
+  "backend": {
+    "url": "http://localhost:8081",
+    "timeout": 5000,
+    "retries": 3
+  },
+  "routes": {
+    "/api": true,
+    "/ws": true
+  }
+}
