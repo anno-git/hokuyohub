@@ -221,6 +221,21 @@ The HokuyoHub web interface features a modern JavaScript ES6+ implementation wit
    - **REST**: HTTP API access for web-based integration
 3. Configure topic names and data formats with production-ready deployment support
 
+#### Message Format
+
+|順序|項目名|型|内容|
+|---|---|---|---|
+|1|id|int32|クラスタの識別ID|
+|2|t_ns|int64|Unixタイムスタンプ（ナノ秒単位）|
+|3|seq|int32|キャプチャのシーケンス番号（フレーム番号）|
+|4|cx|float32|クラスタの中心 X座標 (メートル)|
+|5|cy|float32|クラスタの中心 Y座標 (メートル)|
+|6|minx|float32|バウンディングボックスの最小 X|
+|7|miny|float32|バウンディングボックスの最小 Y|
+|8|maxx|float32|バウンディングボックスの最大 X|
+|9|maxy|float32|バウンディングボックスの最大 Y|
+|10|n|int32|クラスタに含まれる点（データポイント）の数|
+
 ## ⚙️ Configuration
 
 ### Sensor Configuration
