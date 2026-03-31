@@ -227,6 +227,9 @@ std::string OscPublisher::encodeOscBundle(const std::vector<std::string>& messag
 void OscPublisher::publishClusters(uint64_t t_ns, uint32_t seq, const std::vector<Cluster>& items) {
   if (!enabled_ || !shouldPublish()) return;
 
+  // If this sink is configured for raw-only, skip cluster publishes
+  if (data_type_ != "cluster") return;
+
   // 1) まず全メッセージを生成
   std::vector<std::string> msgs;
   msgs.reserve(items.size());
