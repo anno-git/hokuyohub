@@ -197,6 +197,7 @@ AppConfig load_app_config(const std::string& path){
         if (sn["url"])       sc.osc().url       = sn["url"].as<std::string>("");
         if (sn["in_bundle"]) sc.osc().in_bundle = sn["in_bundle"].as<bool>(false);
         if (sn["bundle_fragment_size"]) sc.osc().bundle_fragment_size = sn["bundle_fragment_size"].as<int>(0);
+        if (sn["data_type"]) sc.osc().data_type = sn["data_type"].as<std::string>(sc.osc().data_type);
       }
 
       cfg.sinks.push_back(std::move(sc));
@@ -342,11 +343,12 @@ std::string dump_app_config(const AppConfig& cfg) {
   for (const auto& sink : cfg.sinks) {
     out << YAML::BeginMap;
     if (sink.isOsc()) {
-      auto cfg = sink.osc();
+      auto ocfg = sink.osc();
       out << YAML::Key << "type" << YAML::Value << "osc";
-      out << YAML::Key << "url" << YAML::Value << cfg.url;
-      out << YAML::Key << "in_bundle" << YAML::Value << cfg.in_bundle;
-      out << YAML::Key << "bundle_fragment_size" << YAML::Value << cfg.bundle_fragment_size;
+      out << YAML::Key << "url" << YAML::Value << ocfg.url;
+      out << YAML::Key << "in_bundle" << YAML::Value << ocfg.in_bundle;
+      out << YAML::Key << "bundle_fragment_size" << YAML::Value << ocfg.bundle_fragment_size;
+      out << YAML::Key << "data_type" << YAML::Value << ocfg.data_type;
     } else if (sink.isNng()) {
       auto cfg = sink.nng();
       out << YAML::Key << "type" << YAML::Value << "nng";
