@@ -132,23 +132,20 @@ function createSinkAccordionItem(sink, index) {
   content.id = `sink-content-${index}`;
   content.setAttribute('role', 'region');
   
-  const topic = sink.topic || '';
   const encoding = sink.encoding || '';
   const rateLimit = sink.rate_limit || 0;
   const inBundle = sink.in_bundle || false;
   const bundleFragmentSize = sink.bundle_fragment_size || 1024;
   const sendClusters = sink.send_clusters !== undefined ? sink.send_clusters : true;
   const sendRaw = sink.send_raw || false;
-  
+  const clusterTopic = sink.cluster_topic || '/hokuyohub/cluster';
+  const rawTopic = sink.raw_topic || '/hokuyohub/raw';
+
   content.innerHTML = `
     <div class="accordion-form">
       <div class="accordion-form-row">
         <label>URL:</label>
         <input class="sink-url" type="text" value="${url}" data-sink-id="${index}" />
-      </div>
-      <div class="accordion-form-row">
-        <label>Topic:</label>
-        <input class="sink-topic" type="text" value="${topic}" data-sink-id="${index}" />
       </div>
       <div class="accordion-form-row">
         <label>Rate Limit (Hz):</label>
@@ -158,9 +155,17 @@ function createSinkAccordionItem(sink, index) {
         <label>Send Clusters:</label>
         <input class="sink-send-clusters" type="checkbox" ${sendClusters ? 'checked' : ''} data-sink-id="${index}" />
       </div>
+      <div class="accordion-form-row" style="${sendClusters ? '' : 'display:none'}">
+        <label>Cluster Topic:</label>
+        <input class="sink-cluster-topic" type="text" value="${clusterTopic}" data-sink-id="${index}" />
+      </div>
       <div class="accordion-form-row">
         <label>Send Raw:</label>
         <input class="sink-send-raw" type="checkbox" ${sendRaw ? 'checked' : ''} data-sink-id="${index}" />
+      </div>
+      <div class="accordion-form-row" style="${sendRaw ? '' : 'display:none'}">
+        <label>Raw Topic:</label>
+        <input class="sink-raw-topic" type="text" value="${rawTopic}" data-sink-id="${index}" />
       </div>
       ${type === 'nng' ? `
       <div class="accordion-form-row">
@@ -305,10 +310,27 @@ function setupInputHandlers(content, sink, index) {
   };
   
   setupInputHandler('.sink-url', 'url');
-  setupInputHandler('.sink-topic', 'topic');
   setupInputHandler('.sink-rate-limit', 'rate_limit');
   setupInputHandler('.sink-send-clusters', 'send_clusters');
+  setupInputHandler('.sink-cluster-topic', 'cluster_topic');
   setupInputHandler('.sink-send-raw', 'send_raw');
+  setupInputHandler('.sink-raw-topic', 'raw_topic');
+
+  // Toggle topic field visibility when checkboxes change
+  const sendClustersInput = content.querySelector('.sink-send-clusters');
+  const clusterTopicRow = content.querySelector('.sink-cluster-topic')?.closest('.accordion-form-row');
+  if (sendClustersInput && clusterTopicRow) {
+    sendClustersInput.addEventListener('change', () => {
+      clusterTopicRow.style.display = sendClustersInput.checked ? '' : 'none';
+    });
+  }
+  const sendRawInput = content.querySelector('.sink-send-raw');
+  const rawTopicRow = content.querySelector('.sink-raw-topic')?.closest('.accordion-form-row');
+  if (sendRawInput && rawTopicRow) {
+    sendRawInput.addEventListener('change', () => {
+      rawTopicRow.style.display = sendRawInput.checked ? '' : 'none';
+    });
+  }
 
   if (sink.type === 'nng') {
     setupInputHandler('.sink-encoding', 'encoding');
@@ -344,10 +366,6 @@ function showAddSinkModal() {
             <input type="text" id="sink-url-input" value="tcp://localhost:5555">
           </div>
           <div class="modal__row">
-            <label>Topic:</label>
-            <input type="text" id="sink-topic-input" value="lidar_data">
-          </div>
-          <div class="modal__row">
             <label>Rate Limit (Hz):</label>
             <input type="number" id="sink-rate-limit-input" min="0" value="30">
           </div>
@@ -355,9 +373,17 @@ function showAddSinkModal() {
             <label>Send Clusters:</label>
             <input type="checkbox" id="sink-send-clusters-input" checked>
           </div>
+          <div class="modal__row" id="sink-cluster-topic-row">
+            <label>Cluster Topic:</label>
+            <input type="text" id="sink-cluster-topic-input" value="/hokuyohub/cluster">
+          </div>
           <div class="modal__row">
             <label>Send Raw:</label>
             <input type="checkbox" id="sink-send-raw-input">
+          </div>
+          <div class="modal__row" id="sink-raw-topic-row" style="display: none;">
+            <label>Raw Topic:</label>
+            <input type="text" id="sink-raw-topic-input" value="/hokuyohub/raw">
           </div>
           <div class="modal__row" id="sink-encoding-row">
             <label>Encoding:</label>
@@ -415,6 +441,18 @@ function showAddSinkModal() {
   
   typeSelect.addEventListener('change', updateFieldVisibility);
   updateFieldVisibility();
+
+  // Toggle topic rows based on send checkboxes
+  const sendClustersCheck = document.getElementById('sink-send-clusters-input');
+  const sendRawCheck = document.getElementById('sink-send-raw-input');
+  const clusterTopicRow = document.getElementById('sink-cluster-topic-row');
+  const rawTopicRow = document.getElementById('sink-raw-topic-row');
+  sendClustersCheck.addEventListener('change', () => {
+    clusterTopicRow.style.display = sendClustersCheck.checked ? 'flex' : 'none';
+  });
+  sendRawCheck.addEventListener('change', () => {
+    rawTopicRow.style.display = sendRawCheck.checked ? 'flex' : 'none';
+  });
   
   const closeModal = () => backdrop.remove();
   
@@ -429,11 +467,12 @@ function showAddSinkModal() {
     const sinkData = {
       type: type,
       url: document.getElementById('sink-url-input').value,
-      topic: document.getElementById('sink-topic-input').value,
       rate_limit: parseInt(document.getElementById('sink-rate-limit-input').value) || 0,
       enabled: document.getElementById('sink-enabled-input').checked,
       send_clusters: document.getElementById('sink-send-clusters-input').checked,
-      send_raw: document.getElementById('sink-send-raw-input').checked
+      cluster_topic: document.getElementById('sink-cluster-topic-input').value,
+      send_raw: document.getElementById('sink-send-raw-input').checked,
+      raw_topic: document.getElementById('sink-raw-topic-input').value
     };
 
     if (type === SinkTypes.NNG) {

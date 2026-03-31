@@ -769,7 +769,8 @@ crow::response RestApi::getSinks() {
       Json::Value sinkJson;
       
       sinkJson["index"] = static_cast<int>(i);
-      sinkJson["topic"] = sink.topic;
+      sinkJson["cluster_topic"] = sink.cluster_topic;
+      sinkJson["raw_topic"] = sink.raw_topic;
       sinkJson["rate_limit"] = sink.rate_limit;
       sinkJson["send_clusters"] = sink.send_clusters;
       sinkJson["send_raw"] = sink.send_raw;
@@ -873,7 +874,8 @@ crow::response RestApi::postSink(const crow::request& req) {
     
     // Create new sink configuration
     SinkConfig newSink;
-    newSink.topic = sinkData.get("topic", "clusters").asString();
+    newSink.cluster_topic = sinkData.get("cluster_topic", "/hokuyohub/cluster").asString();
+    newSink.raw_topic = sinkData.get("raw_topic", "/hokuyohub/raw").asString();
     newSink.rate_limit = sinkData.get("rate_limit", 0).asInt();
     newSink.send_clusters = sinkData.get("send_clusters", true).asBool();
     newSink.send_raw = sinkData.get("send_raw", false).asBool();
@@ -917,7 +919,8 @@ crow::response RestApi::postSink(const crow::request& req) {
     result["index"] = static_cast<int>(config_.sinks.size() - 1);
     result["type"] = type;
     result["url"] = url;
-    result["topic"] = newSink.topic;
+    result["cluster_topic"] = newSink.cluster_topic;
+    result["raw_topic"] = newSink.raw_topic;
     result["rate_limit"] = newSink.rate_limit;
     result["message"] = "Sink added successfully";
     
@@ -967,8 +970,12 @@ crow::response RestApi::patchSink(int index, const crow::request& req) {
     bool updated = false;
     
     // Update basic fields
-    if (patch.isMember("topic") && patch["topic"].isString()) {
-      sink.topic = patch["topic"].asString();
+    if (patch.isMember("cluster_topic") && patch["cluster_topic"].isString()) {
+      sink.cluster_topic = patch["cluster_topic"].asString();
+      updated = true;
+    }
+    if (patch.isMember("raw_topic") && patch["raw_topic"].isString()) {
+      sink.raw_topic = patch["raw_topic"].asString();
       updated = true;
     }
     
@@ -1055,7 +1062,8 @@ crow::response RestApi::patchSink(int index, const crow::request& req) {
     // Return updated sink
     Json::Value result;
     result["index"] = index;
-    result["topic"] = sink.topic;
+    result["cluster_topic"] = sink.cluster_topic;
+    result["raw_topic"] = sink.raw_topic;
     result["rate_limit"] = sink.rate_limit;
     
     if (sink.isOsc()) {

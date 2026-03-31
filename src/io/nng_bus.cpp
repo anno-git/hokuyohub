@@ -54,6 +54,8 @@ void NngBus::startPublisher(const SinkConfig& config) {
   rate_limit_ = config.rate_limit;
   send_clusters_ = config.send_clusters;
   send_raw_ = config.send_raw;
+  cluster_topic_ = config.cluster_topic;
+  raw_topic_ = config.raw_topic;
   enabled_ = !url_.empty();
   
 #ifdef USE_NNG
@@ -123,16 +125,24 @@ void NngBus::publishClusters(uint64_t t_ns, uint32_t seq, const std::vector<Clus
   }
   
   if (data.empty()) return;
-  
+
+  // Prepend topic prefix for NNG pub/sub filtering
+  std::string payload;
+  if (!cluster_topic_.empty()) {
+    payload = cluster_topic_ + data;
+  } else {
+    payload = data;
+  }
+
   nng_msg* msg;
-  int rv = nng_msg_alloc(&msg, data.size());
+  int rv = nng_msg_alloc(&msg, payload.size());
   if (rv != 0) {
     std::cerr << "[NngBus] Failed to allocate message: " << nng_strerror(rv) << std::endl;
     return;
   }
-  
-  memcpy(nng_msg_body(msg), data.c_str(), data.size());
-  
+
+  memcpy(nng_msg_body(msg), payload.c_str(), payload.size());
+
   rv = nng_sendmsg(socket_, msg, NNG_FLAG_NONBLOCK);
   if (rv != 0) {
     std::cerr << "[NngBus] Failed to send message: " << nng_strerror(rv) << std::endl;
@@ -306,14 +316,22 @@ void NngBus::publishRaw(uint64_t t_ns, uint32_t seq, const std::vector<float>& x
 
   if (data.empty()) return;
 
+  // Prepend topic prefix for NNG pub/sub filtering
+  std::string payload;
+  if (!raw_topic_.empty()) {
+    payload = raw_topic_ + data;
+  } else {
+    payload = data;
+  }
+
   nng_msg* msg;
-  int rv = nng_msg_alloc(&msg, data.size());
+  int rv = nng_msg_alloc(&msg, payload.size());
   if (rv != 0) {
     std::cerr << "[NngBus] Failed to allocate message: " << nng_strerror(rv) << std::endl;
     return;
   }
 
-  memcpy(nng_msg_body(msg), data.c_str(), data.size());
+  memcpy(nng_msg_body(msg), payload.c_str(), payload.size());
 
   rv = nng_sendmsg(socket_, msg, NNG_FLAG_NONBLOCK);
   if (rv != 0) {

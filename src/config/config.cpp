@@ -184,8 +184,9 @@ AppConfig load_app_config(const std::string& path){
       SinkConfig sc;
 
       std::string type = sn["type"].as<std::string>("");
-      if (sn["topic"])     sc.topic     = sn["topic"].as<std::string>("");
-      if (sn["rate_limit"])sc.rate_limit= sn["rate_limit"].as<int>(0);
+      if (sn["cluster_topic"]) sc.cluster_topic = sn["cluster_topic"].as<std::string>(sc.cluster_topic);
+      if (sn["raw_topic"])     sc.raw_topic     = sn["raw_topic"].as<std::string>(sc.raw_topic);
+      if (sn["rate_limit"])    sc.rate_limit    = sn["rate_limit"].as<int>(0);
       if (sn["send_clusters"]) sc.send_clusters = sn["send_clusters"].as<bool>(sc.send_clusters);
       if (sn["send_raw"])      sc.send_raw      = sn["send_raw"].as<bool>(sc.send_raw);
 
@@ -355,7 +356,8 @@ std::string dump_app_config(const AppConfig& cfg) {
       out << YAML::Key << "url" << YAML::Value << cfg.url;
       out << YAML::Key << "encoding" << YAML::Value << cfg.encoding;
     }
-    out << YAML::Key << "topic" << YAML::Value << sink.topic;
+    out << YAML::Key << "cluster_topic" << YAML::Value << sink.cluster_topic;
+    out << YAML::Key << "raw_topic" << YAML::Value << sink.raw_topic;
     out << YAML::Key << "rate_limit" << YAML::Value << sink.rate_limit;
     out << YAML::Key << "send_clusters" << YAML::Value << sink.send_clusters;
     out << YAML::Key << "send_raw" << YAML::Value << sink.send_raw;

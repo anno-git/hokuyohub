@@ -270,13 +270,7 @@ export const configs = {
    * @returns {Promise<Object>} Import result
    */
   async import(yamlContent) {
-    return apiRequest('/api/v1/configs/import', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'text/plain'
-      },
-      body: yamlContent
-    });
+    return post('/api/v1/configs/import', { yaml_content: yamlContent });
   }
 };
 

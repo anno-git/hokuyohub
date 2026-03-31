@@ -257,9 +257,8 @@ Json::Value LiveWs::buildSnapshot() const
         sink_obj["in_bundle"] = cfg.in_bundle;
         sink_obj["bundle_fragment_size"] = cfg.bundle_fragment_size;
       }
-      if (!sink.topic.empty()) {
-        sink_obj["topic"] = sink.topic;
-      }
+      sink_obj["cluster_topic"] = sink.cluster_topic;
+      sink_obj["raw_topic"] = sink.raw_topic;
       sink_obj["rate_limit"] = sink.rate_limit;
       sink_obj["send_clusters"] = sink.send_clusters;
       sink_obj["send_raw"] = sink.send_raw;

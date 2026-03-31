@@ -25,7 +25,7 @@ bool NngSinkPublisher::start(const SinkConfig& config) {
     
     if (enabled_) {
         std::cout << "[NngSinkPublisher] Started on " << url_ 
-                  << " (topic: " << config.topic 
+                  << " (cluster_topic: " << config.cluster_topic 
                   << ", rate_limit: " << config.rate_limit << "Hz)" << std::endl;
     } else {
         std::cerr << "[NngSinkPublisher] Failed to start on " << url_ << std::endl;
@@ -78,7 +78,7 @@ bool OscSinkPublisher::start(const SinkConfig& config) {
     
     if (enabled_) {
         std::cout << "[OscSinkPublisher] Started on " << url_ 
-                  << " (topic: " << config.topic 
+                  << " (cluster_topic: " << config.cluster_topic 
                   << ", rate_limit: " << config.rate_limit << "Hz)" << std::endl;
     } else {
         std::cerr << "[OscSinkPublisher] Failed to start on " << url_ << std::endl;

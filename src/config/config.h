@@ -60,7 +60,8 @@ struct OscConfig {
 };
 
 struct SinkConfig {
-  std::string topic{"clusters"};
+  std::string cluster_topic{"/hokuyohub/cluster"};
+  std::string raw_topic{"/hokuyohub/raw"};
   int         rate_limit{0};
   bool send_clusters{true};
   bool send_raw{false};

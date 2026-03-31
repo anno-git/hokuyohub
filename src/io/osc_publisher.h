@@ -20,7 +20,8 @@
 class OscPublisher {
   std::string host_;
   int port_;
-  std::string path_;
+  std::string cluster_path_;
+  std::string raw_path_;
   bool enabled_{false};
   int rate_limit_{0};
   bool in_bundle_{false};

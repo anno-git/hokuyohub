@@ -65,7 +65,8 @@ void OscPublisher::start(const SinkConfig& config) {
 
   size_t slash_pos = url.find('/');
   std::string host_port = (slash_pos != std::string::npos) ? url.substr(0, slash_pos) : url;
-  path_ = (slash_pos != std::string::npos) ? url.substr(slash_pos) : "/hokuyohub/cluster";
+  cluster_path_ = config.send_clusters ? config.cluster_topic : "";
+  raw_path_ = config.send_raw ? config.raw_topic : "";
 
   size_t colon_pos = host_port.find(':');
   if (colon_pos != std::string::npos) {
@@ -232,7 +233,7 @@ void OscPublisher::publishClusters(uint64_t t_ns, uint32_t seq, const std::vecto
   std::vector<std::string> msgs;
   msgs.reserve(items.size());
   for (const auto& c : items) {
-    msgs.emplace_back(encodeOscMessage(path_, c.id, t_ns, seq,
+    msgs.emplace_back(encodeOscMessage(cluster_path_, c.id, t_ns, seq,
                                        c.cx, c.cy,
                                        c.minx, c.miny,
                                        c.maxx, c.maxy,
@@ -336,28 +337,6 @@ std::string OscPublisher::encodeOscPointMessage(const std::string& address, uint
 void OscPublisher::publishRaw(uint64_t t_ns, uint32_t seq, const std::vector<float>& xy, const std::vector<uint8_t>& sid) {
   if (!enabled_ || !send_raw_ || !shouldPublish()) return;
 
-  // Determine OSC address base for raw payload:
-  // If configured path ends with "/clusters" or "/cluster", replace that trailing segment with "/raw".
-  // Otherwise append "/raw" to the configured path.
-  std::string addr = path_;
-  if (!addr.empty()) {
-    // Prefer replacing plural first
-    auto pos_pl = addr.rfind("/clusters");
-    if (pos_pl != std::string::npos && pos_pl + 9 == addr.size()) {
-      addr = addr.substr(0, pos_pl) + "/raw";
-    } else {
-      auto pos_sg = addr.rfind("/cluster");
-      if (pos_sg != std::string::npos && pos_sg + 8 == addr.size()) {
-        addr = addr.substr(0, pos_sg) + "/raw";
-      } else {
-        if (addr.back() == '/') addr += "raw";
-        else addr += "/raw";
-      }
-    }
-  } else {
-    addr = "/raw";
-  }
-
   // Build per-point OSC messages
   std::vector<std::string> msgs;
   size_t npoints = xy.size() / 2;
@@ -366,7 +345,7 @@ void OscPublisher::publishRaw(uint64_t t_ns, uint32_t seq, const std::vector<flo
     float x = xy[i*2];
     float y = xy[i*2 + 1];
     uint32_t s = (i < sid.size()) ? static_cast<uint32_t>(sid[i]) : 0;
-    msgs.emplace_back(encodeOscPointMessage(addr, t_ns, seq, x, y, s));
+    msgs.emplace_back(encodeOscPointMessage(raw_path_, t_ns, seq, x, y, s));
   }
 
   if (in_bundle_) {

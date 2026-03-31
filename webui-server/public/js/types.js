@@ -398,10 +398,11 @@ export function createDefaultSink(type = SinkTypes.NNG) {
     type,
     enabled: true,
     url: type === SinkTypes.NNG ? 'tcp://localhost:5555' : 'udp://localhost:8000',
-    topic: 'lidar_data',
     rate_limit: 30,
     send_clusters: true,
-    send_raw: false
+    cluster_topic: '/hokuyohub/cluster',
+    send_raw: false,
+    raw_topic: '/hokuyohub/raw'
   };
   
   if (type === SinkTypes.NNG) {

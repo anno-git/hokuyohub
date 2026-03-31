@@ -15,6 +15,8 @@ class NngBus {
   int rate_limit_{0};
   bool send_clusters_{true};
   bool send_raw_{false};
+  std::string cluster_topic_;
+  std::string raw_topic_;
   std::chrono::steady_clock::time_point last_publish_;
   
 #ifdef USE_NNG
