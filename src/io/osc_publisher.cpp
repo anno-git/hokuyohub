@@ -137,6 +137,20 @@ bool OscPublisher::shouldPublish() {
   return false;
 }
 
+bool OscPublisher::shouldPublishRaw() {
+  if (rate_limit_ <= 0) return true;
+
+  auto now = std::chrono::steady_clock::now();
+  auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - last_publish_raw_).count();
+  auto min_interval = 1000 / rate_limit_; // ms
+
+  if (elapsed >= min_interval) {
+    last_publish_raw_ = now;
+    return true;
+  }
+  return false;
+}
+
 // ---- NEW: Bundle encoder ----
 static inline void write_be32(std::ostringstream& ss, uint32_t v) {
   ss << char((v >> 24) & 0xff) << char((v >> 16) & 0xff)
@@ -336,7 +350,7 @@ std::string OscPublisher::encodeOscPointMessage(const std::string& address, uint
 }
 
 void OscPublisher::publishRaw(uint64_t t_ns, uint32_t seq, const std::vector<float>& xy, const std::vector<uint8_t>& sid) {
-  if (!enabled_ || !shouldPublish()) return;
+  if (!enabled_ || !shouldPublishRaw()) return;
 
   // If this sink is configured for cluster-only, do nothing
   if (data_type_ != "raw") return;
