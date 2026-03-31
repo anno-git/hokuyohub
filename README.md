@@ -236,7 +236,17 @@ The HokuyoHub web interface features a modern JavaScript ES6+ implementation wit
 |9|maxy|float32|バウンディングボックスの最大 Y|
 |10|n|int32|クラスタに含まれる点（データポイント）の数|
 
-## ⚙️ Configuration
+#### Message Format (Raw)
+
+Raw版: OSCで生データを受け取りたい場合、OSC sink の `data_type` を "raw" に設定すると、トピック末尾に `/raw` を付けたアドレス（例: /hokuyohub/raw）へ未処理の点群データが送信されます。
+
+|順序|項目名|型|内容|
+|---|---|---|---|
+|1|t_ns|int64|Unixタイムスタンプ（ナノ秒単位）|
+|2|seq|int32|キャプチャのシーケンス番号（フレーム番号）|
+|3|x|float32|点の X 座標 (メートル)|
+|4|y|float32|点の Y 座標 (メートル)|
+|5|sid|int32|センサ点の ID（0-255 を格納）|
 
 ### Sensor Configuration
 

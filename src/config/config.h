@@ -56,6 +56,8 @@ struct OscConfig {
   std::string url{"osc://0.0.0.0:7000/hokuyohub/cluster"};
   bool in_bundle{false}; // Use OSC bundle for multiple messages
   uint64_t bundle_fragment_size{0}; // Fragment size for OSC bundle
+  // data_type: "cluster" (default) or "raw"
+  std::string data_type{"cluster"};
 };
 
 struct SinkConfig {

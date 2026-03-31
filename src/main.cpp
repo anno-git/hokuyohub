@@ -112,6 +112,8 @@ int main(int argc, char** argv) {
   sensors.start([&](const ScanFrame& f){
     // Push raw points to WebUI (unfiltered)
     ws->pushRawLite(f.t_ns, f.seq, f.xy, f.sid);
+    // Publish raw points to sinks that support raw mode
+    publisher_manager.publishRaw(f.t_ns, f.seq, f.xy, f.sid);
     
     // Apply prefilter through FilterManager
     std::vector<float> filtered_xy = f.xy;

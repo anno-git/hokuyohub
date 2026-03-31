@@ -62,6 +62,14 @@ export const SinkTypes = {
 };
 
 /**
+ * Sink data types for OSC
+ */
+export const SinkDataTypes = {
+  CLUSTER: 'cluster',
+  RAW: 'raw'
+};
+
+/**
  * Encoding types for NNG sinks
  */
 export const EncodingTypes = {
@@ -209,6 +217,9 @@ export function validateSink(sink) {
       return false;
     }
     if (sink.bundle_fragment_size !== undefined && typeof sink.bundle_fragment_size !== 'number') {
+      return false;
+    }
+    if (sink.data_type !== undefined && !Object.values(SinkDataTypes).includes(sink.data_type)) {
       return false;
     }
   }

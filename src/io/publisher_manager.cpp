@@ -40,6 +40,11 @@ void NngSinkPublisher::publishClusters(uint64_t t_ns, uint32_t seq, const std::v
     }
 }
 
+void NngSinkPublisher::publishRaw(uint64_t t_ns, uint32_t seq, const std::vector<float>& xy, const std::vector<uint8_t>& sid) {
+    // NNG publisher currently does not support raw point publishing; no-op
+    (void)t_ns; (void)seq; (void)xy; (void)sid;
+}
+
 void NngSinkPublisher::stop() {
     if (bus_) {
         bus_->stop();
@@ -84,6 +89,12 @@ bool OscSinkPublisher::start(const SinkConfig& config) {
 void OscSinkPublisher::publishClusters(uint64_t t_ns, uint32_t seq, const std::vector<Cluster>& items) {
     if (enabled_ && osc_) {
         osc_->publishClusters(t_ns, seq, items);
+    }
+}
+
+void OscSinkPublisher::publishRaw(uint64_t t_ns, uint32_t seq, const std::vector<float>& xy, const std::vector<uint8_t>& sid) {
+    if (enabled_ && osc_) {
+        osc_->publishRaw(t_ns, seq, xy, sid);
     }
 }
 
@@ -229,4 +240,29 @@ size_t PublisherManager::getEnabledPublisherCount() const {
         }
     }
     return enabled_count;
+}
+
+void PublisherManager::publishRaw(uint64_t t_ns, uint32_t seq, const std::vector<float>& xy, const std::vector<uint8_t>& sid) const {
+    // Get current snapshot of publishers
+    std::shared_ptr<PublisherArray> current_publishers;
+    {
+        std::lock_guard<std::mutex> lock(publishers_mutex_);
+        current_publishers = publishers_;
+    }
+
+    if (!current_publishers) {
+        return;
+    }
+
+    for (const auto& publisher : *current_publishers) {
+        if (publisher && publisher->isEnabled()) {
+            try {
+                publisher->publishRaw(t_ns, seq, xy, sid);
+            } catch (const std::exception& e) {
+                std::cerr << "[PublisherManager] Error publishing raw to "
+                          << publisher->getType() << " sink "
+                          << publisher->getUrl() << ": " << e.what() << std::endl;
+            }
+        }
+    }
 }
