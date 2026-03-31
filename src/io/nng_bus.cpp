@@ -52,6 +52,8 @@ void NngBus::startPublisher(const SinkConfig& config) {
   url_ = config.nng().url;
   encoding_ = config.nng().encoding.empty() ? "msgpack" : config.nng().encoding;
   rate_limit_ = config.rate_limit;
+  send_clusters_ = config.send_clusters;
+  send_raw_ = config.send_raw;
   enabled_ = !url_.empty();
   
 #ifdef USE_NNG
@@ -102,7 +104,7 @@ bool NngBus::shouldPublish() {
 }
 
 void NngBus::publishClusters(uint64_t t_ns, uint32_t seq, const std::vector<Cluster>& items) {
-  if (!enabled_ || !shouldPublish()) return;
+  if (!enabled_ || !send_clusters_ || !shouldPublish()) return;
   
 #ifdef USE_NNG
   std::string data;
@@ -280,6 +282,133 @@ std::string NngBus::serializeToJson(uint64_t t_ns, uint32_t seq, const std::vect
   }
   root["items"] = items_array;
   
+  Json::StreamWriterBuilder builder;
+  builder["indentation"] = "";
+  return Json::writeString(builder, root);
+}
+
+void NngBus::publishRaw(uint64_t t_ns, uint32_t seq, const std::vector<float>& xy, const std::vector<uint8_t>& sid) {
+  if (!enabled_ || !send_raw_ || !shouldPublish()) return;
+
+#ifdef USE_NNG
+  std::string data;
+
+  if (encoding_ == "json") {
+    data = serializeRawToJson(t_ns, seq, xy, sid);
+  } else {
+    try {
+      data = serializeRawToMessagePack(t_ns, seq, xy, sid);
+    } catch (const std::exception& e) {
+      std::cerr << "[NngBus] MessagePack raw serialization failed, using JSON: " << e.what() << std::endl;
+      data = serializeRawToJson(t_ns, seq, xy, sid);
+    }
+  }
+
+  if (data.empty()) return;
+
+  nng_msg* msg;
+  int rv = nng_msg_alloc(&msg, data.size());
+  if (rv != 0) {
+    std::cerr << "[NngBus] Failed to allocate message: " << nng_strerror(rv) << std::endl;
+    return;
+  }
+
+  memcpy(nng_msg_body(msg), data.c_str(), data.size());
+
+  rv = nng_sendmsg(socket_, msg, NNG_FLAG_NONBLOCK);
+  if (rv != 0) {
+    std::cerr << "[NngBus] Failed to send raw message: " << nng_strerror(rv) << std::endl;
+    nng_msg_free(msg);
+  }
+#endif
+}
+
+std::string NngBus::serializeRawToMessagePack(uint64_t t_ns, uint32_t seq, const std::vector<float>& xy, const std::vector<uint8_t>& sid) {
+  std::ostringstream ss;
+  size_t npoints = xy.size() / 2;
+
+  // MessagePack map with 5 elements: {v, seq, t_ns, raw, points}
+  ss << char(0x85);
+
+  // "v": 1
+  ss << char(0xa1) << 'v';
+  ss << char(0x01);
+
+  // "seq": seq
+  ss << char(0xa3) << "seq";
+  if (seq < 128) {
+    ss << char(seq);
+  } else {
+    ss << char(0xce); // uint32
+    for (int i = 3; i >= 0; i--) ss << char((seq >> (i * 8)) & 0xff);
+  }
+
+  // "t_ns": t_ns
+  ss << char(0xa4) << "t_ns";
+  ss << char(0xcf); // uint64
+  for (int i = 7; i >= 0; i--) ss << char((t_ns >> (i * 8)) & 0xff);
+
+  // "raw": true
+  ss << char(0xa3) << "raw";
+  ss << char(0xc3); // true
+
+  // "points": array of {x, y, sid}
+  ss << char(0xa6) << "points";
+  if (npoints < 16) {
+    ss << char(0x90 | npoints);
+  } else if (npoints < 65536) {
+    ss << char(0xdc);
+    ss << char((npoints >> 8) & 0xff);
+    ss << char(npoints & 0xff);
+  } else {
+    ss << char(0xdd);
+    for (int i = 3; i >= 0; i--) ss << char((npoints >> (i * 8)) & 0xff);
+  }
+
+  for (size_t i = 0; i < npoints; ++i) {
+    // Each point is a map with 3 elements: {x, y, sid}
+    ss << char(0x83);
+
+    // "x": float64
+    ss << char(0xa1) << 'x';
+    ss << char(0xcb);
+    union { double d; uint64_t u; } ux;
+    ux.d = xy[i * 2];
+    for (int j = 7; j >= 0; j--) ss << char((ux.u >> (j * 8)) & 0xff);
+
+    // "y": float64
+    ss << char(0xa1) << 'y';
+    ss << char(0xcb);
+    ux.d = xy[i * 2 + 1];
+    for (int j = 7; j >= 0; j--) ss << char((ux.u >> (j * 8)) & 0xff);
+
+    // "sid": uint8
+    ss << char(0xa3) << "sid";
+    uint8_t s = (i < sid.size()) ? sid[i] : 0;
+    ss << char(s); // positive fixint (0-255 fits in uint8, but fixint is 0-127)
+  }
+
+  return ss.str();
+}
+
+std::string NngBus::serializeRawToJson(uint64_t t_ns, uint32_t seq, const std::vector<float>& xy, const std::vector<uint8_t>& sid) {
+  Json::Value root;
+  root["v"] = 1;
+  root["seq"] = seq;
+  root["t_ns"] = Json::UInt64(t_ns);
+  root["raw"] = true;
+
+  Json::Value points_array(Json::arrayValue);
+  size_t npoints = xy.size() / 2;
+  for (size_t i = 0; i < npoints; ++i) {
+    Json::Value pt;
+    pt["x"] = xy[i * 2];
+    pt["y"] = xy[i * 2 + 1];
+    pt["sid"] = (i < sid.size()) ? static_cast<int>(sid[i]) : 0;
+    points_array.append(pt);
+  }
+  root["points"] = points_array;
+
   Json::StreamWriterBuilder builder;
   builder["indentation"] = "";
   return Json::writeString(builder, root);

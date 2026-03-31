@@ -771,7 +771,9 @@ crow::response RestApi::getSinks() {
       sinkJson["index"] = static_cast<int>(i);
       sinkJson["topic"] = sink.topic;
       sinkJson["rate_limit"] = sink.rate_limit;
-      
+      sinkJson["send_clusters"] = sink.send_clusters;
+      sinkJson["send_raw"] = sink.send_raw;
+
       if (sink.isOsc()) {
         sinkJson["type"] = "osc";
         sinkJson["url"] = sink.osc().url;
@@ -873,6 +875,8 @@ crow::response RestApi::postSink(const crow::request& req) {
     SinkConfig newSink;
     newSink.topic = sinkData.get("topic", "clusters").asString();
     newSink.rate_limit = sinkData.get("rate_limit", 0).asInt();
+    newSink.send_clusters = sinkData.get("send_clusters", true).asBool();
+    newSink.send_raw = sinkData.get("send_raw", false).asBool();
     
     if (type == "osc") {
       OscConfig osc;
@@ -972,7 +976,17 @@ crow::response RestApi::patchSink(int index, const crow::request& req) {
       sink.rate_limit = patch["rate_limit"].asInt();
       updated = true;
     }
-    
+
+    if (patch.isMember("send_clusters") && patch["send_clusters"].isBool()) {
+      sink.send_clusters = patch["send_clusters"].asBool();
+      updated = true;
+    }
+
+    if (patch.isMember("send_raw") && patch["send_raw"].isBool()) {
+      sink.send_raw = patch["send_raw"].asBool();
+      updated = true;
+    }
+
     // Update type-specific fields
     if (patch.isMember("url") && patch["url"].isString()) {
       std::string url = patch["url"].asString();

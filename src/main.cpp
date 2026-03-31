@@ -264,6 +264,8 @@ int main(int argc, char** argv) {
     
     ws->pushClustersLite(f.t_ns, f.seq, final_clusters);
     publisher_manager.publishClusters(f.t_ns, f.seq, final_clusters);
+    // After clusters are published, also publish raw points to sinks that support raw mode
+    publisher_manager.publishRaw(f.t_ns, f.seq, f.xy, f.sid);
   });
 
   // Start the CrowCpp application with signal checking

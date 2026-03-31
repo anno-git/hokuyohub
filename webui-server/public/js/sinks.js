@@ -137,6 +137,8 @@ function createSinkAccordionItem(sink, index) {
   const rateLimit = sink.rate_limit || 0;
   const inBundle = sink.in_bundle || false;
   const bundleFragmentSize = sink.bundle_fragment_size || 1024;
+  const sendClusters = sink.send_clusters !== undefined ? sink.send_clusters : true;
+  const sendRaw = sink.send_raw || false;
   
   content.innerHTML = `
     <div class="accordion-form">
@@ -151,6 +153,14 @@ function createSinkAccordionItem(sink, index) {
       <div class="accordion-form-row">
         <label>Rate Limit (Hz):</label>
         <input class="sink-rate-limit" type="number" min="0" value="${rateLimit}" data-sink-id="${index}" />
+      </div>
+      <div class="accordion-form-row">
+        <label>Send Clusters:</label>
+        <input class="sink-send-clusters" type="checkbox" ${sendClusters ? 'checked' : ''} data-sink-id="${index}" />
+      </div>
+      <div class="accordion-form-row">
+        <label>Send Raw:</label>
+        <input class="sink-send-raw" type="checkbox" ${sendRaw ? 'checked' : ''} data-sink-id="${index}" />
       </div>
       ${type === 'nng' ? `
       <div class="accordion-form-row">
@@ -271,7 +281,7 @@ function setupInputHandlers(content, sink, index) {
       // Convert to appropriate type
       if (key === 'rate_limit' || key === 'bundle_fragment_size') {
         value = Number(value) || 0;
-      } else if (key === 'in_bundle') {
+      } else if (key === 'in_bundle' || key === 'send_clusters' || key === 'send_raw') {
         value = input.checked;
       }
       
@@ -286,7 +296,7 @@ function setupInputHandlers(content, sink, index) {
       }
     }, 500);
     
-    if (key === 'in_bundle') {
+    if (key === 'in_bundle' || key === 'send_clusters' || key === 'send_raw') {
       input.addEventListener('change', debouncedUpdate);
     } else {
       input.addEventListener('input', debouncedUpdate);
@@ -297,11 +307,13 @@ function setupInputHandlers(content, sink, index) {
   setupInputHandler('.sink-url', 'url');
   setupInputHandler('.sink-topic', 'topic');
   setupInputHandler('.sink-rate-limit', 'rate_limit');
-  
+  setupInputHandler('.sink-send-clusters', 'send_clusters');
+  setupInputHandler('.sink-send-raw', 'send_raw');
+
   if (sink.type === 'nng') {
     setupInputHandler('.sink-encoding', 'encoding');
   }
-  
+
   if (sink.type === 'osc') {
     setupInputHandler('.sink-in-bundle', 'in_bundle');
     setupInputHandler('.sink-bundle-fragment-size', 'bundle_fragment_size');
@@ -338,6 +350,14 @@ function showAddSinkModal() {
           <div class="modal__row">
             <label>Rate Limit (Hz):</label>
             <input type="number" id="sink-rate-limit-input" min="0" value="30">
+          </div>
+          <div class="modal__row">
+            <label>Send Clusters:</label>
+            <input type="checkbox" id="sink-send-clusters-input" checked>
+          </div>
+          <div class="modal__row">
+            <label>Send Raw:</label>
+            <input type="checkbox" id="sink-send-raw-input">
           </div>
           <div class="modal__row" id="sink-encoding-row">
             <label>Encoding:</label>
@@ -381,7 +401,7 @@ function showAddSinkModal() {
     const encodingRow = document.getElementById('sink-encoding-row');
     const bundleRow = document.getElementById('sink-bundle-row');
     const fragmentRow = document.getElementById('sink-fragment-row');
-    
+
     if (type === SinkTypes.NNG) {
       encodingRow.style.display = 'flex';
       bundleRow.style.display = 'none';
@@ -411,9 +431,11 @@ function showAddSinkModal() {
       url: document.getElementById('sink-url-input').value,
       topic: document.getElementById('sink-topic-input').value,
       rate_limit: parseInt(document.getElementById('sink-rate-limit-input').value) || 0,
-      enabled: document.getElementById('sink-enabled-input').checked
+      enabled: document.getElementById('sink-enabled-input').checked,
+      send_clusters: document.getElementById('sink-send-clusters-input').checked,
+      send_raw: document.getElementById('sink-send-raw-input').checked
     };
-    
+
     if (type === SinkTypes.NNG) {
       sinkData.encoding = document.getElementById('sink-encoding-select').value;
     } else if (type === SinkTypes.OSC) {

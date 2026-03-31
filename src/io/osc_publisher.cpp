@@ -7,18 +7,18 @@
 #include <chrono>
 
 #ifdef USE_OSC
-  #ifdef _WIN32
-    #include <winsock2.h>
-    #include <ws2tcpip.h>
-    #pragma comment(lib, "ws2_32.lib")
-    // Windows doesn't have ssize_t, define it for compatibility
-    typedef intptr_t ssize_t;
-  #else
-    #include <unistd.h>
-    #include <arpa/inet.h>
-    #include <netinet/in.h>
-    #include <sys/socket.h>
-  #endif
+#  ifdef _WIN32
+#    include <winsock2.h>
+#    include <ws2tcpip.h>
+#    pragma comment(lib, "ws2_32.lib")
+#    // Windows doesn't have ssize_t, define it for compatibility
+#    typedef intptr_t ssize_t;
+#  else
+#    include <unistd.h>
+#    include <arpa/inet.h>
+#    include <netinet/in.h>
+#    include <sys/socket.h>
+#  endif
 #endif
 
 // ===== Helper note =====
@@ -79,6 +79,8 @@ void OscPublisher::start(const SinkConfig& config) {
   rate_limit_ = config.rate_limit;
   bundle_fragment_size_ = config.osc().bundle_fragment_size;
   in_bundle_ = config.osc().in_bundle;
+  send_clusters_ = config.send_clusters;
+  send_raw_ = config.send_raw;
 
 #ifdef USE_OSC
   socket_fd_ = socket(AF_INET, SOCK_DGRAM, 0);
@@ -224,7 +226,7 @@ std::string OscPublisher::encodeOscBundle(const std::vector<std::string>& messag
 }
 
 void OscPublisher::publishClusters(uint64_t t_ns, uint32_t seq, const std::vector<Cluster>& items) {
-  if (!enabled_ || !shouldPublish()) return;
+  if (!enabled_ || !send_clusters_ || !shouldPublish()) return;
 
   // 1) まず全メッセージを生成
   std::vector<std::string> msgs;
@@ -279,4 +281,120 @@ void OscPublisher::sendUdp(const std::string& data) {
     std::cerr << "[OscPublisher] Failed to send UDP packet" << std::endl;
   }
 #endif
+}
+
+// Encode an OSC message with a single string argument
+std::string OscPublisher::encodeOscStringMessage(const std::string& address, const std::string& s) {
+  std::ostringstream ss;
+  ss << address << '\0';
+  pad4(ss);
+
+  // Type tag string: ',s'
+  ss << ",s" << '\0';
+  pad4(ss);
+
+  // String argument
+  ss << s << '\0';
+  pad4(ss);
+
+  return ss.str();
+}
+
+// Encode an OSC message for a single point: timetag (int64), seq (int32), x (float), y (float), sid (int32)
+std::string OscPublisher::encodeOscPointMessage(const std::string& address, uint64_t t_ns, uint32_t seq, float x, float y, uint32_t sid) {
+  std::ostringstream ss;
+
+  // Address
+  ss << address << '\0';
+  pad4(ss);
+
+  // Type tag: int64 (h), int32 (i), float (f), float (f), int32 (i) => ",hiffi"
+  ss << ",hiffi" << '\0';
+  pad4(ss);
+
+  // write int64 t_ns
+  write_be64(ss, t_ns);
+
+  // write int32 seq
+  write_be32(ss, seq);
+
+  // write float x, y as big-endian 32-bit
+  auto writeFloat32 = [&](float val) {
+    union { float f; uint32_t i; } u;
+    u.f = val;
+    write_be32(ss, u.i);
+  };
+  writeFloat32(x);
+  writeFloat32(y);
+
+  // write sid
+  write_be32(ss, sid);
+
+  return ss.str();
+}
+
+void OscPublisher::publishRaw(uint64_t t_ns, uint32_t seq, const std::vector<float>& xy, const std::vector<uint8_t>& sid) {
+  if (!enabled_ || !send_raw_ || !shouldPublish()) return;
+
+  // Determine OSC address base for raw payload:
+  // If configured path ends with "/clusters" or "/cluster", replace that trailing segment with "/raw".
+  // Otherwise append "/raw" to the configured path.
+  std::string addr = path_;
+  if (!addr.empty()) {
+    // Prefer replacing plural first
+    auto pos_pl = addr.rfind("/clusters");
+    if (pos_pl != std::string::npos && pos_pl + 9 == addr.size()) {
+      addr = addr.substr(0, pos_pl) + "/raw";
+    } else {
+      auto pos_sg = addr.rfind("/cluster");
+      if (pos_sg != std::string::npos && pos_sg + 8 == addr.size()) {
+        addr = addr.substr(0, pos_sg) + "/raw";
+      } else {
+        if (addr.back() == '/') addr += "raw";
+        else addr += "/raw";
+      }
+    }
+  } else {
+    addr = "/raw";
+  }
+
+  // Build per-point OSC messages
+  std::vector<std::string> msgs;
+  size_t npoints = xy.size() / 2;
+  msgs.reserve(npoints);
+  for (size_t i = 0; i < npoints; ++i) {
+    float x = xy[i*2];
+    float y = xy[i*2 + 1];
+    uint32_t s = (i < sid.size()) ? static_cast<uint32_t>(sid[i]) : 0;
+    msgs.emplace_back(encodeOscPointMessage(addr, t_ns, seq, x, y, s));
+  }
+
+  if (in_bundle_) {
+    // Fragment messages into bundles if needed
+    const size_t SOFT_UDP_LIMIT = bundle_fragment_size_;
+    std::vector<std::string> chunk;
+    size_t current_bytes = 16; // "#bundle" + timetag
+
+    auto flush_chunk = [&](bool force) {
+      if (chunk.empty() && !force) return;
+      std::string bundle = encodeOscBundle(chunk, t_ns);
+      sendUdp(bundle);
+      chunk.clear();
+      current_bytes = 16;
+    };
+
+    for (const auto& m : msgs) {
+      size_t add_bytes = 4 + m.size();
+      if (!chunk.empty() && SOFT_UDP_LIMIT > 0 && (current_bytes + add_bytes) > SOFT_UDP_LIMIT) {
+        flush_chunk(false);
+      }
+      chunk.push_back(m);
+      current_bytes += add_bytes;
+    }
+    flush_chunk(true);
+  } else {
+    for (const auto& m : msgs) {
+      sendUdp(m);
+    }
+  }
 }

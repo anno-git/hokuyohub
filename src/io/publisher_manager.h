@@ -12,6 +12,8 @@ public:
     virtual ~ISinkPublisher() = default;
     virtual bool start(const SinkConfig& config) = 0;
     virtual void publishClusters(uint64_t t_ns, uint32_t seq, const std::vector<Cluster>& items) = 0;
+    // Optionally publish raw points (xy: [x0,y0,...], sid: per-point sensor id)
+    virtual void publishRaw(uint64_t t_ns, uint32_t seq, const std::vector<float>& xy, const std::vector<uint8_t>& sid) = 0;
     virtual void stop() = 0;
     virtual bool isEnabled() const = 0;
     virtual std::string getType() const = 0;
@@ -35,6 +37,7 @@ public:
     
     bool start(const SinkConfig& config) override;
     void publishClusters(uint64_t t_ns, uint32_t seq, const std::vector<Cluster>& items) override;
+    void publishRaw(uint64_t t_ns, uint32_t seq, const std::vector<float>& xy, const std::vector<uint8_t>& sid) override;
     void stop() override;
     bool isEnabled() const override;
     std::string getType() const override { return "nng"; }
@@ -54,6 +57,7 @@ public:
     
     bool start(const SinkConfig& config) override;
     void publishClusters(uint64_t t_ns, uint32_t seq, const std::vector<Cluster>& items) override;
+    void publishRaw(uint64_t t_ns, uint32_t seq, const std::vector<float>& xy, const std::vector<uint8_t>& sid) override;
     void stop() override;
     bool isEnabled() const override;
     std::string getType() const override { return "osc"; }
@@ -76,6 +80,7 @@ public:
     
     // Publish clusters to all active publishers
     void publishClusters(uint64_t t_ns, uint32_t seq, const std::vector<Cluster>& items) const;
+    void publishRaw(uint64_t t_ns, uint32_t seq, const std::vector<float>& xy, const std::vector<uint8_t>& sid) const;
     
     // Stop all publishers
     void stopAll();

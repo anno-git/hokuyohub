@@ -261,7 +261,9 @@ Json::Value LiveWs::buildSnapshot() const
         sink_obj["topic"] = sink.topic;
       }
       sink_obj["rate_limit"] = sink.rate_limit;
-      
+      sink_obj["send_clusters"] = sink.send_clusters;
+      sink_obj["send_raw"] = sink.send_raw;
+
       sinks_array.append(sink_obj);
     }
     

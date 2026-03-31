@@ -212,7 +212,15 @@ export function validateSink(sink) {
       return false;
     }
   }
-  
+
+  // Common boolean flags
+  if (sink.send_clusters !== undefined && typeof sink.send_clusters !== 'boolean') {
+    return false;
+  }
+  if (sink.send_raw !== undefined && typeof sink.send_raw !== 'boolean') {
+    return false;
+  }
+
   // Optional numeric fields
   if (sink.rate_limit !== undefined && typeof sink.rate_limit !== 'number') {
     return false;
@@ -391,7 +399,9 @@ export function createDefaultSink(type = SinkTypes.NNG) {
     enabled: true,
     url: type === SinkTypes.NNG ? 'tcp://localhost:5555' : 'udp://localhost:8000',
     topic: 'lidar_data',
-    rate_limit: 30
+    rate_limit: 30,
+    send_clusters: true,
+    send_raw: false
   };
   
   if (type === SinkTypes.NNG) {
