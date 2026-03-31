@@ -238,7 +238,7 @@ The HokuyoHub web interface features a modern JavaScript ES6+ implementation wit
 
 #### Message Format (Raw)
 
-Raw版: OSCで生データを受け取りたい場合、OSC sink の `data_type` を "raw" に設定すると、トピック末尾に `/raw` を付けたアドレス（例: /hokuyohub/raw）へ未処理の点群データが送信されます。
+Raw版: 生データを受け取りたい場合、sink の `send_raw` を true に設定します。OSC の場合はトピック末尾に `/raw` を付けたアドレス（例: /hokuyohub/raw）へ、NNG の場合は `"raw": true` フラグ付きのメッセージとして送信されます。`send_clusters` と `send_raw` は独立したフラグで、両方を同時に有効にできます。
 
 |順序|項目名|型|内容|
 |---|---|---|---|

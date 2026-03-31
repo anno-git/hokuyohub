@@ -186,6 +186,8 @@ AppConfig load_app_config(const std::string& path){
       std::string type = sn["type"].as<std::string>("");
       if (sn["topic"])     sc.topic     = sn["topic"].as<std::string>("");
       if (sn["rate_limit"])sc.rate_limit= sn["rate_limit"].as<int>(0);
+      if (sn["send_clusters"]) sc.send_clusters = sn["send_clusters"].as<bool>(sc.send_clusters);
+      if (sn["send_raw"])      sc.send_raw      = sn["send_raw"].as<bool>(sc.send_raw);
 
       if(type == "nng") {
         sc.cfg = NngConfig{};
@@ -197,7 +199,6 @@ AppConfig load_app_config(const std::string& path){
         if (sn["url"])       sc.osc().url       = sn["url"].as<std::string>("");
         if (sn["in_bundle"]) sc.osc().in_bundle = sn["in_bundle"].as<bool>(false);
         if (sn["bundle_fragment_size"]) sc.osc().bundle_fragment_size = sn["bundle_fragment_size"].as<int>(0);
-        if (sn["data_type"]) sc.osc().data_type = sn["data_type"].as<std::string>(sc.osc().data_type);
       }
 
       cfg.sinks.push_back(std::move(sc));
@@ -348,7 +349,6 @@ std::string dump_app_config(const AppConfig& cfg) {
       out << YAML::Key << "url" << YAML::Value << ocfg.url;
       out << YAML::Key << "in_bundle" << YAML::Value << ocfg.in_bundle;
       out << YAML::Key << "bundle_fragment_size" << YAML::Value << ocfg.bundle_fragment_size;
-      out << YAML::Key << "data_type" << YAML::Value << ocfg.data_type;
     } else if (sink.isNng()) {
       auto cfg = sink.nng();
       out << YAML::Key << "type" << YAML::Value << "nng";
@@ -357,6 +357,8 @@ std::string dump_app_config(const AppConfig& cfg) {
     }
     out << YAML::Key << "topic" << YAML::Value << sink.topic;
     out << YAML::Key << "rate_limit" << YAML::Value << sink.rate_limit;
+    out << YAML::Key << "send_clusters" << YAML::Value << sink.send_clusters;
+    out << YAML::Key << "send_raw" << YAML::Value << sink.send_raw;
     out << YAML::EndMap;
   }
   out << YAML::EndSeq;

@@ -766,13 +766,14 @@ crow::response RestApi::getSinks() {
       sinkJson["index"] = static_cast<int>(i);
       sinkJson["topic"] = sink.topic;
       sinkJson["rate_limit"] = sink.rate_limit;
-      
+      sinkJson["send_clusters"] = sink.send_clusters;
+      sinkJson["send_raw"] = sink.send_raw;
+
       if (sink.isOsc()) {
         sinkJson["type"] = "osc";
         sinkJson["url"] = sink.osc().url;
         sinkJson["in_bundle"] = sink.osc().in_bundle;
         sinkJson["bundle_fragment_size"] = static_cast<Json::UInt64>(sink.osc().bundle_fragment_size);
-        sinkJson["data_type"] = sink.osc().data_type;
       } else if (sink.isNng()) {
         sinkJson["type"] = "nng";
         sinkJson["url"] = sink.nng().url;
@@ -869,13 +870,14 @@ crow::response RestApi::postSink(const crow::request& req) {
     SinkConfig newSink;
     newSink.topic = sinkData.get("topic", "clusters").asString();
     newSink.rate_limit = sinkData.get("rate_limit", 0).asInt();
+    newSink.send_clusters = sinkData.get("send_clusters", true).asBool();
+    newSink.send_raw = sinkData.get("send_raw", false).asBool();
     
     if (type == "osc") {
       OscConfig osc;
       osc.url = url;
       osc.in_bundle = sinkData.get("in_bundle", false).asBool();
       osc.bundle_fragment_size = sinkData.get("bundle_fragment_size", 0).asUInt64();
-      osc.data_type = sinkData.get("data_type", "cluster").asString();
       newSink.cfg = osc;
     } else if (type == "nng") {
       NngConfig nng;
@@ -969,7 +971,17 @@ crow::response RestApi::patchSink(int index, const crow::request& req) {
       sink.rate_limit = patch["rate_limit"].asInt();
       updated = true;
     }
-    
+
+    if (patch.isMember("send_clusters") && patch["send_clusters"].isBool()) {
+      sink.send_clusters = patch["send_clusters"].asBool();
+      updated = true;
+    }
+
+    if (patch.isMember("send_raw") && patch["send_raw"].isBool()) {
+      sink.send_raw = patch["send_raw"].asBool();
+      updated = true;
+    }
+
     // Update type-specific fields
     if (patch.isMember("url") && patch["url"].isString()) {
       std::string url = patch["url"].asString();
@@ -1008,20 +1020,6 @@ crow::response RestApi::patchSink(int index, const crow::request& req) {
       if (patch.isMember("bundle_fragment_size") && patch["bundle_fragment_size"].isUInt64()) {
         sink.osc().bundle_fragment_size = patch["bundle_fragment_size"].asUInt64();
         updated = true;
-      }
-      if (patch.isMember("data_type") && patch["data_type"].isString()) {
-        std::string dt = patch["data_type"].asString();
-        if (dt == "cluster" || dt == "raw") {
-          sink.osc().data_type = dt;
-          updated = true;
-        } else {
-          Json::Value error;
-          error["error"] = "invalid_data_type";
-          error["message"] = "data_type must be 'cluster' or 'raw'";
-          crow::response resp(400, error.toStyledString());
-          resp.add_header("Content-Type", "application/json");
-          return resp;
-        }
       }
     } else if (sink.isNng()) {
       if (patch.isMember("encoding") && patch["encoding"].isString()) {

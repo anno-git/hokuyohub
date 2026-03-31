@@ -256,13 +256,14 @@ Json::Value LiveWs::buildSnapshot() const
         sink_obj["url"] = cfg.url;
         sink_obj["in_bundle"] = cfg.in_bundle;
         sink_obj["bundle_fragment_size"] = cfg.bundle_fragment_size;
-        sink_obj["data_type"] = cfg.data_type;
       }
       if (!sink.topic.empty()) {
         sink_obj["topic"] = sink.topic;
       }
       sink_obj["rate_limit"] = sink.rate_limit;
-      
+      sink_obj["send_clusters"] = sink.send_clusters;
+      sink_obj["send_raw"] = sink.send_raw;
+
       sinks_array.append(sink_obj);
     }
     

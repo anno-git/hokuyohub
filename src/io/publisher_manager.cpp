@@ -41,8 +41,9 @@ void NngSinkPublisher::publishClusters(uint64_t t_ns, uint32_t seq, const std::v
 }
 
 void NngSinkPublisher::publishRaw(uint64_t t_ns, uint32_t seq, const std::vector<float>& xy, const std::vector<uint8_t>& sid) {
-    // NNG publisher currently does not support raw point publishing; no-op
-    (void)t_ns; (void)seq; (void)xy; (void)sid;
+    if (enabled_ && bus_) {
+        bus_->publishRaw(t_ns, seq, xy, sid);
+    }
 }
 
 void NngSinkPublisher::stop() {

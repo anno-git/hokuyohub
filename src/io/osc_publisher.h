@@ -25,10 +25,9 @@ class OscPublisher {
   int rate_limit_{0};
   bool in_bundle_{false};
   uint64_t bundle_fragment_size_{0};
-  std::string data_type_{"cluster"};
+  bool send_clusters_{true};
+  bool send_raw_{false};
   std::chrono::steady_clock::time_point last_publish_;
-  // Separate timestamp for raw-point publishes so clusters and raw don't share rate limit
-  std::chrono::steady_clock::time_point last_publish_raw_;
   
 #ifdef USE_OSC
   int socket_fd_{-1};
@@ -53,6 +52,5 @@ private:
   std::string encodeOscStringMessage(const std::string& address, const std::string& s);
   std::string encodeOscPointMessage(const std::string& address, uint64_t t_ns, uint32_t seq, float x, float y, uint32_t sid);
   bool shouldPublish();
-  bool shouldPublishRaw();
   void sendUdp(const std::string& data);
 };

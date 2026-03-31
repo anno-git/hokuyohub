@@ -4,7 +4,7 @@ import * as store from './store.js';
 import * as ws from './ws.js';
 import * as api from './api.js';
 import { setPanelMessage, debounce } from './utils.js';
-import { SinkTypes, EncodingTypes, SinkDataTypes, createDefaultSink } from './types.js';
+import { SinkTypes, EncodingTypes, createDefaultSink } from './types.js';
 
 // UI elements
 let sinksAccordion = null;
@@ -137,7 +137,8 @@ function createSinkAccordionItem(sink, index) {
   const rateLimit = sink.rate_limit || 0;
   const inBundle = sink.in_bundle || false;
   const bundleFragmentSize = sink.bundle_fragment_size || 1024;
-  const dataType = sink.data_type || 'cluster';
+  const sendClusters = sink.send_clusters !== undefined ? sink.send_clusters : true;
+  const sendRaw = sink.send_raw || false;
   
   content.innerHTML = `
     <div class="accordion-form">
@@ -153,6 +154,14 @@ function createSinkAccordionItem(sink, index) {
         <label>Rate Limit (Hz):</label>
         <input class="sink-rate-limit" type="number" min="0" value="${rateLimit}" data-sink-id="${index}" />
       </div>
+      <div class="accordion-form-row">
+        <label>Send Clusters:</label>
+        <input class="sink-send-clusters" type="checkbox" ${sendClusters ? 'checked' : ''} data-sink-id="${index}" />
+      </div>
+      <div class="accordion-form-row">
+        <label>Send Raw:</label>
+        <input class="sink-send-raw" type="checkbox" ${sendRaw ? 'checked' : ''} data-sink-id="${index}" />
+      </div>
       ${type === 'nng' ? `
       <div class="accordion-form-row">
         <label>Encoding:</label>
@@ -166,13 +175,6 @@ function createSinkAccordionItem(sink, index) {
       <div class="accordion-form-row">
         <label>In Bundle:</label>
         <input class="sink-in-bundle" type="checkbox" ${inBundle ? 'checked' : ''} data-sink-id="${index}" />
-      </div>
-      <div class="accordion-form-row">
-        <label>Data Type:</label>
-        <select class="sink-data-type" data-sink-id="${index}">
-          <option value="cluster" ${dataType === 'cluster' ? 'selected' : ''}>Cluster</option>
-          <option value="raw" ${dataType === 'raw' ? 'selected' : ''}>Raw</option>
-        </select>
       </div>
       <div class="accordion-form-row">
         <label>Bundle Fragment Size:</label>
@@ -279,7 +281,7 @@ function setupInputHandlers(content, sink, index) {
       // Convert to appropriate type
       if (key === 'rate_limit' || key === 'bundle_fragment_size') {
         value = Number(value) || 0;
-      } else if (key === 'in_bundle') {
+      } else if (key === 'in_bundle' || key === 'send_clusters' || key === 'send_raw') {
         value = input.checked;
       }
       
@@ -294,7 +296,7 @@ function setupInputHandlers(content, sink, index) {
       }
     }, 500);
     
-    if (key === 'in_bundle') {
+    if (key === 'in_bundle' || key === 'send_clusters' || key === 'send_raw') {
       input.addEventListener('change', debouncedUpdate);
     } else {
       input.addEventListener('input', debouncedUpdate);
@@ -305,14 +307,15 @@ function setupInputHandlers(content, sink, index) {
   setupInputHandler('.sink-url', 'url');
   setupInputHandler('.sink-topic', 'topic');
   setupInputHandler('.sink-rate-limit', 'rate_limit');
-  
+  setupInputHandler('.sink-send-clusters', 'send_clusters');
+  setupInputHandler('.sink-send-raw', 'send_raw');
+
   if (sink.type === 'nng') {
     setupInputHandler('.sink-encoding', 'encoding');
   }
-  
+
   if (sink.type === 'osc') {
     setupInputHandler('.sink-in-bundle', 'in_bundle');
-    setupInputHandler('.sink-data-type', 'data_type');
     setupInputHandler('.sink-bundle-fragment-size', 'bundle_fragment_size');
   }
 }
@@ -348,6 +351,14 @@ function showAddSinkModal() {
             <label>Rate Limit (Hz):</label>
             <input type="number" id="sink-rate-limit-input" min="0" value="30">
           </div>
+          <div class="modal__row">
+            <label>Send Clusters:</label>
+            <input type="checkbox" id="sink-send-clusters-input" checked>
+          </div>
+          <div class="modal__row">
+            <label>Send Raw:</label>
+            <input type="checkbox" id="sink-send-raw-input">
+          </div>
           <div class="modal__row" id="sink-encoding-row">
             <label>Encoding:</label>
             <select id="sink-encoding-select">
@@ -358,13 +369,6 @@ function showAddSinkModal() {
           <div class="modal__row" id="sink-bundle-row" style="display: none;">
             <label>In Bundle:</label>
             <input type="checkbox" id="sink-in-bundle-input">
-          </div>
-          <div class="modal__row" id="sink-data-type-row" style="display: none;">
-            <label>Data Type:</label>
-            <select id="sink-data-type-select">
-              <option value="cluster">Cluster</option>
-              <option value="raw">Raw</option>
-            </select>
           </div>
           <div class="modal__row" id="sink-fragment-row" style="display: none;">
             <label>Bundle Fragment Size:</label>
@@ -397,18 +401,15 @@ function showAddSinkModal() {
     const encodingRow = document.getElementById('sink-encoding-row');
     const bundleRow = document.getElementById('sink-bundle-row');
     const fragmentRow = document.getElementById('sink-fragment-row');
-    const dataTypeRow = document.getElementById('sink-data-type-row');
-    
+
     if (type === SinkTypes.NNG) {
       encodingRow.style.display = 'flex';
       bundleRow.style.display = 'none';
       fragmentRow.style.display = 'none';
-      if (dataTypeRow) dataTypeRow.style.display = 'none';
     } else if (type === SinkTypes.OSC) {
       encodingRow.style.display = 'none';
       bundleRow.style.display = 'flex';
       fragmentRow.style.display = 'flex';
-      if (dataTypeRow) dataTypeRow.style.display = 'flex';
     }
   };
   
@@ -430,15 +431,16 @@ function showAddSinkModal() {
       url: document.getElementById('sink-url-input').value,
       topic: document.getElementById('sink-topic-input').value,
       rate_limit: parseInt(document.getElementById('sink-rate-limit-input').value) || 0,
-      enabled: document.getElementById('sink-enabled-input').checked
+      enabled: document.getElementById('sink-enabled-input').checked,
+      send_clusters: document.getElementById('sink-send-clusters-input').checked,
+      send_raw: document.getElementById('sink-send-raw-input').checked
     };
-    
+
     if (type === SinkTypes.NNG) {
       sinkData.encoding = document.getElementById('sink-encoding-select').value;
     } else if (type === SinkTypes.OSC) {
       sinkData.in_bundle = document.getElementById('sink-in-bundle-input').checked;
       sinkData.bundle_fragment_size = parseInt(document.getElementById('sink-fragment-size-input').value) || 1024;
-      sinkData.data_type = document.getElementById('sink-data-type-select').value || 'cluster';
     }
     
     try {

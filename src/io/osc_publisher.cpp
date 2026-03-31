@@ -79,7 +79,8 @@ void OscPublisher::start(const SinkConfig& config) {
   rate_limit_ = config.rate_limit;
   bundle_fragment_size_ = config.osc().bundle_fragment_size;
   in_bundle_ = config.osc().in_bundle;
-  data_type_ = config.osc().data_type;
+  send_clusters_ = config.send_clusters;
+  send_raw_ = config.send_raw;
 
 #ifdef USE_OSC
   socket_fd_ = socket(AF_INET, SOCK_DGRAM, 0);
@@ -132,20 +133,6 @@ bool OscPublisher::shouldPublish() {
 
   if (elapsed >= min_interval) {
     last_publish_ = now;
-    return true;
-  }
-  return false;
-}
-
-bool OscPublisher::shouldPublishRaw() {
-  if (rate_limit_ <= 0) return true;
-
-  auto now = std::chrono::steady_clock::now();
-  auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - last_publish_raw_).count();
-  auto min_interval = 1000 / rate_limit_; // ms
-
-  if (elapsed >= min_interval) {
-    last_publish_raw_ = now;
     return true;
   }
   return false;
@@ -239,10 +226,7 @@ std::string OscPublisher::encodeOscBundle(const std::vector<std::string>& messag
 }
 
 void OscPublisher::publishClusters(uint64_t t_ns, uint32_t seq, const std::vector<Cluster>& items) {
-  if (!enabled_ || !shouldPublish()) return;
-
-  // If this sink is configured for raw-only, skip cluster publishes
-  if (data_type_ != "cluster") return;
+  if (!enabled_ || !send_clusters_ || !shouldPublish()) return;
 
   // 1) まず全メッセージを生成
   std::vector<std::string> msgs;
@@ -350,10 +334,7 @@ std::string OscPublisher::encodeOscPointMessage(const std::string& address, uint
 }
 
 void OscPublisher::publishRaw(uint64_t t_ns, uint32_t seq, const std::vector<float>& xy, const std::vector<uint8_t>& sid) {
-  if (!enabled_ || !shouldPublishRaw()) return;
-
-  // If this sink is configured for cluster-only, do nothing
-  if (data_type_ != "raw") return;
+  if (!enabled_ || !send_raw_ || !shouldPublish()) return;
 
   // Determine OSC address base for raw payload:
   // If configured path ends with "/clusters" or "/cluster", replace that trailing segment with "/raw".
