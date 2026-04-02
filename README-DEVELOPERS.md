@@ -11,9 +11,8 @@
 8. [Testing Strategy](#testing-strategy)
 9. [Performance Considerations](#performance-considerations)
 10. [Contributing Guidelines](#contributing-guidelines)
-11. [Server Restart Functionality](#server-restart-functionality)
-12. [Deployment](#deployment)
-13. [Troubleshooting Development Issues](#troubleshooting-development-issues)
+11. [Deployment](#deployment)
+12. [Troubleshooting Development Issues](#troubleshooting-development-issues)
 
 ## Architecture Overview
 
@@ -21,7 +20,8 @@ HokuyoHub is a real-time sensor data processing and visualization system built w
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                    Web Frontend (JS/HTML)                   │
+│              Web Frontend (JS ES6+, Canvas API)             │
+│                ↓ HTTP proxy (Express/Node.js)               │
 ├─────────────────────────────────────────────────────────────┤
 │              HTTP REST API / WebSocket Layer                │
 │                    (CrowCpp Framework)                      │
@@ -71,14 +71,26 @@ HokuyoHub/
 │   └── toolchains/            # Cross-compilation toolchains
 ├── configs/                   # Configuration files
 │   └── default.yaml          # Default system configuration
-├── docker/                    # Container deployment files (create as needed)
-│   └── docker-compose.yml    # Multi-service orchestration (create as needed)
+├── docker/                    # Container deployment files
+│   ├── Dockerfile.rpi.optimized  # ARM64 optimized build
+│   ├── docker-compose.yml    # Multi-service orchestration
+│   └── build.sh              # Docker build script
 ├── docs/                      # Project documentation
-│   └── plans/                # Development planning documents
+│   ├── build/                # Build guides
+│   ├── deployment/           # Deployment guides
+│   ├── development/          # Developer guides and plans
+│   └── legacy/               # Legacy documentation
 ├── external/                  # External dependencies
-│   └── urg_library/          # Hokuyo URG sensor library
+│   ├── urg_library/          # Hokuyo URG sensor library
+│   └── yaml-cpp/             # Bundled yaml-cpp library
 ├── scripts/                   # Build and utility scripts
-│   └── test_rest_api.sh      # API testing utilities
+│   ├── build/                # Build scripts
+│   ├── dev/                  # Development scripts
+│   ├── install/              # Installation scripts
+│   ├── ops/                  # Operations scripts
+│   ├── setup/                # Environment setup scripts
+│   ├── testing/              # Test scripts
+│   └── utils/                # Utility scripts
 ├── src/                       # Source code
 │   ├── detect/               # Detection and clustering algorithms
 │   │   ├── dbscan.h/cpp      # DBSCAN clustering implementation
@@ -102,15 +114,27 @@ HokuyoHub/
 │   │   ├── nng_bus.h/cpp          # NNG messaging bus
 │   │   └── osc_publisher.h/cpp    # OSC protocol support
 │   └── main.cpp              # Application entry point
-├── third_party/               # Third-party dependencies
-├── validation/               # Test data and validation scripts
-├── webui/                    # Web frontend
-│   ├── css/                 # Stylesheets
-│   ├── js/                  # JavaScript modules
-│   │   ├── api.js           # REST API client
-│   │   ├── sensors.js       # Sensor visualization
-│   │   └── utils.js         # Utility functions
-│   └── index.html           # Main web interface
+├── tests/                     # Test suites (integration, performance, QA)
+├── webui-server/              # Node.js Express proxy + web frontend
+│   ├── server.js             # Express proxy server (manages backend process)
+│   ├── config/               # Proxy configuration
+│   ├── public/               # Static frontend files
+│   │   ├── index.html        # Main web interface
+│   │   ├── js/               # JavaScript ES6+ modules
+│   │   │   ├── api.js        # REST API client
+│   │   │   ├── app.js        # Application entry point
+│   │   │   ├── canvas.js     # Canvas visualization
+│   │   │   ├── ws.js         # WebSocket live data
+│   │   │   ├── sensors.js    # Sensor management UI
+│   │   │   ├── sinks.js      # Sink configuration UI
+│   │   │   ├── filters.js    # Filter configuration UI
+│   │   │   ├── dbscan.js     # DBSCAN configuration UI
+│   │   │   ├── configs.js    # Config management UI
+│   │   │   ├── roi.js        # ROI management
+│   │   │   ├── store.js      # State management
+│   │   │   └── utils.js      # Utility functions
+│   │   └── css/              # Stylesheets
+│   └── scripts/              # Install/start scripts
 └── CMakeLists.txt           # Root CMake configuration
 ```
 
@@ -121,7 +145,7 @@ HokuyoHub/
 - **`src/detect/`**: Implements clustering algorithms and filtering pipeline
 - **`src/sensors/`**: Sensor abstraction layer with pluggable sensor implementations
 - **`src/config/`**: Configuration management with YAML support
-- **`webui/`**: Complete web frontend for real-time visualization and system control
+- **`webui-server/`**: Node.js Express proxy server + complete web frontend for real-time visualization and system control
 
 ## Build System
 
@@ -170,32 +194,16 @@ The build system uses a unified dependency management approach via [`cmake/Depen
 
 ### Build Commands
 
-```bash
-# Standard build
-mkdir build && cd build
-cmake ..
-make -j$(nproc)
-
-# Debug build with testing
-cmake -DCMAKE_BUILD_TYPE=Debug ..
-make -j$(nproc)
-
-# Cross-compilation example (Raspberry Pi)
-cmake -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/raspberry-pi.cmake ..
-make -j$(nproc)
-
-# Install to dist/ directory
-make install
-```
-
-### Optional Features
+ビルド手順の詳細は [BUILD.md](BUILD.md) を参照してください。基本的なコマンド:
 
 ```bash
-# Build with OSC support (enabled by default)
-cmake -DUSE_OSC=ON ..
+# プリセットを使ったビルド（推奨）
+./scripts/build/build_with_presets.sh release --install
 
-# Disable OSC support
-cmake -DUSE_OSC=OFF ..
+# 手動 CMake
+cmake --preset mac-release
+cmake --build build/darwin-arm64 --parallel
+cmake --install build/darwin-arm64
 ```
 
 ## Development Environment Setup
@@ -211,18 +219,13 @@ cmake -DUSE_OSC=OFF ..
 **Ubuntu/Debian:**
 ```bash
 sudo apt update
-sudo apt install build-essential cmake git libjsoncpp-dev uuid-dev zlib1g-dev
+sudo apt install build-essential cmake git
 ```
 
 **macOS:**
 ```bash
-brew install cmake jsoncpp ossp-uuid zlib
+brew install cmake
 ```
-
-**Windows (Visual Studio):**
-- Install Visual Studio 2019+ with C++ tools
-- Install CMake via Visual Studio Installer
-- Install vcpkg for dependency management
 
 ### IDE Configuration
 
@@ -244,9 +247,23 @@ brew install cmake jsoncpp ossp-uuid zlib
 - Build Directory: `build/`
 - CMake Options: `-DUSE_OSC=ON`
 
+### Running for Development
+
+```bash
+# Build backend
+./scripts/build/build_with_presets.sh release --install
+
+# Start backend
+./dist/darwin-arm64/hokuyo_hub --config ./configs/default.yaml --listen 0.0.0.0:8081
+
+# Start frontend dev server (in another terminal, proxies to backend)
+cd webui-server && npm start
+# Web UI: http://localhost:3000
+```
+
 ### Development Workflow
 
-1. **Clone with Submodules**: `git clone --recursive`
+1. **Clone**: `git clone <repository-url>`
 2. **Feature Branch**: Create feature branch from main
 3. **Development**: Implement changes with proper testing
 4. **Configuration**: Use YAML configuration files in `configs/`
@@ -390,8 +407,11 @@ class PublisherManager {
 public:
     void publishClusters(uint64_t timestamp, uint32_t sequence,
                         const std::vector<Cluster>& clusters);
+    void publishRaw(uint64_t t_ns, uint32_t seq,
+                   const std::vector<float>& xy,
+                   const std::vector<uint8_t>& sid);
     
-    // Configurable sinks: NNG, OSC, File, etc.
+    // Configurable sinks: NNG, OSC
     void configureSinks(const std::vector<SinkConfig>& sinks);
 };
 ```
@@ -510,220 +530,16 @@ main.cpp
 ├── LiveWs (WebSocket)
 │   └── Real-time data streaming
 └── PublisherManager
-    ├── NNG Bus
-    ├── OSC Publisher (optional)
-    └── File Output
+    ├── NNG Bus (MessagePack/JSON)
+    └── OSC Publisher (optional)
 ```
 
-## Server Restart Functionality
-
-HokuyoHub includes a simplified server restart system that allows graceful restart of the application while preserving user configurations.
-
-### RestartManager Class
-
-The [`RestartManager`](src/core/restart_manager.h:11) provides a clean restart mechanism:
-
-```cpp
-class RestartManager {
-public:
-    /**
-     * Save the original command line arguments for later use in restart.
-     * This should be called early in main() before any other operations.
-     */
-    static void saveOriginalArgs(int argc, char* argv[]);
-    
-    /**
-     * Execute a restart of the application using the saved arguments.
-     * This function will create a restart script, execute it, and then exit the current process.
-     */
-    static void executeRestart();
-
-private:
-    static std::vector<std::string> original_args_;
-    
-    // Helper methods for cross-platform restart implementation
-    static std::string getTempDir();
-    static std::string saveArgsToFile(const std::vector<std::string>& args);
-    static std::vector<std::string> loadArgsFromFile(const std::string& filePath);
-    static void executeRestartScript(const std::string& argsFilePath);
-};
-```
-
-### Implementation Features
-
-- **Cross-Platform Support**: Works on Windows, macOS, and Linux
-- **Argument Preservation**: Maintains all original command-line arguments
-- **Process Isolation**: Uses temporary scripts to restart cleanly
-- **Error Handling**: Comprehensive error handling with detailed logging
-
-### Integration Points
-
-#### Main Application Setup
-
-In [`main.cpp`](src/main.cpp:17), the restart manager is initialized:
-
-```cpp
-int main(int argc, char** argv) {
-    // Save original arguments for restart functionality
-    RestartManager::saveOriginalArgs(argc, argv);
-    
-    // ... rest of application initialization
-}
-```
-
-#### REST API Integration
-
-The restart functionality is exposed via REST API in [`RestApi::postServerRestart`](src/io/rest_handlers.cpp:1542):
-
-```cpp
-// POST /api/v1/server/restart
-crow::response RestApi::postServerRestart(const crow::request& req) {
-    if (!authorize(req)) {
-        return sendUnauthorized();
-    }
-    
-    try {
-        std::cout << "[RestApi] Server restart requested, executing RestartManager..." << std::endl;
-        
-        // Use the simplified RestartManager for restart
-        RestartManager::executeRestart();
-        
-        // This point should never be reached as executeRestart() calls std::exit()
-        // ... error handling
-    } catch (const std::exception& e) {
-        // ... error response
-    }
-}
-```
-
-#### WebUI Integration
-
-The web interface provides restart functionality with auto-save/restore:
-
-```javascript
-/**
- * Handle server restart request with auto-save and restore
- */
-async function handleServerRestart() {
-    try {
-        console.log('Server restart requested...');
-        
-        // Save current configuration to localStorage
-        const currentConfigs = await getAllConfigs();
-        localStorage.setItem('hokuyoRestoreConfigs', JSON.stringify(currentConfigs));
-        localStorage.setItem('hokuyoRestoreFlag', Date.now().toString());
-        
-        showNotification('Saving current settings...', 'info');
-        
-        // Make the restart request
-        await serverApi.restart(token);
-        
-        console.log('Server restart request sent successfully');
-        showNotification('Server restarting... Please wait', 'info');
-        
-        // Simple page reload after 5 seconds
-        setTimeout(() => {
-            window.location.reload();
-        }, 5000);
-        
-    } catch (error) {
-        console.error('Error during server restart process:', error);
-        showNotification('Restart failed: ' + error.message, 'error');
-        
-        // Clean up saved settings on error
-        localStorage.removeItem('hokuyoRestoreConfigs');
-        localStorage.removeItem('hokuyoRestoreFlag');
-    }
-}
-```
-
-### Restart Scripts
-
-Two platform-specific restart scripts are provided:
-
-#### Unix/Linux/macOS Script
-
-[`scripts/restart_with_args.sh`](scripts/restart_with_args.sh:1) - A comprehensive bash script with:
-- Argument file validation and security checks
-- Graceful process termination (SIGTERM then SIGKILL)
-- Robust logging with timestamps
-- Error handling and cleanup
-- Default configuration fallback
-
-#### Windows Script
-
-[`scripts/restart_with_args.bat`](scripts/restart_with_args.bat:1) - Windows batch script with:
-- PowerShell-compatible process management
-- Equivalent argument handling and validation
-- Windows-specific process termination logic
-- Log file management in Windows format
-
-### Configuration Auto-Save/Restore
-
-The restart system includes automatic configuration preservation:
-
-1. **Pre-Restart**: WebUI saves current configuration to `localStorage`
-2. **Post-Restart**: On page load, WebUI checks for saved configuration and restores it
-3. **Timeout**: Saved configurations expire after 5 minutes for security
-4. **Error Handling**: Failed restores are logged but don't prevent normal operation
-
-### Security Considerations
-
-- **Authentication Required**: Restart endpoint requires Bearer token authentication
-- **Argument Validation**: Scripts validate arguments to prevent injection attacks
-- **Temporary File Security**: Argument files are created with restricted permissions
-- **Process Isolation**: Restart occurs in separate process context
-
-### Usage Examples
-
-#### Programmatic Restart
-
-```cpp
-// In application code
-try {
-    RestartManager::executeRestart();
-} catch (const std::exception& e) {
-    std::cerr << "Restart failed: " << e.what() << std::endl;
-}
-```
-
-#### API Restart
-
-```bash
-# Restart server via REST API
-curl -X POST \
-  -H "Authorization: Bearer your-api-token" \
-  -H "Content-Type: application/json" \
-  "http://localhost:8080/api/v1/server/restart"
-```
-
-#### WebUI Restart
-
-Users can restart the server through the web interface using the "Restart Server" button, which automatically:
-1. Saves current configuration
-2. Sends restart request to server
-3. Waits for server restart
-4. Reloads page and restores configuration
-
-### Testing
-
-Test the restart functionality using the provided test script:
-
-```bash
-# Test restart API endpoint
-./scripts/testing/test_server_restart.sh
-
-# Manual testing with different scenarios
-./hokuyo_hub --config configs/test.yaml &
-curl -X POST -H "Authorization: Bearer test-token" \
-     "http://localhost:8080/api/v1/server/restart"
-```
 
 ## API Design
 
 ### REST API Endpoints
 
-Base URL: `http://localhost:8080/api/v1/`
+Base URL: `http://localhost:8081/api/v1/`
 
 Authentication: Bearer token via `Authorization` header (if configured)
 
@@ -819,7 +635,7 @@ void postConfigsSave(const HttpRequestPtr& req,
 
 #### Connection Endpoint
 
-- **URL**: `ws://localhost:8080/ws/live`
+- **URL**: `ws://localhost:8081/ws/live`
 - **Protocol**: JSON message-based communication
 - **Authentication**: Token-based (if configured)
 
@@ -1133,7 +949,7 @@ REST API validation using shell scripts in [`scripts/testing/test_rest_api.sh`](
 #!/bin/bash
 # API endpoint testing
 
-BASE_URL="http://localhost:8080/api/v1"
+BASE_URL="http://localhost:8081/api/v1"
 AUTH_TOKEN="your-api-token"
 
 # Test sensor listing
@@ -1156,83 +972,7 @@ curl -X PUT -H "Authorization: Bearer $AUTH_TOKEN" \
 
 ### Configuration Testing
 
-Test various configuration scenarios with YAML files in `configs/`. Example [`default.yaml`](configs/default.yaml:1):
-
-```yaml
-sensors:
-  - id: "sensor1"
-    name: "hokuyo-a"
-    type: "hokuyo_urg_eth"
-    endpoint: "192.168.104.202:10940"
-    pose: { tx: 0.0, ty: 0.0, theta: 0.0 }
-    enabled: true
-    mode: "ME"          # "MD"=distance only / "ME"=distance+intensity
-    skip_step: 1        # 1=no downsampling
-    interval: 0         # 0=default (ms)
-    mask:
-      angle: { min: -135.0, max: 135.0 }  # degrees
-      range: { near: 0.05, far: 15.0 }    # meters
-
-world_mask:
-  polygon: []   # [[x,y], ...] - ROI polygon vertices
-
-dbscan:
-  eps_norm: 5           # Normalized distance threshold
-  minPts: 5             # Minimum points for core (inclusive of self)
-  k_scale: 1            # Angular term scale coefficient
-  
-  # Performance parameters
-  h_min: 0.01           # Minimum grid cell size [m]
-  h_max: 0.20           # Maximum grid cell size [m]
-  R_max: 5              # Maximum search radius in cells
-  M_max: 600            # Maximum candidate points per query
-
-prefilter:
-  enabled: true
-  
-  neighborhood:
-    enabled: true
-    k: 5                # Minimum neighbors required
-    r_base: 0.05        # Base radius [m]
-    r_scale: 1.0        # Distance-based radius scaling factor
-  
-  spike_removal:
-    enabled: false
-    dr_threshold: 0.3   # |dR/dθ| threshold for spike detection
-    window_size: 3      # Window size for derivative calculation
-  
-  outlier_removal:
-    enabled: true
-    median_window: 5    # Window size for moving median
-    outlier_threshold: 2.0  # Threshold in standard deviations
-    use_robust_regression: false
-  
-  intensity_filter:
-    enabled: false      # Disabled by default (sensor dependent)
-    min_intensity: 0.0  # Minimum intensity threshold
-    min_reliability: 0.0 # Minimum reliability threshold
-  
-  isolation_removal:
-    enabled: true
-    min_cluster_size: 3 # Minimum points to keep a cluster
-    isolation_radius: 0.1 # Radius to check for isolation
-
-postfilter:
-  enabled: true
-  
-  isolation_removal:
-    enabled: true
-    min_points_size: 3  # Minimum points to keep a cluster
-    isolation_radius: 0.2 # Radius to check for isolation between clusters
-    required_neighbors: 2 # Minimum neighbors required for a point
-
-sinks:
-  - { type: "nng", url: "tcp://0.0.0.0:5555", topic: "clusters", encoding: "msgpack", rate_limit: 120 }
-  - { type: "osc", url: "127.0.0.1:10000", in_bundle: true, topic: "clusters", encoding: "osc", rate_limit: 120 }
-
-ui:
-  listen: "0.0.0.0:8080"
-```
+Test various configuration scenarios with YAML files in `configs/`. 設定ファイルの全パラメータは [`configs/default.yaml`](configs/default.yaml) および [README.md](README.md) のConfiguration セクションを参照してください。
 
 ### WebSocket Testing
 
@@ -1240,7 +980,7 @@ Real-time communication testing using JavaScript test clients:
 
 ```javascript
 // WebSocket integration test
-const ws = new WebSocket('ws://localhost:8080/ws/live');
+const ws = new WebSocket('ws://localhost:8081/ws/live');
 
 ws.onmessage = (event) => {
     const data = JSON.parse(event.data);
@@ -1394,17 +1134,23 @@ enum class SensorType {
 ### Development Setup
 
 ```bash
-# Clone with submodules for external dependencies
-git clone --recursive https://github.com/yourusername/HokuyoHub.git
-cd HokuyoHub
+# Clone repository
+git clone <repository-url>
+cd HokuyoHub/proj
 
-# Setup development build
-mkdir build-dev && cd build-dev
-cmake -DCMAKE_BUILD_TYPE=Debug -DUSE_OSC=ON ..
-make -j$(nproc)
+# Build (using presets)
+./scripts/build/build_with_presets.sh debug --install
 
-# Run with test configuration
-./hokuyo_hub --config ../configs/development.yaml --listen localhost:8080
+# Or manual CMake
+cmake --preset mac-debug
+cmake --build build/darwin-arm64 --parallel
+cmake --install build/darwin-arm64
+
+# Run backend
+./dist/darwin-arm64/hokuyo_hub --config ./configs/default.yaml --listen 0.0.0.0:8081
+
+# Run frontend (in another terminal)
+cd webui-server && npm start
 ```
 
 ### Code Review Checklist
@@ -1421,76 +1167,7 @@ make -j$(nproc)
 
 ## Deployment
 
-### Docker Configuration
-
-**Note**: Docker configuration files are not currently included in the repository but can be created as needed for deployment.
-
-**Recommended Production Dockerfile:**
-```dockerfile
-FROM ubuntu:22.04 AS builder
-
-# Install build dependencies
-RUN apt-get update && apt-get install -y \
-    build-essential \
-    cmake \
-    git \
-    libjsoncpp-dev \
-    uuid-dev \
-    zlib1g-dev \
-    && rm -rf /var/lib/apt/lists/*
-
-# Build application
-COPY . /app
-WORKDIR /app
-RUN mkdir build && cd build && \
-    cmake -DCMAKE_BUILD_TYPE=Release -DUSE_OSC=ON .. && \
-    make -j$(nproc) && \
-    make install
-
-# Runtime image
-FROM ubuntu:22.04
-
-RUN apt-get update && apt-get install -y \
-    libjsoncpp1 \
-    libstdc++6 \
-    && rm -rf /var/lib/apt/lists/*
-
-# Copy application and assets from dist/ directory
-COPY --from=builder /app/dist/hokuyo_hub /usr/local/bin/
-COPY --from=builder /app/dist/configs /usr/local/etc/hokuyo_hub
-COPY --from=builder /app/dist/webui /usr/local/share/hokuyo_hub/webui
-
-# Runtime configuration
-ENV HOKUYO_CONFIG=/usr/local/etc/hokuyo_hub/default.yaml
-
-EXPOSE 8080
-VOLUME ["/usr/local/etc/hokuyo_hub"]
-
-CMD ["hokuyo_hub", "--config", "/usr/local/etc/hokuyo_hub/default.yaml", "--listen", "0.0.0.0:8080"]
-```
-
-**Docker Compose for Development:**
-```yaml
-version: '3.8'
-services:
-  hokuyo_hub:
-    build: .
-    ports:
-      - "8080:8080"
-    volumes:
-      - ./configs:/usr/local/etc/hokuyo_hub
-      - ./validation:/app/validation
-    devices:
-      - "/dev/ttyACM0:/dev/ttyACM0"  # USB sensor connection (if using USB sensors)
-    environment:
-      - USE_OSC=ON
-    networks:
-      - hokuyo_network
-    
-networks:
-  hokuyo_network:
-    driver: bridge
-```
+Docker構成ファイルは [`docker/`](docker/) ディレクトリにあります。ビルド手順は [BUILD.md](BUILD.md) を参照してください。
 
 ### Production Considerations
 
@@ -1532,7 +1209,7 @@ Type=simple
 User=hokuyo
 Group=hokuyo
 WorkingDirectory=/opt/hokuyo-hub
-ExecStart=/opt/hokuyo-hub/hokuyo_hub --config /etc/hokuyo-hub/production.yaml --listen 0.0.0.0:8080
+ExecStart=/opt/hokuyo-hub/hokuyo_hub --config /etc/hokuyo-hub/production.yaml
 Restart=always
 RestartSec=5
 StandardOutput=journal
@@ -1551,209 +1228,52 @@ WantedBy=multi-user.target
 
 ## Troubleshooting Development Issues
 
-### Build Issues
+一般的なトラブルシューティング（センサー接続、Web UI、ビルドエラー等）は [README.md](README.md#-troubleshooting) を参照してください。
+以下は開発者向けの高度なデバッグ手法です。
 
-**CMake Configuration Problems:**
+### デバッグビルド
+
 ```bash
-# Clear CMake cache completely
-rm -rf build/
-mkdir build && cd build
+# AddressSanitizer 付きビルド
+cmake --preset mac-debug
+cmake -DCMAKE_CXX_FLAGS="-fsanitize=address" --preset mac-debug
+cmake --build build/darwin-arm64 --parallel
 
-# Verbose configuration for debugging
-cmake -DCMAKE_VERBOSE_MAKEFILE=ON ..
+# Valgrind でのメモリ解析
+valgrind --leak-check=full --show-leak-kinds=all ./dist/darwin-arm64/hokuyo_hub --config configs/default.yaml
 
-# Check dependency resolution
-cmake --build . --target help
+# Thread debugging
+valgrind --tool=helgrind ./dist/darwin-arm64/hokuyo_hub --config configs/default.yaml
 ```
 
-**Missing Dependencies:**
+### GDB デバッグ
+
 ```bash
-# Ubuntu: Install all required development packages
-sudo apt-get install build-essential cmake git libjsoncpp-dev uuid-dev zlib1g-dev
-
-# macOS: Use Homebrew for dependencies
-brew install cmake jsoncpp ossp-uuid zlib
-
-# Check pkg-config resolution
-pkg-config --cflags --libs jsoncpp
-```
-
-**Submodule Issues:**
-```bash
-# Ensure all submodules are properly initialized
-git submodule update --init --recursive
-
-# Reset submodules if corrupted
-git submodule deinit --all -f
-git submodule update --init --recursive
-```
-
-### Runtime Issues
-
-**Sensor Connection Problems:**
-1. **Permission Issues**: 
-   ```bash
-   # Add user to dialout group for serial port access
-   sudo usermod -a -G dialout $USER
-   # Logout and login for group changes to take effect
-   ```
-
-2. **Device Detection**: 
-   ```bash
-   # Check available serial devices
-   ls -la /dev/ttyACM* /dev/ttyUSB*
-   
-   # Test URG library directly
-   cd external/urg_library/current/samples/c/get_distance
-   make && ./get_distance
-   ```
-
-3. **Configuration Validation**: 
-   ```bash
-   # Validate YAML configuration syntax
-   python3 -c "import yaml; yaml.safe_load(open('configs/default.yaml'))"
-   ```
-
-**Web Interface Issues:**
-1. **Port Conflicts**: 
-   ```bash
-   # Check if port 8080 is already in use
-   netstat -tlnp | grep 8080
-   lsof -i :8080
-   ```
-
-2. **WebSocket Connection Problems**: 
-   ```bash
-   # Test WebSocket connectivity
-   curl -i -N -H "Connection: Upgrade" -H "Upgrade: websocket" \
-        -H "Sec-WebSocket-Version: 13" -H "Sec-WebSocket-Key: test" \
-        http://localhost:8080/ws/live
-   ```
-
-3. **CORS Issues**: Check browser developer tools for cross-origin errors
-
-**Performance Issues:**
-1. **High CPU Usage**: 
-   ```bash
-   # Monitor per-thread CPU usage
-   top -H -p $(pgrep hokuyo_hub)
-   
-   # Profile with perf
-   perf top -p $(pgrep hokuyo_hub)
-   ```
-
-2. **Memory Leaks**: 
-   ```bash
-   # Run with AddressSanitizer
-   cmake -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_FLAGS="-fsanitize=address" ..
-   make && ./hokuyo_hub --config configs/test.yaml
-   
-   # Detailed memory analysis
-   valgrind --leak-check=full --show-leak-kinds=all ./hokuyo_hub
-   ```
-
-3. **Real-time Performance**: 
-   ```bash
-   # Monitor processing latency via WebSocket messages
-   # Check for frame drops in clustering pipeline
-   # Verify filter configuration optimization
-   ```
-
-### Configuration Issues
-
-**YAML Parsing Errors:**
-```bash
-# Validate YAML syntax
-yaml-lint configs/default.yaml
-
-# Check configuration loading
-./hokuyo_hub --config configs/debug.yaml --listen localhost:8081
-
-# Test configuration loading with debug output
-./hokuyo_hub --config configs/default.yaml --listen localhost:8081
-```
-
-**Filter Parameter Tuning:**
-```yaml
-# Example optimized configuration for real-time processing
-prefilter:
-  enabled: true
-  range_filter:
-    enabled: true
-    min_range: 0.05    # Remove very close points
-    max_range: 8.0     # Sensor max range
-    
-dbscan:
-  eps: 0.12           # Cluster tolerance (meters)
-  minPts: 3           # Minimum cluster size
-  k_scale: 0.8        # Angular scaling factor
-  h_min: 0.02         # Min cluster height
-  h_max: 2.5          # Max cluster height
-  R_max: 10.0         # Max processing radius
-  M_max: 1000         # Max points per frame
-```
-
-### Debugging Techniques
-
-**GDB Session Setup:**
-```bash
-# Compile with debug symbols
-cmake -DCMAKE_BUILD_TYPE=Debug ..
-make
-
-# GDB with configuration
-gdb ./hokuyo_hub
-(gdb) set environment HOKUYO_CONFIG=configs/debug.yaml
+cmake --preset mac-debug && cmake --build build/darwin-arm64 --parallel
+gdb ./dist/darwin-arm64/hokuyo_hub
 (gdb) break SensorManager::start
-(gdb) run --config configs/debug.yaml --listen localhost:8080
-(gdb) bt  # backtrace on crash
-(gdb) info threads  # thread information
+(gdb) run --config configs/default.yaml --listen localhost:8081
+(gdb) bt    # バックトレース
+(gdb) info threads
 ```
 
-**Advanced Debugging:**
+### パフォーマンスプロファイリング
+
 ```bash
-# Core dump analysis
-ulimit -c unlimited
-./hokuyo_hub --config configs/test.yaml
-# After crash:
-gdb ./hokuyo_hub core
+# CPU profiling
+perf record -g ./dist/darwin-arm64/hokuyo_hub --config configs/default.yaml
+perf report -g graph,0.5,caller
 
-# Thread debugging with helgrind
-valgrind --tool=helgrind ./hokuyo_hub --config configs/test.yaml
+# Memory profiling
+valgrind --tool=massif ./dist/darwin-arm64/hokuyo_hub
+ms_print massif.out.* | head -30
+
+# Per-thread CPU monitoring
+top -H -p $(pgrep hokuyo_hub)
 ```
 
-### Common Issues and Solutions
+### YAML設定の検証
 
-| Issue | Symptom | Solution |
-|-------|---------|----------|
-| Build fails with missing dependencies | CMake can't find required libraries | Check system packages and dependencies |
-| Sensor timeout errors | Connection failures, no data | Check USB cable, permissions, device path |
-| High CPU usage | Poor real-time performance | Optimize filter parameters, reduce processing load |
-| Memory growth | Increasing memory usage over time | Enable AddressSanitizer, check buffer management |
-| WebSocket disconnections | Intermittent client connections | Increase buffer sizes, check network stability |
-| Clustering errors | Empty or invalid cluster results | Validate DBSCAN parameters, check input data |
-| Configuration not loading | Default values used instead | Verify YAML syntax, file permissions, path |
-
-### Log Analysis
-
-**Application Logging:**
 ```bash
-# Enable debug logging
-export HOKUYO_LOG_LEVEL=DEBUG
-./hokuyo_hub --config configs/debug.yaml 2>&1 | tee debug.log
-
-# Filter specific component logs
-grep "DBSCAN" debug.log
-grep "Sensor" debug.log  
-grep "Filter" debug.log
+python3 -c "import yaml; yaml.safe_load(open('configs/default.yaml'))"
 ```
-
-**System Resource Monitoring:**
-```bash
-# Monitor resource usage
-iostat -x 1        # I/O statistics
-vmstat 1           # Virtual memory statistics  
-sar -u 1           # CPU utilization
-```
-
-For additional support and troubleshooting assistance, please check the GitHub Issues page or contact the development team through the project's communication channels.

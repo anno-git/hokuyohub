@@ -2,62 +2,42 @@
 
 **Real-time LiDAR sensor data processing and visualization platform for Hokuyo sensors**
 
-HokuyoHub is a comprehensive solution for collecting, processing, and visualizing data from Hokuyo LiDAR sensors in real-time. Built with C++20 and featuring advanced DBSCAN clustering with 30 FPS real-time processing, it provides a powerful web-based interface for sensor management, advanced data filtering, clustering analysis, and multi-format data publishing - making it ideal for robotics applications, autonomous systems, and research environments.
+HokuyoHub is a comprehensive solution for collecting, processing, and visualizing data from Hokuyo LiDAR sensors in real-time. Built with a C++20 backend (CrowCpp web framework) and JavaScript ES6+ frontend (Node.js proxy server), it features advanced DBSCAN clustering, a powerful web-based interface for sensor management, advanced data filtering, clustering analysis, and multi-format data publishing via NNG/OSC/REST/WebSocket - making it ideal for robotics applications, autonomous systems, and research environments.
 
 ## 🚀 Key Features
 
 - **Multi-Sensor Support**: Connect and manage multiple Hokuyo LiDAR sensors simultaneously
 - **Real-time Visualization**: Interactive web-based visualization with WebSocket communication, pan, zoom, and region-of-interest tools
-- **Advanced Data Processing**: Built-in DBSCAN clustering with pre/post filtering, 30 FPS real-time processing
-- **Flexible Data Publishing**: Export processed data via NNG with MessagePack, OSC protocol, or REST API
-- **Interactive Configuration**: Live parameter tuning through modern JavaScript ES6+ web interface
-- **ROI Management**: Create include/exclude regions for focused area monitoring with three-panel layout
-- **Filter Pipeline**: Multi-stage filtering system (prefilter → clustering → postfilter)
+- **Advanced Data Processing**: Built-in DBSCAN clustering with pre/post filtering (neighborhood, spike, outlier, intensity, isolation)
+- **Flexible Data Publishing**: Export cluster and raw data via NNG (MessagePack/JSON) and OSC protocol with per-sink topic configuration
+- **Independent Publishing Flags**: `send_clusters` and `send_raw` can be enabled simultaneously per sink
+- **Interactive Configuration**: Live parameter tuning through modern JavaScript ES6+ web interface with Node.js proxy server
+- **ROI Management**: Create include/exclude polygon regions for focused area monitoring with three-panel layout
+- **Filter Pipeline**: Multi-stage filtering system (prefilter → world mask → clustering → postfilter)
 - **Cross-Platform**: Runs on Linux, macOS, and supports ARM64/AMD64 multi-architecture deployment
-- **Fast Build Times**: Uses CrowCpp header-only web framework for 60-70% faster compilation
-
-## 🌟 Web Framework: CrowCpp
-
-HokuyoHub uses **CrowCpp**, a modern, lightweight web framework that delivers excellent performance:
-
-### ✅ Migration Benefits
-- **⚡ Faster Build Times**: CrowCpp is header-only, eliminating complex dependency compilation
-- **🪶 Lightweight**: Reduced binary size and memory footprint
-- **🔧 Simplified Deployment**: No external web framework dependencies to manage
-- **⚙️ Better CI/CD**: Dramatically reduced build times in continuous integration
-- **� Modern C++**: Clean, type-safe API with excellent performance
-- **🔍 Easier Debugging**: Header-only design provides better build error messages
-
-### 🔄 What Changed
-- **Web Framework**: CrowCpp (header-only, lightweight)
-- **Build System**: Simplified build configurations
-- **Dependencies**: Minimal external dependencies
-- **API Compatibility**: All REST endpoints remain unchanged
-- **Performance**: Maintained or improved response times with reduced overhead
+- **Fast Build Times**: Uses CrowCpp header-only web framework for faster compilation
 
 ## 🏗️ Technical Architecture
 
 HokuyoHub employs a modern, high-performance architecture designed for real-time applications:
 
 ### Core Technology Stack
-- **Backend**: C++20 with modern standards compliance
-- **Web Framework**: CrowCpp (header-only, lightweight)
+- **Backend**: C++20 with CrowCpp (header-only web framework)
+- **Frontend**: JavaScript ES6+ with Canvas API, Node.js Express proxy server
 - **Real-time Communication**: WebSocket for low-latency data streaming
-- **Data Processing**: Advanced DBSCAN clustering with 30 FPS capability
+- **Data Processing**: Advanced DBSCAN clustering with configurable performance parameters
 - **Build System**: CMake with multi-architecture support (ARM64/AMD64)
 
 ### Performance Characteristics
-- **Processing Speed**: 30 FPS real-time LiDAR data processing
-- **Build Performance**: 60-70% faster compilation times
 - **Memory Efficiency**: Optimized data structures and filtering pipelines
-- **Network Protocol**: NNG with MessagePack for high-throughput data publishing
-- **Deployment**: Production-ready Docker containers (208MB runtime)
+- **Network Protocol**: NNG with MessagePack/JSON for high-throughput data publishing
+- **Deployment**: Production-ready Docker containers for ARM64
 
 ### Frontend Implementation
 - **JavaScript**: Modern ES6+ with Canvas API for visualization
+- **Proxy Server**: Node.js Express server manages backend process and proxies API/WebSocket
 - **UI Layout**: Three-panel responsive design
 - **Real-time Updates**: WebSocket-based parameter tuning and data streaming
-- **Visualization**: Hardware-accelerated Canvas rendering for smooth 30 FPS display
 
 ## 🎯 Quick Start
 
@@ -79,7 +59,7 @@ cd HokuyoHub
    
    **For Development (macOS):**
    ```bash
-   ./scripts/build/build_with_presets.sh
+   ./scripts/build/build_with_presets.sh release --install
    ```
    
    **For Production (Raspberry Pi 5):**
@@ -87,8 +67,8 @@ cd HokuyoHub
    ./scripts/build/docker_cross_build.sh --build-all
    ```
 
-4. **Configure your sensors**
-Edit `config/default.yaml` to match your sensor setup:
+3. **Configure your sensors**
+Edit `configs/default.yaml` to match your sensor setup:
 ```yaml
 sensors:
   - id: "sensor1"
@@ -99,79 +79,20 @@ sensors:
     enabled: true
 ```
 
-5. **Launch HokuyoHub**
+4. **Launch backend**
 ```bash
-./hokuyo_hub --config ./configs/default.yaml --listen 0.0.0.0:8080
+./dist/darwin-arm64/hokuyo_hub --config ./configs/default.yaml --listen 0.0.0.0:8081
+```
+
+5. **Launch frontend dev server** (in another terminal)
+```bash
+cd webui-server && npm start
 ```
 
 6. **Open the web interface**
-Navigate to `http://localhost:8080` in your browser
+Navigate to `http://localhost:3000` in your browser
 
-## 📋 Installation Guide
-
-### System Dependencies
-
-**Ubuntu/Debian:**
-```bash
-sudo apt update
-sudo apt install build-essential cmake git
-sudo apt install libyaml-cpp-dev  # Optional: use system libraries
-```
-
-**macOS:**
-```bash
-# Install Homebrew dependencies
-brew install cmake yaml-cpp
-
-# Note: CrowCpp is a lightweight, header-only web framework
-# No additional web framework dependencies needed
-```
-
-### Build Options
-
-**Modern Build System (Recommended)**
-
-HokuyoHub uses an optimized build system with 60-70% faster build times and organized scripts for different deployment targets:
-
-```bash
-# Native macOS development build (optimized for development)
-./scripts/build/build_with_presets.sh
-
-# Docker ARM64 cross-compilation (production-ready for Raspberry Pi 5)
-./scripts/build/docker_cross_build.sh --build-all
-
-# Environment setup (automated dependency management)
-./scripts/setup/setup_cross_compile.sh
-
-# Testing and validation (comprehensive API testing)
-./scripts/testing/test_rest_api.sh http://localhost:8080
-```
-
-**Build System Architecture:**
-- **`scripts/build/`** - Core build scripts
-- **`scripts/setup/`** - Environment configuration
-- **`scripts/testing/`** - Testing and validation
-- **`scripts/utils/`** - Utility scripts and artifact extraction
-- **`docker/`** - Docker multi-stage build system
-
-### Cross-Compilation
-
-For ARM64 targets (Raspberry Pi 5), use the Docker-based cross-compilation:
-
-```bash
-# Complete cross-compilation build
-./scripts/build/docker_cross_build.sh --build-all
-
-# Extract deployment artifacts
-# (automatically included in --build-all)
-# Output: dist/linux-arm64/
-```
-
-**Docker Build Features:**
-- Multi-stage build (dependencies → application → runtime)
-- Automatic URG library cross-compilation
-- Optimized runtime container (208MB)
-- ARM64 native binary generation
+For detailed build instructions (cross-compilation, Docker, dependency management), see **[BUILD.md](BUILD.md)**.
 
 ## 🎮 Basic Usage
 
@@ -216,10 +137,10 @@ The HokuyoHub web interface features a modern JavaScript ES6+ implementation wit
 
 1. Click "Add Sink" in the sinks panel
 2. Choose publishing method:
-   - **NNG**: High-performance messaging with MessagePack serialization (`tcp://0.0.0.0:5555`)
-   - **OSC**: Open Sound Control protocol for real-time communication
-   - **REST**: HTTP API access for web-based integration
-3. Configure topic names and data formats with production-ready deployment support
+   - **NNG**: High-performance messaging with MessagePack/JSON serialization (`tcp://0.0.0.0:5555`)
+   - **OSC**: Open Sound Control protocol for real-time communication (UDP)
+3. Configure per-sink topics (`cluster_topic`, `raw_topic`) and publishing flags (`send_clusters`, `send_raw`)
+4. Both `send_clusters` and `send_raw` can be enabled simultaneously per sink
 
 #### Message Format
 
@@ -314,18 +235,24 @@ postfilter:
 
 ```yaml
 sinks:
-  - type: "nng"
-    url: "tcp://0.0.0.0:5555"
-    topic: "clusters"
-    encoding: "msgpack"
-    rate_limit: 120
+  - type: nng
+    url: tcp://0.0.0.0:5555
+    encoding: msgpack            # or "json"
+    cluster_topic: /hokuyohub/cluster  # NNG topic prefix / OSC address
+    raw_topic: /hokuyohub/raw          # NNG topic prefix / OSC address
+    rate_limit: 120              # Max frames/sec (0=unlimited)
+    send_clusters: true          # Enable cluster publishing
+    send_raw: false              # Enable raw point publishing
   
-  - type: "osc"
-    url: "127.0.0.1:10000"
+  - type: osc
+    url: 127.0.0.1:10000
     in_bundle: true
-    topic: "clusters"
-    encoding: "osc"
+    bundle_fragment_size: 0
+    cluster_topic: /hokuyohub/cluster
+    raw_topic: /hokuyohub/raw
     rate_limit: 120
+    send_clusters: true
+    send_raw: false
 ```
 
 ## 🔧 Supported Hardware
@@ -358,90 +285,50 @@ ping 192.168.1.100  # Replace with your sensor IP
 
 ## 🔍 Troubleshooting
 
-### Common Issues
+| 問題 | 対処 |
+|------|------|
+| センサーに接続できない | IP/ポート確認、`ping <sensor-ip>`、ケーブル・電源確認 |
+| Web UIが表示されない | `ps aux \| grep hokuyo_hub` で起動確認、`lsof -i :8081` でポート確認 |
+| クラスタリング結果が悪い | `eps_norm` を調整 (1.5-4.0)、`minPts` を増加、プレフィルタを有効化 |
+| CPU使用率が高い | `skip_step` でダウンサンプリング、`interval` でスキャン頻度を低減 |
+| ビルドが失敗する | `cmake -DDEPS_MODE=fetch --preset mac-release` で依存を再取得 |
 
-**Sensor Connection Failed**
-- Verify IP address and port configuration
-- Check network connectivity: `ping <sensor-ip>`
-- Ensure sensor power and network cables are secure
-- Try different skip_step values if data rate is too high
+詳細: **[docs/build/troubleshooting.md](docs/build/troubleshooting.md)**
 
-**Web Interface Not Loading**
-```bash
-# Check if service is running
-ps aux | grep hokuyo_hub
+## 📡 REST API (v1)
 
-# Verify port availability
-netstat -ln | grep 8080
-
-# Check configuration file
-./hokuyo_hub --config ./configs/default.yaml --listen 0.0.0.0:8080
-```
-
-**Poor Clustering Results**
-- Adjust DBSCAN `eps_norm` parameter (try 1.5-4.0 range)
-- Increase `minPts` for noisy environments
-- Enable prefiltering for better data quality
-- Check sensor mounting and environmental conditions
-
-**High CPU Usage**
-- Enable `skip_step` for data downsampling
-- Reduce scan frequency with `interval` setting
-- Lower visualization frame rate
-- Optimize ROI regions to focus processing
-
-### Performance Optimization
-
-**For High-Frequency Applications:**
-```yaml
-# Optimize for speed
-dbscan:
-  h_min: 0.02    # Larger grid cells
-  M_max: 400     # Fewer candidates
-prefilter:
-  neighborhood:
-    r_base: 0.08 # Larger filtering radius
-```
-
-**For High-Precision Applications:**
-```yaml
-# Optimize for accuracy
-dbscan:
-  h_min: 0.005   # Smaller grid cells
-  M_max: 1000    # More candidates
-prefilter:
-  neighborhood:
-    r_base: 0.03 # Smaller filtering radius
-```
-
-### Log Analysis
+All endpoints are prefixed with `/api/v1`. Mutating endpoints require Bearer token auth when `security.api_token` is set.
 
 ```bash
-# Enable verbose logging
-./hokuyo_hub --config ./configs/default.yaml --listen 0.0.0.0:8080 2>&1 | tee hokuyo.log
+# List sensors
+curl http://localhost:8081/api/v1/sensors
 
-# Common log patterns to monitor:
-# - "[Sensor] Connected to ..." - Sensor initialization
-# - "[DBSCAN] Processed frame ..." - Clustering statistics
-# - "[Prefilter] Filtered ..." - Data processing stats
-```
-
-## 📡 REST API
-
-Access sensor data and configuration via HTTP:
-
-```bash
-# Get sensor status
-curl http://localhost:8080/api/sensors
-
-# Get current configuration
-curl http://localhost:8080/api/config
+# Get DBSCAN parameters
+curl http://localhost:8081/api/v1/dbscan
 
 # Update DBSCAN parameters
-curl -X POST http://localhost:8080/api/dbscan \
+curl -X PUT http://localhost:8081/api/v1/dbscan \
   -H "Content-Type: application/json" \
   -d '{"eps_norm": 3.0, "minPts": 8}'
+
+# Export current configuration as YAML
+curl http://localhost:8081/api/v1/configs/export
+
+# List all sinks
+curl http://localhost:8081/api/v1/sinks
+
+# Health check
+curl http://localhost:8081/api/v1/health
 ```
+
+### Full Endpoint List
+
+- **Sensors**: `GET/POST /sensors`, `GET/PATCH/DELETE /sensors/<id>`
+- **Filters**: `GET /filters`, `GET/PUT /filters/prefilter`, `GET/PUT /filters/postfilter`
+- **DBSCAN**: `GET/PUT /dbscan`
+- **Sinks**: `GET/POST /sinks`, `PATCH/DELETE /sinks/<index>`
+- **Config**: `GET /configs/list`, `POST /configs/load`, `POST /configs/import`, `POST /configs/save`, `GET /configs/export`
+- **Other**: `GET /snapshot`, `GET /health`
 
 ## 📄 License and Support
 
@@ -465,20 +352,10 @@ This project is available under the MIT License.
 
 ## 📚 Documentation
 
-### Build & Development
-- **[Build Guide](BUILD.md)** - Comprehensive build instructions for all platforms
-- **[Quick Start Guide](QUICK_START.md)** - Get up and running in minutes
-- **[Docker Build System](docker/README.md)** - Optimized Docker multi-stage builds
-- **[Build Performance](docs/build/OPTIMIZATION_SUMMARY.md)** - 60-70% faster build optimizations
-
-### Development & Planning
-- **[Development Plans](docs/development/plans/)** - Feature roadmap and implementation plans
-- **[Legacy Documentation](docs/legacy/README.md)** - Historical build system documentation
-
-### Quick References
-- **Build Commands**: Use `./scripts/build/docker_cross_build.sh --build-all` for production
-- **Testing**: Use `./scripts/testing/test_rest_api.sh` for API validation
-- **Deployment**: ARM64 artifacts available in `dist/linux-arm64/`
+- **[Quick Start Guide](QUICK_START.md)** — 最速で動かす手順
+- **[Build Guide](BUILD.md)** — 全プラットフォームのビルド手順、プリセット、依存管理
+- **[Developer Guide](README-DEVELOPERS.md)** — アーキテクチャ、コードパターン、テスト戦略、貢献ガイドライン
+- **[Troubleshooting](docs/build/troubleshooting.md)** — ビルド・ランタイムの問題解決
 
 ---
 

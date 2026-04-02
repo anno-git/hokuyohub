@@ -18,6 +18,10 @@ This document serves as the main entry point for building HokuyoHub across all s
 # macOS (native)
 ./scripts/build/build_with_presets.sh release --install
 
+# Frontend dev server (proxies to backend on port 8081)
+cd webui-server && npm start
+# Web UI: http://localhost:3000
+
 # Raspberry Pi 5 (cross-compile)
 ./scripts/build/docker_cross_build.sh --build-all
 
@@ -59,7 +63,7 @@ brew install yaml-cpp
 ### Cross-Compilation (Raspberry Pi 5)
 ```bash
 # Set up cross-compilation environment
-./scripts/setup_cross_compile.sh
+./scripts/setup/setup_cross_compile.sh
 
 # Or install manually via Homebrew
 brew install aarch64-linux-gnu-gcc
@@ -77,7 +81,7 @@ brew install aarch64-linux-gnu-gcc
 
 ```bash
 # Using CMake presets (recommended)
-./scripts/build_with_presets.sh release --install
+./scripts/build/build_with_presets.sh release --install
 
 # Manual CMake
 cmake --preset mac-release
@@ -95,10 +99,10 @@ cmake --install build/darwin-arm64
 
 ```bash
 # Setup (one-time)
-./scripts/setup_cross_compile.sh
+./scripts/setup/setup_cross_compile.sh
 
-# Build
-./scripts/cross_build.sh --preset rpi-release --install
+# Build (Docker-based cross-compilation)
+./scripts/build/docker_cross_build.sh --build-all
 ```
 
 **Output:** [`dist/linux-arm64/`](dist/linux-arm64/)
@@ -114,7 +118,7 @@ cmake --install build/darwin-arm64
 ./docker/build.sh build-all
 
 # Extract artifacts
-./scripts/extract_docker_artifacts.sh hokuyo-hub:latest
+./scripts/utils/extract_docker_artifacts.sh hokuyo-hub:latest
 ```
 
 **Output:** [`dist/linux-arm64/`](dist/linux-arm64/)
@@ -158,14 +162,10 @@ All builds follow a consistent platform-specific directory structure:
 dist/
 ├── darwin-arm64/           # macOS ARM64 builds
 │   ├── hokuyo_hub         # Main executable
-│   ├── configs/            # Configuration files
-│   ├── webui/             # Web interface
-│   └── README.md          # Platform-specific docs
+│   └── configs/            # Configuration files
 └── linux-arm64/           # Linux ARM64 builds
     ├── hokuyo_hub         # Main executable (ARM64)
-    ├── configs/            # Configuration files
-    ├── webui/             # Web interface
-    └── README.md          # Platform-specific docs
+    └── configs/            # Configuration files
 ```
 
 ## 🔧 Dependency Management
@@ -192,38 +192,6 @@ cmake -DDEPS_MODE=bundled ..
 - **yaml-cpp** - Configuration parsing
 - **NNG** - High-performance messaging
 - **URG Library** - Hokuyo sensor communication
-
-## 🚦 Common Build Commands
-
-### Quick Commands
-```bash
-# macOS release build
-./scripts/build_with_presets.sh release --install
-
-# Raspberry Pi 5 build
-./scripts/cross_build.sh --preset rpi-release --clean --install
-
-# Docker build and extract
-./docker/build.sh build-all && ./scripts/extract_docker_artifacts.sh
-
-# Clean all builds
-./scripts/build_with_presets.sh clean
-```
-
-### Development Workflow
-```bash
-# 1. Configure for development
-cmake --preset mac-debug
-
-# 2. Build incrementally
-cmake --build build/darwin-arm64 --target hokuyo_hub
-
-# 3. Install to test
-cmake --build build/darwin-arm64 --target install
-
-# 4. Test the application
-cd dist/darwin-arm64 && ./hokuyo_hub
-```
 
 ## 📊 Build Performance
 
@@ -264,36 +232,10 @@ cmake -DDEPS_MODE=fetch --preset mac-release
 ./docker/build.sh build-all
 ```
 
-**[📖 Complete Troubleshooting Guide](docs/build/troubleshooting.md)**
+詳細: **[docs/build/troubleshooting.md](docs/build/troubleshooting.md)**
 
-## 📚 Detailed Documentation
+## 📚 関連ドキュメント
 
-- **[📖 macOS Build Guide](docs/build/macos.md)** - Complete macOS build instructions
-- **[📖 Raspberry Pi Build Guide](docs/build/raspberry-pi.md)** - Cross-compilation setup and build
-- **[📖 Docker Build Guide](docs/build/docker.md)** - Containerized builds and deployment
-- **[📖 Troubleshooting Guide](docs/build/troubleshooting.md)** - Common issues and solutions
-- **[📖 Advanced Configuration](docs/build/advanced.md)** - Custom builds and optimization
-
-## 🎯 Getting Started
-
-New to HokuyoHub? Start here:
-
-1. **[📖 Quick Start Guide](QUICK_START.md)** - Get up and running in minutes
-2. Choose your build method from the options above
-3. Follow the platform-specific documentation for detailed instructions
-
-## ⚡ Next Steps
-
-After building HokuyoHub:
-
-1. **Configure sensors** - Edit [`configs/default.yaml`](configs/default.yaml)
-2. **Start the application** - Run `./hokuyo_hub` from the dist directory
-3. **Open web interface** - Navigate to `http://localhost:8080`
-4. **Read the documentation** - Check the main [`README.md`](README.md) for usage guide
-
----
-
-**Build System Version:** 1.0  
-**Last Updated:** 2025-08-27  
-**Supported Platforms:** macOS ARM64, Raspberry Pi 5 (ARM64 Linux)  
-**Build Methods:** Native, Cross-compilation, Docker
+- **[QUICK_START.md](QUICK_START.md)** — 最速で動かす手順
+- **[README.md](README.md)** — 機能詳細、設定、REST API
+- **[docs/build/](docs/build/)** — プラットフォーム別ビルドガイド (macOS, Raspberry Pi, Docker, Advanced)
