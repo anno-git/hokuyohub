@@ -135,7 +135,7 @@ function createSinkAccordionItem(sink, index) {
   const encoding = sink.encoding || '';
   const rateLimit = sink.rate_limit || 0;
   const inBundle = sink.in_bundle || false;
-  const bundleFragmentSize = sink.bundle_fragment_size || 1024;
+  const bundleFragmentSize = sink.bundle_fragment_size ?? 1024;
   const sendClusters = sink.send_clusters !== undefined ? sink.send_clusters : true;
   const sendRaw = sink.send_raw || false;
   const clusterTopic = sink.cluster_topic || '/hokuyohub/cluster';

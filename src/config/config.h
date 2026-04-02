@@ -56,7 +56,7 @@ struct NngConfig {
 struct OscConfig {
   std::string url{"osc://0.0.0.0:7000/hokuyohub/cluster"};
   bool in_bundle{false}; // Use OSC bundle for multiple messages
-  uint64_t bundle_fragment_size{0}; // Fragment size for OSC bundle
+  uint64_t bundle_fragment_size{1200}; // Fragment size for OSC bundle (default: safe for typical MTU)
 };
 
 struct SinkConfig {

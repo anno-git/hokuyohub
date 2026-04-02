@@ -79,7 +79,7 @@ sinks:
   - type: osc
     url: 127.0.0.1:10000
     in_bundle: true
-    bundle_fragment_size: 0
+    bundle_fragment_size: 1024
     cluster_topic: /hokuyohub/cluster
     raw_topic: /hokuyohub/raw
     rate_limit: 120

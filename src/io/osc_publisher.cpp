@@ -247,8 +247,8 @@ void OscPublisher::publishClusters(uint64_t t_ns, uint32_t seq, const std::vecto
     std::vector<std::string> chunk;
     size_t current_bytes = 16; // "#bundle"+timetag = 8+8 = 16B
 
-    auto flush_chunk = [&](bool force) {
-        if (chunk.empty() && !force) return;
+    auto flush_chunk = [&]() {
+        if (chunk.empty()) return;
         std::string bundle = encodeOscBundle(chunk, t_ns);
         sendUdp(bundle);
         chunk.clear();
@@ -258,12 +258,12 @@ void OscPublisher::publishClusters(uint64_t t_ns, uint32_t seq, const std::vecto
     for (const auto& m : msgs) {
         size_t add_bytes = 4 + m.size(); // size field + message
         if (!chunk.empty() && SOFT_UDP_LIMIT > 0 && (current_bytes + add_bytes) > SOFT_UDP_LIMIT) {
-            flush_chunk(false);
+            flush_chunk();
         }
         chunk.push_back(m);
         current_bytes += add_bytes;
     }
-    flush_chunk(true);
+    flush_chunk();
   }
   else {
     for (const auto& m : msgs) {
@@ -354,8 +354,8 @@ void OscPublisher::publishRaw(uint64_t t_ns, uint32_t seq, const std::vector<flo
     std::vector<std::string> chunk;
     size_t current_bytes = 16; // "#bundle" + timetag
 
-    auto flush_chunk = [&](bool force) {
-      if (chunk.empty() && !force) return;
+    auto flush_chunk = [&]() {
+      if (chunk.empty()) return;
       std::string bundle = encodeOscBundle(chunk, t_ns);
       sendUdp(bundle);
       chunk.clear();
@@ -365,12 +365,12 @@ void OscPublisher::publishRaw(uint64_t t_ns, uint32_t seq, const std::vector<flo
     for (const auto& m : msgs) {
       size_t add_bytes = 4 + m.size();
       if (!chunk.empty() && SOFT_UDP_LIMIT > 0 && (current_bytes + add_bytes) > SOFT_UDP_LIMIT) {
-        flush_chunk(false);
+        flush_chunk();
       }
       chunk.push_back(m);
       current_bytes += add_bytes;
     }
-    flush_chunk(true);
+    flush_chunk();
   } else {
     for (const auto& m : msgs) {
       sendUdp(m);
