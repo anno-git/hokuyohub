@@ -295,7 +295,11 @@ int main(int argc, char** argv) {
   app.multithreaded();
   std::cout << "[DEBUG-CRITICAL] About to start async server..." << std::endl;
   auto future = app.run_async();
-  
+
+  // CrowCppがrun_async()でシグナルハンドラを上書きするため、再登録する
+  signal(SIGTERM, signal_handler);
+  signal(SIGINT, signal_handler);
+
   // Wait for shutdown signal
   while (!shutdown_requested) {
     std::this_thread::sleep_for(std::chrono::milliseconds(100));

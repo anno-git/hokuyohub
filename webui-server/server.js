@@ -23,6 +23,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 class BackendManager {
     constructor() {
         this.backendProcess = null;
+        this.backendPid = null;  // PIDを別途保持（exitハンドラ用）
         this.configPath = process.env.BACKEND_CONFIG || './configs/default.yaml';
         this.listenAddress = process.env.BACKEND_LISTEN || '0.0.0.0:8081';
 
@@ -71,9 +72,11 @@ class BackendManager {
         this.backendProcess.stderr.on('data', (data) => {
             process.stderr.write(`[backend] ${data}`);
         });
+        this.backendPid = this.backendProcess.pid;
         this.backendProcess.on('exit', (code, signal) => {
             console.log(`[backend] Process exited (code=${code}, signal=${signal})`);
             this.backendProcess = null;
+            this.backendPid = null;
         });
 
         console.log(`Backend started with PID: ${this.backendProcess.pid} (${this.backendPath})`);
@@ -82,8 +85,20 @@ class BackendManager {
 
     async stop() {
         if (this.backendProcess) {
-            this.backendProcess.kill('SIGTERM');
+            const proc = this.backendProcess;
             this.backendProcess = null;
+            proc.kill('SIGTERM');
+            // プロセスが終了するまで待機（最大5秒、タイムアウト時はSIGKILL）
+            await new Promise((resolve) => {
+                const timeout = setTimeout(() => {
+                    try { proc.kill('SIGKILL'); } catch (_) {}
+                    resolve();
+                }, 5000);
+                proc.on('exit', () => {
+                    clearTimeout(timeout);
+                    resolve();
+                });
+            });
         }
     }
 
@@ -288,19 +303,25 @@ app.get('*', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-// プロセス終了時のクリーンアップ
-process.on('SIGTERM', async () => {
-    console.log('SIGTERM received, shutting down gracefully');
+// プロセス終了時のクリーンアップ（exitハンドラで確実に停止するため、ここではexit()を呼ぶだけ）
+process.on('SIGTERM', () => {
+    console.log('SIGTERM received, shutting down');
     healthChecker.stop();
-    await backendManager.stop();
     process.exit(0);
 });
 
-process.on('SIGINT', async () => {
-    console.log('SIGINT received, shutting down gracefully');
+process.on('SIGINT', () => {
+    console.log('SIGINT received, shutting down');
     healthChecker.stop();
-    await backendManager.stop();
     process.exit(0);
+});
+
+// Nodeプロセス終了時にバックエンドを確実に停止（同期処理のみ）
+process.on('exit', () => {
+    if (backendManager.backendPid) {
+        console.log(`[cleanup] Killing backend PID ${backendManager.backendPid}`);
+        try { process.kill(backendManager.backendPid, 'SIGKILL'); } catch (_) {}
+    }
 });
 
 app.listen(PORT, async () => {
