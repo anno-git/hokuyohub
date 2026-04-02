@@ -8,13 +8,13 @@ const net = require('net');
 
 const app = express();
 const PORT = 8080;
-const BACKEND_URL = 'http://localhost:8081';
+const BACKEND_URL = 'http://127.0.0.1:8081';
 
 // CORS設定
 app.use(cors());
 
-// JSON parsing middleware
-app.use(express.json());
+// JSON parsing middleware（プロキシ対象外のルートのみ）
+app.use('/api/v1/backend', express.json());
 
 // 静的ファイル配信
 app.use(express.static(path.join(__dirname, 'public')));
@@ -23,9 +23,25 @@ app.use(express.static(path.join(__dirname, 'public')));
 class BackendManager {
     constructor() {
         this.backendProcess = null;
-        this.backendPath = '../build/darwin-arm64/hokuyo_hub';
-        this.configPath = '../configs/default.yaml';
-        this.pidFile = '../backend.pid';
+        this.configPath = process.env.BACKEND_CONFIG || './configs/default.yaml';
+        this.listenAddress = process.env.BACKEND_LISTEN || '0.0.0.0:8081';
+
+        // プラットフォームに応じたバイナリパスを自動選択
+        this.backendPath = process.env.BACKEND_PATH || this._detectBackendPath();
+    }
+
+    _detectBackendPath() {
+        const candidates = [
+            `../dist/${process.platform === 'linux' ? 'linux' : 'darwin'}-${process.arch === 'arm64' ? 'arm64' : 'x64'}/hokuyo_hub`,
+            '../dist/darwin-arm64/hokuyo_hub',
+            '../dist/linux-arm64/hokuyo_hub',
+            '../build/darwin-arm64/hokuyo_hub',
+        ];
+        for (const p of candidates) {
+            const abs = path.resolve(__dirname, p);
+            if (fs.existsSync(abs)) return p;
+        }
+        return candidates[0];
     }
 
     async start() {
@@ -33,20 +49,34 @@ class BackendManager {
             await this.stop();
         }
 
+        const absPath = path.resolve(__dirname, this.backendPath);
+        if (!fs.existsSync(absPath)) {
+            throw new Error(`Backend binary not found: ${absPath}`);
+        }
+
         const args = [
-            '--listen', '0.0.0.0:8081',
+            '--listen', this.listenAddress,
             '--config', this.configPath
         ];
 
-        this.backendProcess = spawn(this.backendPath, args, {
-            detached: true,
-            stdio: 'pipe'
+        this.backendProcess = spawn(absPath, args, {
+            cwd: path.resolve(__dirname, '..'),
+            stdio: ['ignore', 'pipe', 'pipe']
         });
 
-        // PIDファイル保存
-        fs.writeFileSync(this.pidFile, this.backendProcess.pid.toString());
-        
-        console.log(`Backend started with PID: ${this.backendProcess.pid}`);
+        // バックエンドの出力をフォワード
+        this.backendProcess.stdout.on('data', (data) => {
+            process.stdout.write(`[backend] ${data}`);
+        });
+        this.backendProcess.stderr.on('data', (data) => {
+            process.stderr.write(`[backend] ${data}`);
+        });
+        this.backendProcess.on('exit', (code, signal) => {
+            console.log(`[backend] Process exited (code=${code}, signal=${signal})`);
+            this.backendProcess = null;
+        });
+
+        console.log(`Backend started with PID: ${this.backendProcess.pid} (${this.backendPath})`);
         return this.backendProcess.pid;
     }
 
@@ -54,19 +84,6 @@ class BackendManager {
         if (this.backendProcess) {
             this.backendProcess.kill('SIGTERM');
             this.backendProcess = null;
-        }
-
-        // PIDファイルからも停止
-        if (fs.existsSync(this.pidFile)) {
-            const pid = fs.readFileSync(this.pidFile, 'utf8').trim();
-            try {
-                process.kill(parseInt(pid), 'SIGTERM');
-                console.log(`Stopped backend process with PID: ${pid}`);
-            } catch (error) {
-                // プロセスが既に停止している場合は無視
-                console.log(`Process ${pid} already stopped`);
-            }
-            fs.unlinkSync(this.pidFile);
         }
     }
 
@@ -90,7 +107,7 @@ class BackendManager {
                     });
                 }, 2000);
 
-                socket.connect(8081, 'localhost', () => {
+                socket.connect(8081, '127.0.0.1', () => {
                     clearTimeout(timeout);
                     socket.destroy();
                     resolve({
@@ -286,10 +303,23 @@ process.on('SIGINT', async () => {
     process.exit(0);
 });
 
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
     console.log(`WebUI Server running on http://localhost:${PORT}`);
     console.log(`Backend API proxy target: ${BACKEND_URL}`);
-    
+
+    // バックエンド自動起動
+    try {
+        const status = await backendManager.getStatus();
+        if (status.status === 'online') {
+            console.log('Backend already running, skipping auto-start');
+        } else {
+            console.log('Starting backend automatically...');
+            await backendManager.start();
+        }
+    } catch (error) {
+        console.error('Failed to auto-start backend:', error.message);
+    }
+
     // Start health checker
     healthChecker.start();
 });

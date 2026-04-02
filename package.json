@@ -1,0 +1,9 @@
+{
+  "name": "hokuyo-hub",
+  "version": "2.0.0",
+  "description": "HokuyoHub - LiDAR sensor data processing and visualization platform",
+  "private": true,
+  "scripts": {
+    "start": "node webui-server/server.js"
+  }
+}
