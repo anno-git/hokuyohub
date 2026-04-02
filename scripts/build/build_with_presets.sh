@@ -35,6 +35,31 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
+# Platform detection
+detect_platform() {
+    local os="$(uname -s)"
+    local arch="$(uname -m)"
+    if [[ "$os" == "Darwin" ]]; then
+        echo "mac"
+    elif [[ "$os" == "Linux" && "$arch" == "aarch64" ]]; then
+        echo "rpi"
+    else
+        echo "mac"  # fallback
+    fi
+}
+
+PLATFORM="$(detect_platform)"
+
+if [[ "$PLATFORM" == "rpi" ]]; then
+    PLATFORM_PREFIX="rpi"
+    BUILD_DIR="build/linux-arm64"
+    DIST_DIR="dist/linux-arm64"
+else
+    PLATFORM_PREFIX="mac"
+    BUILD_DIR="build/darwin-arm64"
+    DIST_DIR="dist/darwin-arm64"
+fi
+
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -166,8 +191,8 @@ clean_build() {
     log_info "Cleaning build directories..."
     
     local dirs_to_clean=(
-        "build/darwin-arm64"
-        "dist/darwin-arm64"
+        "$BUILD_DIR"
+        "$DIST_DIR"
         "third_party/urg_library"
     )
     
@@ -189,16 +214,16 @@ build_with_preset() {
     
     case "$preset_name" in
         debug)
-            configure_preset="mac-debug"
-            build_preset="build-mac-debug"
+            configure_preset="${PLATFORM_PREFIX}-debug"
+            build_preset="build-${PLATFORM_PREFIX}-debug"
             ;;
         release)
-            configure_preset="mac-release"
-            build_preset="build-mac-release"
+            configure_preset="${PLATFORM_PREFIX}-release"
+            build_preset="build-${PLATFORM_PREFIX}-release"
             ;;
         relwithdeb)
-            configure_preset="mac-relwithdebinfo"
-            build_preset="build-mac-relwithdebinfo"
+            configure_preset="${PLATFORM_PREFIX}-relwithdebinfo"
+            build_preset="build-${PLATFORM_PREFIX}-relwithdebinfo"
             ;;
         *)
             log_error "Unknown preset: $preset_name"
@@ -230,17 +255,17 @@ build_with_preset() {
     if [[ "$RUN_INSTALL" == "true" ]]; then
         log_info "Installing..."
         if [[ "$VERBOSE" == "true" ]]; then
-            cmake --install "build/darwin-arm64"
+            cmake --install "$BUILD_DIR"
         else
-            cmake --install "build/darwin-arm64" >/dev/null 2>&1
+            cmake --install "$BUILD_DIR" >/dev/null 2>&1
         fi
         log_success "Install completed"
     fi
-    
+
     # Test if requested
     if [[ "$RUN_TEST" == "true" ]]; then
         log_info "Running tests..."
-        local test_preset="test-mac-${preset_name}"
+        local test_preset="test-${PLATFORM_PREFIX}-${preset_name}"
         if [[ "$VERBOSE" == "true" ]]; then
             ctest --preset "$test_preset" 2>/dev/null || log_warning "Tests not available or failed"
         else
@@ -253,12 +278,12 @@ build_with_preset() {
         log_info "Creating distribution package..."
         
         # Create dist directory structure
-        local dist_dir="$PROJECT_ROOT/dist/darwin-arm64"
+        local dist_dir="$PROJECT_ROOT/$DIST_DIR"
         mkdir -p "$dist_dir"/{bin,webui-server,configs}
-        
+
         # Copy backend binary
-        if [[ -f "$PROJECT_ROOT/build/darwin-arm64/hokuyo_hub" ]]; then
-            cp "$PROJECT_ROOT/build/darwin-arm64/hokuyo_hub" "$dist_dir/bin/"
+        if [[ -f "$PROJECT_ROOT/$BUILD_DIR/hokuyo_hub" ]]; then
+            cp "$PROJECT_ROOT/$BUILD_DIR/hokuyo_hub" "$dist_dir/bin/"
             log_success "Backend binary packaged to: $dist_dir/bin/"
         else
             log_error "Backend binary not found for packaging"
@@ -406,8 +431,9 @@ service_dev() {
 
 # Main execution
 main() {
-    echo "=== HokuyoHub CMake Presets Build Script - Phase 1 ==="
+    echo "=== HokuyoHub CMake Presets Build Script ==="
     echo "Project: $PROJECT_ROOT"
+    echo "Platform: $PLATFORM ($PLATFORM_PREFIX)"
     echo "Command: $PRESET"
     echo
     
