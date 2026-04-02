@@ -8,8 +8,14 @@ This guide provides comprehensive instructions for building Hokuyo Hub across di
 
 ### For Development (macOS)
 ```bash
-# Native macOS build for development
-./scripts/build/build_with_presets.sh
+# Build via npm
+npm run build
+
+# Or run the build script directly
+./scripts/build/build_with_presets.sh release --install
+
+# Start (backend is auto-launched, WebUI at http://localhost:8080)
+npm start
 ```
 
 ### For Production (Raspberry Pi 5)
@@ -35,10 +41,14 @@ This guide provides comprehensive instructions for building Hokuyo Hub across di
 
 **Build Command**:
 ```bash
-./scripts/build/build_with_presets.sh
+# Via npm
+npm run build
+
+# Or directly
+./scripts/build/build_with_presets.sh release --install
 ```
 
-**Output**: `dist/darwin-arm64/Release/hokuyo_hub`
+**Output**: `dist/darwin-arm64/hokuyo_hub`
 
 ### 2. Docker Cross-Compilation Build
 
@@ -141,58 +151,7 @@ libyaml-cpp0.7 libnng1 libssl3 libjsoncpp25 libbrotli1 libuuid1
 
 ## Troubleshooting
 
-### Common Build Issues
-
-1. **CMake version too old**
-   ```bash
-   # Update CMake via Homebrew (macOS)
-   brew upgrade cmake
-   ```
-
-2. **Docker build fails with memory issues**
-   ```bash
-   # Increase Docker memory allocation to 4GB+
-   # Or use build stages individually
-   ```
-
-3. **URG library linking errors**
-   ```bash
-   # URG library is automatically rebuilt for target platform
-   # Check Docker build logs for compilation errors
-   ```
-
-4. **Missing Homebrew dependencies (macOS)**
-   ```bash
-   # Install missing packages
-   brew install yaml-cpp nng jsoncpp
-   ```
-
-### Build Debugging
-
-For detailed debugging information, see:
-- [`DOCKER_BUILD_DEBUG_REPORT.md`](DOCKER_BUILD_DEBUG_REPORT.md) - Comprehensive Docker build debugging
-- Build logs in `build/` directory
-- Docker build logs via `docker logs`
-
-### Verification
-
-**macOS Build**:
-```bash
-# Test the binary
-./dist/darwin-arm64/Release/hokuyo_hub --help
-
-# Verify dependencies
-otool -L ./dist/darwin-arm64/Release/hokuyo_hub
-```
-
-**ARM64 Linux Build**:
-```bash
-# Verify binary architecture
-file ./dist/linux-arm64/hokuyo_hub
-
-# Check checksums
-cat ./dist/linux-arm64/CHECKSUMS.txt
-```
+For build and deployment troubleshooting, see [トラブルシューティング](トラブルシューティング.md) and [`DOCKER_BUILD_DEBUG_REPORT.md`](DOCKER_BUILD_DEBUG_REPORT.md).
 
 ## Advanced Usage
 
@@ -251,34 +210,8 @@ docker buildx build --build-arg CMAKE_BUILD_TYPE=Debug --platform linux/arm64 -f
 docker run -p 8080:8080 -p 8081:8081 hokuyo-hub:latest
 ```
 
-## Performance
-
-### Build Times (Improved with CrowCpp Migration)
-- **macOS Native**: ~1-3 minutes (previously ~2-5 with the previous web framework)
-- **Docker Cross-compilation**: ~3-6 minutes (with cache, previously ~5-10)
-- **Docker Clean Build**: ~8-12 minutes (previously ~15-20)
-
-**Performance Improvements:**
-- CrowCpp header-only design eliminates framework compilation
-- Reduced dependency chain complexity
-- Faster CI/CD pipeline execution
-
-### Artifact Sizes
-- **macOS Binary**: ~3MB
-- **ARM64 Binary**: ~3MB  
-- **Total Distribution**: ~3.2MB
-- **Docker Runtime Container**: 208MB
-
-## Support
-
-For build issues:
-1. Check this guide and troubleshooting section
-2. Review the debugging report for Docker-specific issues
-3. Check project documentation in `docs/`
-4. Verify system requirements and dependencies
-
 ## Related Documentation
 
+- [ビルドガイド（日本語）](ビルドガイド.md) - Detailed build guide with performance data
 - [`DOCKER_BUILD_DEBUG_REPORT.md`](DOCKER_BUILD_DEBUG_REPORT.md) - Docker build debugging
 - [`../scripts/README.md`](../scripts/README.md) - Scripts documentation
-- [`../legacy/README.md`](../legacy/README.md) - Legacy documentation archive

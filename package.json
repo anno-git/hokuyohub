@@ -4,6 +4,7 @@
   "description": "HokuyoHub - LiDAR sensor data processing and visualization platform",
   "private": true,
   "scripts": {
-    "start": "node webui-server/server.js"
+    "start": "node webui-server/server.js",
+	"build": "./scripts/build/build_with_presets.sh release --install"
   }
 }

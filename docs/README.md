@@ -36,75 +36,17 @@ HokuyoHubは、北陽電機製LiDARセンサー用の高性能C++処理アプリ
 
 ## 🎯 クイックスタート
 
-### 💻 macOS での開発開始
-
 ```bash
-# 1. 前提条件
-xcode-select --install
-brew install cmake yaml-cpp
+# ビルド
+npm run build
 
-# 2. プロジェクトクローン
-git clone --recursive https://github.com/your-org/HokuyoHub.git
-cd HokuyoHub
-
-# 3. 高速ビルド（CrowCpp）
-cmake --preset mac-release
-cmake --build build/darwin-arm64
-cmake --install build/darwin-arm64
-
-# 4. 実行
-cd dist/darwin-arm64
-./hokuyo_hub --config ../../configs/default.yaml
+# 起動（バックエンドも自動起動されます）
+npm start
 ```
 
 **WebUI アクセス:** http://localhost:8080
 
-### 🐳 Docker での即座実行
-
-```bash
-# 事前ビルド済みイメージを使用
-docker run -d \
-  --name hokuyo-hub \
-  -p 8080:8080 \
-  -v $(pwd)/configs:/etc/hokuyo \
-  your-registry/hokuyo-hub:latest
-```
-
-### 🏗️ クロスコンパイル（Raspberry Pi 5）
-
-```bash
-# macOS から ARM64 Linux へ
-./scripts/setup_cross_compile.sh
-cmake --preset rpi-release
-cmake --build build/linux-arm64
-```
-
-## 📖 主要な改善点
-
-### 🔄 旧システムからの移行
-
-| 項目 | 旧システム | 新システム (CrowCpp) | 改善 |
-|------|------------|---------------------|------|
-| **ビルド時間** | 25-30分 | 2-3分 | 90%短縮 |
-| **バイナリサイズ** | 45-50MB | 12-15MB | 70%削減 |
-| **起動時間** | 8-10秒 | 2-3秒 | 70%短縮 |
-| **メモリ使用量** | 180-220MB | 60-80MB | 65%削減 |
-| **開発体験** | 複雑 | シンプル | 大幅改善 |
-
-### 🛠️ 技術スタック
-
-**コア技術:**
-- **C++20**: モダンC++機能とパフォーマンス
-- **CrowCpp**: 軽量HTTPライブラリ（ヘッダーオンリー）
-- **CMake 3.18+**: プリセット対応ビルドシステム
-- **yaml-cpp**: 設定ファイル処理
-- **NNG**: 高性能メッセージング（オプション）
-
-**サポートプラットフォーム:**
-- ✅ **macOS** (Apple Silicon & Intel)
-- ✅ **Linux ARM64** (Raspberry Pi 5)
-- ✅ **Docker** (マルチプラットフォーム)
-- ✅ **クロスコンパイル** (macOS → Linux)
+詳細なビルド手順（前提条件、CMakeプリセット、Docker、クロスコンパイル等）は **[ビルドガイド](build/ビルドガイド.md)** を参照してください。
 
 ## 🎯 使用目的別ガイド
 
