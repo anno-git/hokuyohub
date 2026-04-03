@@ -1,5 +1,6 @@
 #include "filter_manager.h"
 #include <iostream>
+#include <shared_mutex>
 
 FilterManager::FilterManager(PrefilterConfig& prefilter_config, PostfilterConfig& postfilter_config)
     : prefilter_config_(prefilter_config), postfilter_config_(postfilter_config) {
@@ -8,7 +9,7 @@ FilterManager::FilterManager(PrefilterConfig& prefilter_config, PostfilterConfig
 }
 
 bool FilterManager::updatePrefilterConfig(const Json::Value& config) {
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::unique_lock lock(mutex_);
     try {
         PrefilterConfig new_config = jsonToPrefilterConfig(config);
         prefilter_config_ = new_config;
@@ -23,7 +24,7 @@ bool FilterManager::updatePrefilterConfig(const Json::Value& config) {
 }
 
 bool FilterManager::updatePostfilterConfig(const Json::Value& config) {
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::unique_lock lock(mutex_);
     try {
         PostfilterConfig new_config = jsonToPostfilterConfig(config);
         postfilter_config_ = new_config;
@@ -38,7 +39,7 @@ bool FilterManager::updatePostfilterConfig(const Json::Value& config) {
 }
 
 bool FilterManager::updateFilterConfig(const Json::Value& config) {
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::unique_lock lock(mutex_);
     try {
         bool success = true;
         
@@ -65,7 +66,7 @@ bool FilterManager::updateFilterConfig(const Json::Value& config) {
 }
 
 void FilterManager::reloadFromAppConfig() {
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::unique_lock lock(mutex_);
     try {
         // Recreate filters with new configurations
         recreatePrefilter();
@@ -78,32 +79,33 @@ void FilterManager::reloadFromAppConfig() {
 }
 
 Json::Value FilterManager::getPrefilterConfigAsJson() const {
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::shared_lock lock(mutex_);
     return prefilterConfigToJson(prefilter_config_);
 }
 
 Json::Value FilterManager::getPostfilterConfigAsJson() const {
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::shared_lock lock(mutex_);
     return postfilterConfigToJson(postfilter_config_);
 }
 
 Json::Value FilterManager::getFilterConfigAsJson() const {
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::shared_lock lock(mutex_);
     Json::Value result;
     result["prefilter"] = prefilterConfigToJson(prefilter_config_);
     result["postfilter"] = postfilterConfigToJson(postfilter_config_);
     return result;
 }
 
-Prefilter::FilterResult FilterManager::applyPrefilter(const std::vector<float>& xy, const std::vector<uint8_t>& sid) {
-    std::lock_guard<std::mutex> lock(mutex_);
+Prefilter::FilterResult FilterManager::applyPrefilter(const std::vector<float>& xy, const std::vector<uint8_t>& sid, const std::vector<float>& dist) {
+    std::shared_lock lock(mutex_);
     if (prefilter_ && prefilter_config_.enabled) {
-        return prefilter_->apply(xy, sid);
+        return prefilter_->apply(xy, sid, dist);
     } else {
         // Return unfiltered data
         Prefilter::FilterResult result;
         result.xy = xy;
         result.sid = sid;
+        result.dist = dist;
         result.stats.input_points = xy.size() / 2;
         result.stats.output_points = xy.size() / 2;
         return result;
@@ -113,7 +115,7 @@ Prefilter::FilterResult FilterManager::applyPrefilter(const std::vector<float>& 
 Postfilter::FilterResult FilterManager::applyPostfilter(const std::vector<Cluster>& clusters,
                                                        const std::vector<float>& xy,
                                                        const std::vector<uint8_t>& sid) {
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::shared_lock lock(mutex_);
     if (postfilter_ && postfilter_config_.enabled) {
         return postfilter_->apply(clusters, xy, sid);
     } else {

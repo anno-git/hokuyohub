@@ -193,69 +193,68 @@ int main(int argc, char** argv) {
   sensors.start([&](const ScanFrame& f){
     // Push raw points to WebUI (unfiltered)
     ws->pushRawLite(f.t_ns, f.seq, f.xy, f.sid);
-    
+
     // Apply prefilter through FilterManager
-    std::vector<float> filtered_xy = f.xy;
-    std::vector<uint8_t> filtered_sid = f.sid;
-    
+    // Use pointers to avoid copies — point at original data by default
+    const std::vector<float>* p_xy = &f.xy;
+    const std::vector<uint8_t>* p_sid = &f.sid;
+    const std::vector<float>* p_dist = &f.dist;
+
+    Prefilter::FilterResult filter_result;
     if (filterManager.isPrefilterEnabled()) {
       try {
-        auto filter_result = filterManager.applyPrefilter(f.xy, f.sid);
-        filtered_xy = filter_result.xy;
-        filtered_sid = filter_result.sid;
-        
-        // Log filtering statistics
-        const auto& stats = filter_result.stats;
+        filter_result = filterManager.applyPrefilter(f.xy, f.sid, f.dist);
+        p_xy = &filter_result.xy;
+        p_sid = &filter_result.sid;
+        p_dist = &filter_result.dist;
       } catch (const std::exception& e) {
         std::cerr << "[Prefilter] Error in frame seq=" << f.seq << ": " << e.what() << std::endl;
-        // Continue with unfiltered data
       }
     }
     
     // Apply ROI world_mask filtering after prefilter and before DBSCAN
+    std::vector<float> roi_xy;
+    std::vector<uint8_t> roi_sid;
+    std::vector<float> roi_dist;
     if (!appcfg.world_mask.empty()) {
-      std::vector<float> roi_filtered_xy;
-      std::vector<uint8_t> roi_filtered_sid;
-      
-      roi_filtered_xy.reserve(filtered_xy.size());
-      roi_filtered_sid.reserve(filtered_sid.size());
-      
-      for (size_t i = 0; i < filtered_xy.size(); i += 2) {
-        if (i + 1 < filtered_xy.size()) {
-          core::Point2D point(filtered_xy[i], filtered_xy[i + 1]);
+      roi_xy.reserve(p_xy->size());
+      roi_sid.reserve(p_sid->size());
+      roi_dist.reserve(p_dist->size());
+
+      for (size_t i = 0; i < p_xy->size(); i += 2) {
+        if (i + 1 < p_xy->size()) {
+          core::Point2D point((*p_xy)[i], (*p_xy)[i + 1]);
           if (appcfg.world_mask.allows(point)) {
-            roi_filtered_xy.push_back(filtered_xy[i]);
-            roi_filtered_xy.push_back(filtered_xy[i + 1]);
-            roi_filtered_sid.push_back(filtered_sid[i / 2]);
+            roi_xy.push_back((*p_xy)[i]);
+            roi_xy.push_back((*p_xy)[i + 1]);
+            roi_sid.push_back((*p_sid)[i / 2]);
+            roi_dist.push_back((*p_dist)[i / 2]);
           }
         }
       }
-      
-      filtered_xy = std::move(roi_filtered_xy);
-      filtered_sid = std::move(roi_filtered_sid);
+
+      p_xy = &roi_xy;
+      p_sid = &roi_sid;
+      p_dist = &roi_dist;
     }
-    
+
     // Push filtered points to WebUI
-    ws->pushFilteredLite(f.t_ns, f.seq, filtered_xy, filtered_sid);
-    
+    ws->pushFilteredLite(f.t_ns, f.seq, *p_xy, *p_sid);
+
     // DBSCAN clustering on filtered frame
     std::vector<Cluster> raw_clusters;
     try {
-      raw_clusters = dbscan.run(filtered_xy, filtered_sid, f.t_ns, f.seq);
+      raw_clusters = dbscan.run(*p_xy, *p_sid, *p_dist, f.t_ns, f.seq);
     } catch (const std::exception& e) {
       std::cerr << "[DBSCAN] Error in frame seq=" << f.seq << ": " << e.what() << std::endl;
-      // Continue with empty items (UI tolerates items.length=0)
     }
-    
+
     // Apply postfilter to clusters through FilterManager
-    std::vector<Cluster> final_clusters = raw_clusters;
+    std::vector<Cluster> final_clusters = std::move(raw_clusters);
     if (filterManager.isPostfilterEnabled()) {
       try {
-        auto postfilter_result = filterManager.applyPostfilter(raw_clusters, filtered_xy, filtered_sid);
-        final_clusters = postfilter_result.clusters;
-        
-        // Log postfilter statistics
-        const auto& stats = postfilter_result.stats;
+        auto postfilter_result = filterManager.applyPostfilter(final_clusters, *p_xy, *p_sid);
+        final_clusters = std::move(postfilter_result.clusters);
       } catch (const std::exception& e) {
         std::cerr << "[Postfilter] Error in frame seq=" << f.seq << ": " << e.what() << std::endl;
         // Continue with unfiltered clusters

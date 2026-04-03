@@ -34,7 +34,7 @@ struct CellHash {
     }
 };
 
-std::vector<Cluster> DBSCAN2D::run(std::span<const float> xy, std::span<const uint8_t> sid, uint64_t t_ns, uint32_t seq) {
+std::vector<Cluster> DBSCAN2D::run(std::span<const float> xy, std::span<const uint8_t> sid, std::span<const float> dist, uint64_t t_ns, uint32_t seq) {
 #ifdef DBSCAN_PROFILE
     auto start_time = std::chrono::high_resolution_clock::now();
 #endif
@@ -53,15 +53,12 @@ std::vector<Cluster> DBSCAN2D::run(std::span<const float> xy, std::span<const ui
     std::vector<float> search_radii(N);
     
     for (size_t i = 0; i < N; ++i) {
-        const float x = xy[2*i];
-        const float y = xy[2*i + 1];
-        // FIXME: センサーがtranslateしている場合、このrの値は正しくない
-        const float r = std::hypot(x, y);
+        const float r = (i < dist.size()) ? dist[i] : std::hypot(xy[2*i], xy[2*i + 1]);
         const uint8_t sensor_id = sid[i];
         
         // Get sensor model (use default if not found)
-        const auto& model = sensor_models_.count(sensor_id) ?
-            sensor_models_[sensor_id] : sensor_models_[0];
+        auto model_it = sensor_models_.find(sensor_id);
+        const auto& model = (model_it != sensor_models_.end()) ? model_it->second : sensor_models_[0];
         
         // Calculate local scale: s_i^2 = σ_r(r)^2 + (k_effective * r * Δθ)^2
         // k_effective = (1/eps_norm) * k_scale for theoretical consistency

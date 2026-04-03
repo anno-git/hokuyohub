@@ -29,8 +29,9 @@
 
 struct ScanFrame {
   uint64_t t_ns; uint32_t seq;
-  std::vector<float> xy;           // [x0,y0,x1,y1,...]
+  std::vector<float> xy;           // [x0,y0,x1,y1,...] ワールド座標
   std::vector<uint8_t> sid;        // 点群処理用の数値センサーID (0-255)
+  std::vector<float> dist;         // センサーからの距離 [m]（sidと同サイズ）
 };
 
 class SensorManager {

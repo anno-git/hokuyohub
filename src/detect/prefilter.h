@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <string>
 #include <cmath>
+#include <unordered_map>
 #include "config/config.h"
 
 // Use vector instead of span for broader C++ compatibility
@@ -57,13 +58,24 @@ private:
     void applyIntensityFilter(std::vector<FilterPoint>& points) const;
     void applyIsolationRemovalFilter(std::vector<FilterPoint>& points) const;
     
+    // Spatial grid for O(N) neighbor queries
+    struct SpatialGrid {
+        float cell_size;
+        std::unordered_map<int64_t, std::vector<size_t>> cells;
+
+        void build(const std::vector<FilterPoint>& points, float radius);
+        int64_t cellKey(int ix, int iy) const { return (static_cast<int64_t>(ix) << 32) | static_cast<uint32_t>(iy); }
+        size_t countNeighbors(const std::vector<FilterPoint>& points, size_t point_idx, float radius_sq) const;
+    };
+    mutable SpatialGrid grid_;
+
     // Helper methods
-    std::vector<size_t> findNeighbors(const std::vector<FilterPoint>& points, 
-                                      size_t point_idx, float radius) const;
-    float calculateAngularDerivative(const std::vector<FilterPoint>& points, 
-                                     size_t idx, int window_size) const;
-    float calculateMovingMedian(const std::vector<FilterPoint>& points, 
-                                size_t center_idx, int window_size) const;
+    float calculateAngularDerivative(const std::vector<FilterPoint>& points,
+                                     const std::vector<size_t>& sorted_indices,
+                                     size_t j) const;
+    float calculateMovingMedian(const std::vector<FilterPoint>& points,
+                                const std::vector<size_t>& sorted_indices,
+                                size_t j, int window_size) const;
     
 public:
     explicit Prefilter(const PrefilterConfig& config = PrefilterConfig{});
@@ -74,11 +86,13 @@ public:
     struct FilterResult {
         std::vector<float> xy;       // Filtered [x0,y0,x1,y1,...]
         std::vector<uint8_t> sid;    // Corresponding sensor IDs
+        std::vector<float> dist;     // Sensor distances [m]
         PrefilterStats stats;        // Processing statistics
     };
-    
+
     FilterResult apply(const std::vector<float>& xy_in,
                       const std::vector<uint8_t>& sid_in,
+                      const std::vector<float>& dist_in,
                       const std::vector<float>& intensities = {}) const;
     
     // Configuration management

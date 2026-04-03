@@ -8,7 +8,6 @@
 #include <iostream>
 #include <numeric>
 #include <unordered_map>
-#include <unordered_set>
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -16,187 +15,240 @@
 
 Prefilter::Prefilter(const PrefilterConfig& config) : config_(config) {}
 
-Prefilter::FilterResult Prefilter::apply(const std::vector<float>& xy_in, 
+// ── SpatialGrid ─────────────────────────────────────────────
+
+void Prefilter::SpatialGrid::build(const std::vector<FilterPoint>& points, float radius) {
+    cell_size = radius;
+    cells.clear();
+    cells.reserve(points.size() / 3 + 16);
+    for (size_t i = 0; i < points.size(); ++i) {
+        if (!points[i].valid) continue;
+        const int ix = static_cast<int>(std::floor(points[i].x / cell_size));
+        const int iy = static_cast<int>(std::floor(points[i].y / cell_size));
+        cells[cellKey(ix, iy)].push_back(i);
+    }
+}
+
+size_t Prefilter::SpatialGrid::countNeighbors(const std::vector<FilterPoint>& points,
+                                               size_t point_idx, float radius_sq) const {
+    const auto& pt = points[point_idx];
+    const int ix = static_cast<int>(std::floor(pt.x / cell_size));
+    const int iy = static_cast<int>(std::floor(pt.y / cell_size));
+    size_t count = 0;
+    for (int dx = -1; dx <= 1; ++dx) {
+        for (int dy = -1; dy <= 1; ++dy) {
+            auto it = cells.find(cellKey(ix + dx, iy + dy));
+            if (it == cells.end()) continue;
+            for (size_t j : it->second) {
+                if (!points[j].valid) continue;
+                const float ddx = points[j].x - pt.x;
+                const float ddy = points[j].y - pt.y;
+                if (ddx * ddx + ddy * ddy <= radius_sq) {
+                    ++count;
+                }
+            }
+        }
+    }
+    return count; // includes self
+}
+
+// ── apply ───────────────────────────────────────────────────
+
+Prefilter::FilterResult Prefilter::apply(const std::vector<float>& xy_in,
                                         const std::vector<uint8_t>& sid_in,
+                                        const std::vector<float>& dist_in,
                                         const std::vector<float>& intensities) const {
     auto start_time = std::chrono::high_resolution_clock::now();
-    
+
     stats_.reset();
     stats_.input_points = xy_in.size() / 2;
-    
-    if (!config_.enabled || xy_in.empty() || xy_in.size() % 2 != 0 || 
+
+    if (!config_.enabled || xy_in.empty() || xy_in.size() % 2 != 0 ||
         sid_in.size() != xy_in.size() / 2) {
         FilterResult result;
         result.xy = xy_in;
         result.sid = sid_in;
+        result.dist = dist_in;
         result.stats = stats_;
         return result;
     }
-    
+
     const size_t num_points = xy_in.size() / 2;
-    
+
+    // Check if angle is needed (only for spike/outlier removal)
+    const bool need_angle = config_.spike_removal.enabled || config_.outlier_removal.enabled;
+
     // Convert input to internal format
     std::vector<FilterPoint> points;
     points.reserve(num_points);
-    
+
     for (size_t i = 0; i < num_points; ++i) {
         FilterPoint pt;
         pt.x = xy_in[2 * i];
         pt.y = xy_in[2 * i + 1];
         pt.sid = sid_in[i];
-        pt.range = std::sqrt(pt.x * pt.x + pt.y * pt.y);
-        pt.angle = std::atan2(pt.y, pt.x);
+        pt.range = (i < dist_in.size()) ? dist_in[i] : std::sqrt(pt.x * pt.x + pt.y * pt.y);
+        pt.angle = need_angle ? std::atan2(pt.y, pt.x) : 0.0f;
         pt.intensity = (i < intensities.size()) ? intensities[i] : 0.0f;
         pt.valid = true;
         pt.original_index = i;
         points.push_back(pt);
     }
-    
+
     // Apply filters in sequence
     if (config_.neighborhood.enabled) {
         applyNeighborhoodFilter(points);
     }
-    
+
     if (config_.spike_removal.enabled) {
         applySpikeRemovalFilter(points);
     }
-    
+
     if (config_.outlier_removal.enabled) {
         applyOutlierRemovalFilter(points);
     }
-    
+
     if (config_.intensity_filter.enabled) {
         applyIntensityFilter(points);
     }
-    
+
     if (config_.isolation_removal.enabled) {
         applyIsolationRemovalFilter(points);
     }
-    
+
     // Build output
     FilterResult result;
     result.xy.reserve(points.size() * 2);
     result.sid.reserve(points.size());
-    
+    result.dist.reserve(points.size());
+
     for (const auto& pt : points) {
         if (pt.valid) {
             result.xy.push_back(pt.x);
             result.xy.push_back(pt.y);
             result.sid.push_back(pt.sid);
+            result.dist.push_back(pt.range);
         }
     }
-    
+
     stats_.output_points = result.xy.size() / 2;
-    
+
     auto end_time = std::chrono::high_resolution_clock::now();
     stats_.processing_time_us = std::chrono::duration<double, std::micro>(end_time - start_time).count();
-    
+
     result.stats = stats_;
     return result;
 }
 
+// ── Neighborhood filter (grid-based) ────────────────────────
+
 void Prefilter::applyNeighborhoodFilter(std::vector<FilterPoint>& points) const {
     const auto& cfg = config_.neighborhood;
+
+    // Use max possible radius for grid cell size
+    float max_range = 0.0f;
+    for (const auto& pt : points) {
+        if (pt.valid && pt.range > max_range) max_range = pt.range;
+    }
+    const float max_radius = cfg.r_base + cfg.r_scale * max_range;
+    grid_.build(points, max_radius);
+
     size_t removed = 0;
-    
     for (size_t i = 0; i < points.size(); ++i) {
         if (!points[i].valid) continue;
-        
-        // Calculate adaptive radius based on distance
+
         const float radius = cfg.r_base + cfg.r_scale * points[i].range;
-        
-        // Find neighbors within radius
-        auto neighbors = findNeighbors(points, i, radius);
-        
-        // Check if point has enough neighbors (including itself)
-        if (static_cast<int>(neighbors.size()) < cfg.k) {
+        const float radius_sq = radius * radius;
+        size_t neighbor_count = grid_.countNeighbors(points, i, radius_sq);
+
+        // neighbor_count includes self
+        if (static_cast<int>(neighbor_count) < cfg.k) {
             points[i].valid = false;
             removed++;
         }
     }
-    
+
     stats_.removed_by_neighborhood = removed;
 }
+
+// ── Spike removal (using sorted indices) ────────────────────
 
 void Prefilter::applySpikeRemovalFilter(std::vector<FilterPoint>& points) const {
     const auto& cfg = config_.spike_removal;
     size_t removed = 0;
-    
-    // Group points by sensor ID for angular continuity
+
+    // Group points by sensor ID
     std::unordered_map<uint8_t, std::vector<size_t>> sensor_groups;
     for (size_t i = 0; i < points.size(); ++i) {
         if (points[i].valid) {
             sensor_groups[points[i].sid].push_back(i);
         }
     }
-    
-    // Process each sensor group separately
+
     for (auto& [sid, indices] : sensor_groups) {
-        // Sort by angle for proper derivative calculation
+        // Sort by angle
         std::sort(indices.begin(), indices.end(), [&points](size_t a, size_t b) {
             return points[a].angle < points[b].angle;
         });
-        
-        // Calculate angular derivatives and mark spikes
+
         for (size_t j = 0; j < indices.size(); ++j) {
             size_t idx = indices[j];
             if (!points[idx].valid) continue;
-            
-            float dr_dtheta = calculateAngularDerivative(points, idx, cfg.window_size);
-            
+
+            float dr_dtheta = calculateAngularDerivative(points, indices, j);
+
             if (std::abs(dr_dtheta) > cfg.dr_threshold) {
                 points[idx].valid = false;
                 removed++;
             }
         }
     }
-    
+
     stats_.removed_by_spike = removed;
 }
+
+// ── Outlier removal (using sorted indices) ──────────────────
 
 void Prefilter::applyOutlierRemovalFilter(std::vector<FilterPoint>& points) const {
     const auto& cfg = config_.outlier_removal;
     size_t removed = 0;
-    
-    // Group points by sensor ID for local analysis
+
     std::unordered_map<uint8_t, std::vector<size_t>> sensor_groups;
     for (size_t i = 0; i < points.size(); ++i) {
         if (points[i].valid) {
             sensor_groups[points[i].sid].push_back(i);
         }
     }
-    
+
     for (auto& [sid, indices] : sensor_groups) {
-        // Sort by angle for moving window analysis
         std::sort(indices.begin(), indices.end(), [&points](size_t a, size_t b) {
             return points[a].angle < points[b].angle;
         });
-        
-        // Apply moving median filter
+
         for (size_t j = 0; j < indices.size(); ++j) {
             size_t idx = indices[j];
             if (!points[idx].valid) continue;
-            
-            float median_range = calculateMovingMedian(points, idx, cfg.median_window);
+
+            float median_range = calculateMovingMedian(points, indices, j, cfg.median_window);
             float deviation = std::abs(points[idx].range - median_range);
-            
-            // Calculate local standard deviation for threshold
+
+            // Calculate local standard deviation within the window
+            int half_window = cfg.median_window / 2;
+            int start = std::max(0, static_cast<int>(j) - half_window);
+            int end = std::min(static_cast<int>(indices.size()) - 1, static_cast<int>(j) + half_window);
+
             float local_std = 0.0f;
             int count = 0;
-            int half_window = cfg.median_window / 2;
-            
-            for (int k = std::max(0, static_cast<int>(j) - half_window); 
-                 k <= std::min(static_cast<int>(indices.size()) - 1, static_cast<int>(j) + half_window); ++k) {
+            for (int k = start; k <= end; ++k) {
                 if (points[indices[k]].valid) {
                     float diff = points[indices[k]].range - median_range;
                     local_std += diff * diff;
                     count++;
                 }
             }
-            
+
             if (count > 1) {
                 local_std = std::sqrt(local_std / (count - 1));
-                
                 if (deviation > cfg.outlier_threshold * local_std) {
                     points[idx].valid = false;
                     removed++;
@@ -204,102 +256,83 @@ void Prefilter::applyOutlierRemovalFilter(std::vector<FilterPoint>& points) cons
             }
         }
     }
-    
+
     stats_.removed_by_outlier = removed;
 }
+
+// ── Intensity filter ────────────────────────────────────────
 
 void Prefilter::applyIntensityFilter(std::vector<FilterPoint>& points) const {
     const auto& cfg = config_.intensity_filter;
     size_t removed = 0;
-    
+
     for (auto& pt : points) {
         if (!pt.valid) continue;
-        
+
         if (pt.intensity < cfg.min_intensity) {
             pt.valid = false;
             removed++;
         }
     }
-    
+
     stats_.removed_by_intensity = removed;
 }
 
+// ── Isolation removal (grid-based) ──────────────────────────
+
 void Prefilter::applyIsolationRemovalFilter(std::vector<FilterPoint>& points) const {
     const auto& cfg = config_.isolation_removal;
+
+    // Rebuild grid with isolation radius
+    grid_.build(points, cfg.isolation_radius);
+
     size_t removed = 0;
-    
-    // Find isolated points (points with too few neighbors in isolation radius)
     for (size_t i = 0; i < points.size(); ++i) {
         if (!points[i].valid) continue;
-        
-        auto neighbors = findNeighbors(points, i, cfg.isolation_radius);
-        
-        // If point has fewer than min_cluster_size neighbors (including itself), mark as isolated
-        if (static_cast<int>(neighbors.size()) < cfg.min_cluster_size) {
+
+        const float radius_sq = cfg.isolation_radius * cfg.isolation_radius;
+        size_t neighbor_count = grid_.countNeighbors(points, i, radius_sq);
+
+        if (static_cast<int>(neighbor_count) < cfg.min_cluster_size) {
             points[i].valid = false;
             removed++;
         }
     }
-    
+
     stats_.removed_by_isolation = removed;
 }
 
-std::vector<size_t> Prefilter::findNeighbors(const std::vector<FilterPoint>& points, 
-                                             size_t point_idx, float radius) const {
-    std::vector<size_t> neighbors;
-    const auto& query_pt = points[point_idx];
-    const float radius_sq = radius * radius;
-    
-    for (size_t i = 0; i < points.size(); ++i) {
-        if (!points[i].valid) continue;
-        
-        float dx = points[i].x - query_pt.x;
-        float dy = points[i].y - query_pt.y;
-        float dist_sq = dx * dx + dy * dy;
-        
-        if (dist_sq <= radius_sq) {
-            neighbors.push_back(i);
-        }
-    }
-    
-    return neighbors;
-}
+// ── Angular derivative (O(1) using sorted indices) ──────────
 
-float Prefilter::calculateAngularDerivative(const std::vector<FilterPoint>& points, 
-                                           size_t idx, int window_size) const {
-    // Simple finite difference approximation
-    // Find neighboring points by angle for the same sensor
-    const auto& center_pt = points[idx];
-    
-    // Find closest points before and after in angle
-    float prev_range = center_pt.range;
-    float next_range = center_pt.range;
-    float prev_angle = center_pt.angle;
-    float next_angle = center_pt.angle;
-    
-    bool found_prev = false, found_next = false;
-    float min_prev_diff = std::numeric_limits<float>::max();
-    float min_next_diff = std::numeric_limits<float>::max();
-    
-    for (size_t i = 0; i < points.size(); ++i) {
-        if (i == idx || !points[i].valid || points[i].sid != center_pt.sid) continue;
-        
-        float angle_diff = points[i].angle - center_pt.angle;
-        
-        if (angle_diff < 0 && std::abs(angle_diff) < min_prev_diff) {
-            prev_range = points[i].range;
-            prev_angle = points[i].angle;
-            min_prev_diff = std::abs(angle_diff);
+float Prefilter::calculateAngularDerivative(const std::vector<FilterPoint>& points,
+                                            const std::vector<size_t>& sorted_indices,
+                                            size_t j) const {
+    const auto& center_pt = points[sorted_indices[j]];
+
+    // Find prev valid
+    float prev_range = center_pt.range, prev_angle = center_pt.angle;
+    bool found_prev = false;
+    for (size_t k = j; k > 0; --k) {
+        if (points[sorted_indices[k - 1]].valid) {
+            prev_range = points[sorted_indices[k - 1]].range;
+            prev_angle = points[sorted_indices[k - 1]].angle;
             found_prev = true;
-        } else if (angle_diff > 0 && angle_diff < min_next_diff) {
-            next_range = points[i].range;
-            next_angle = points[i].angle;
-            min_next_diff = angle_diff;
-            found_next = true;
+            break;
         }
     }
-    
-    // Calculate derivative
+
+    // Find next valid
+    float next_range = center_pt.range, next_angle = center_pt.angle;
+    bool found_next = false;
+    for (size_t k = j + 1; k < sorted_indices.size(); ++k) {
+        if (points[sorted_indices[k]].valid) {
+            next_range = points[sorted_indices[k]].range;
+            next_angle = points[sorted_indices[k]].angle;
+            found_next = true;
+            break;
+        }
+    }
+
     if (found_prev && found_next) {
         float dtheta = next_angle - prev_angle;
         float dr = next_range - prev_range;
@@ -313,37 +346,40 @@ float Prefilter::calculateAngularDerivative(const std::vector<FilterPoint>& poin
         float dr = next_range - center_pt.range;
         return (dtheta != 0.0f) ? dr / dtheta : 0.0f;
     }
-    
+
     return 0.0f;
 }
 
-float Prefilter::calculateMovingMedian(const std::vector<FilterPoint>& points, 
-                                      size_t center_idx, int window_size) const {
-    const auto& center_pt = points[center_idx];
+// ── Moving median (O(W) using sorted indices) ───────────────
+
+float Prefilter::calculateMovingMedian(const std::vector<FilterPoint>& points,
+                                       const std::vector<size_t>& sorted_indices,
+                                       size_t j, int window_size) const {
+    int half_window = window_size / 2;
+    int start = std::max(0, static_cast<int>(j) - half_window);
+    int end = std::min(static_cast<int>(sorted_indices.size()) - 1, static_cast<int>(j) + half_window);
+
     std::vector<float> ranges;
-    
-    // Collect ranges from nearby points of the same sensor
-    for (size_t i = 0; i < points.size(); ++i) {
-        if (!points[i].valid || points[i].sid != center_pt.sid) continue;
-        
-        float angle_diff = std::abs(points[i].angle - center_pt.angle);
-        if (angle_diff <= M_PI / 180.0 * window_size) { // Convert window to radians
-            ranges.push_back(points[i].range);
+    ranges.reserve(end - start + 1);
+    for (int k = start; k <= end; ++k) {
+        if (points[sorted_indices[k]].valid) {
+            ranges.push_back(points[sorted_indices[k]].range);
         }
     }
-    
-    if (ranges.empty()) return center_pt.range;
-    
-    // Calculate median
-    std::sort(ranges.begin(), ranges.end());
+
+    if (ranges.empty()) return points[sorted_indices[j]].range;
+
     size_t mid = ranges.size() / 2;
-    
-    if (ranges.size() % 2 == 0) {
-        return (ranges[mid - 1] + ranges[mid]) / 2.0f;
-    } else {
-        return ranges[mid];
+    std::nth_element(ranges.begin(), ranges.begin() + mid, ranges.end());
+
+    if (ranges.size() % 2 == 0 && mid > 0) {
+        float lower = *std::max_element(ranges.begin(), ranges.begin() + mid);
+        return (lower + ranges[mid]) / 2.0f;
     }
+    return ranges[mid];
 }
+
+// ── Strategy management ─────────────────────────────────────
 
 void Prefilter::enableStrategy(const std::string& strategy_name, bool enabled) {
     if (strategy_name == "neighborhood") {

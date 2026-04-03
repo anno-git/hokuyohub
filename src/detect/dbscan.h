@@ -46,5 +46,5 @@ public:
   // Main clustering function
   // Note: minPts semantics are INCLUSIVE (neighbor count includes the query point itself)
   // k_scale: Angular term scale coefficient (1.0 = theoretical optimum, >1.0 = more tolerant, <1.0 = more strict)
-  std::vector<Cluster> run(std::span<const float> xy, std::span<const uint8_t> sid, uint64_t t_ns, uint32_t seq);
+  std::vector<Cluster> run(std::span<const float> xy, std::span<const uint8_t> sid, std::span<const float> dist, uint64_t t_ns, uint32_t seq);
 };

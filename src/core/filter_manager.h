@@ -5,7 +5,7 @@
 #include "config/config.h"
 #include <json/json.h>
 #include <memory>
-#include <mutex>
+#include <shared_mutex>
 
 class FilterManager {
 public:
@@ -26,7 +26,7 @@ public:
 
     // Apply filters (thread-safe)
     // sid: 点群処理用の数値センサーID (0-255)
-    Prefilter::FilterResult applyPrefilter(const std::vector<float>& xy, const std::vector<uint8_t>& sid);
+    Prefilter::FilterResult applyPrefilter(const std::vector<float>& xy, const std::vector<uint8_t>& sid, const std::vector<float>& dist);
     Postfilter::FilterResult applyPostfilter(const std::vector<Cluster>& clusters,
                                             const std::vector<float>& xy,
                                             const std::vector<uint8_t>& sid);
@@ -39,7 +39,7 @@ public:
     void reloadFromAppConfig();
 
 private:
-    mutable std::mutex mutex_;
+    mutable std::shared_mutex mutex_;
     PrefilterConfig& prefilter_config_;
     PostfilterConfig& postfilter_config_;
     std::unique_ptr<Prefilter> prefilter_;

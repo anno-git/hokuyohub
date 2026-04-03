@@ -88,11 +88,12 @@ bool Postfilter::applyIsolationRemovalFilter(Cluster& cluster,
         return false; // Not enough points remain, cluster is invalid
     }
     stats_.points_removed_total += isolated_points.size();
-    // create new point_indices
+    // create new point_indices (use unordered_set for O(1) lookup)
+    std::unordered_set<size_t> isolated_set(isolated_points.begin(), isolated_points.end());
     cluster.point_indices.erase(std::remove_if(cluster.point_indices.begin(),
                                                 cluster.point_indices.end(),
                                                 [&](size_t idx) {
-                                                    return std::find(isolated_points.begin(), isolated_points.end(), idx) != isolated_points.end();
+                                                    return isolated_set.count(idx) > 0;
                                                 }), cluster.point_indices.end());
     // rebuild cluster after removal
     rebuildClusterFromPoints(cluster, xy, sid, cluster.point_indices);

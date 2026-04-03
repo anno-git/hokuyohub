@@ -424,10 +424,12 @@ void SensorManager::start(FrameCallback cb) {
     // TODO: センサー数やセンサーの種類によって配列サイズは変えるべき
     std::vector<float> xy;  xy.reserve(16384);
     std::vector<uint8_t> sid; sid.reserve(8192);
+    std::vector<float> dist; dist.reserve(8192);
 
     while (st2.running.load()) {
       xy.clear();
       sid.clear();
+      dist.clear();
 
       for (auto& up : st2.slots) {
         auto& sl = *up;
@@ -443,6 +445,11 @@ void SensorManager::start(FrameCallback cb) {
         const auto& pose = sl.cfg.pose;
         const auto& m    = sl.cfg.mask;
 
+        // Pre-compute pose rotation (constant per sensor)
+        const float pose_th = pose.theta_deg * static_cast<float>(M_PI / 180.0);
+        const float pose_cos = std::cos(pose_th);
+        const float pose_sin = std::sin(pose_th);
+
         double ang = rs.start_angle;
         const int N = static_cast<int>(rs.ranges_mm.size());
         for (int i = 0; i < N; ++i, ang += rs.angle_res) {
@@ -450,20 +457,23 @@ void SensorManager::start(FrameCallback cb) {
           if (d_mm == 0) continue; // 欠測
           const float r_m = static_cast<float>(d_mm) * 0.001f;
 
-          auto pass_local_mask = [&](float ang, float r_m, const SensorMaskLocal& m) {
-            return (m.angle.min_deg <= ang && ang <= m.angle.max_deg) &&
-                   (m.range.near_m <= r_m && r_m <= m.range.far_m);
-          };
-          if (!pass_local_mask(ang, r_m, m)) continue;
+          // Inline local mask check
+          if (ang < m.angle.min_deg || ang > m.angle.max_deg ||
+              r_m < m.range.near_m  || r_m > m.range.far_m) continue;
 
-          double angle_rad = deg2rad(ang);
+          const double angle_rad = deg2rad(static_cast<float>(ang));
           float x = r_m * std::cos(angle_rad);
           float y = r_m * std::sin(angle_rad);
-          apply_pose(x, y, pose.tx, pose.ty, pose.theta_deg * (M_PI / 180.0f));
+
+          // Inline apply_pose with pre-computed cos/sin
+          const float nx = pose_cos * x - pose_sin * y + pose.tx;
+          const float ny = pose_sin * x + pose_cos * y + pose.ty;
+          x = nx; y = ny;
 
           xy.push_back(x);
           xy.push_back(y);
           sid.push_back(sl.sid);
+          dist.push_back(r_m);
         }
       }
 
@@ -471,8 +481,9 @@ void SensorManager::start(FrameCallback cb) {
       f.seq  = st2.seq.fetch_add(1);
       f.t_ns = std::chrono::duration_cast<nanoseconds>(
                  clock_sys::now().time_since_epoch()).count();
-      f.xy   = xy;
-      f.sid  = sid;
+      f.xy   = std::move(xy);
+      f.sid  = std::move(sid);
+      f.dist = std::move(dist);
       cb(f);
 
       next_tick += period;                       // ★ 同一duration型で加算
