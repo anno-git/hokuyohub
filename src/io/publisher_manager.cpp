@@ -18,20 +18,41 @@ bool NngSinkPublisher::start(const SinkConfig& config) {
         enabled_ = false;
         return false;
     }
-    
+
+    rate_limit_ = config.rate_limit;
     url_ = config.nng().url;
     bus_->startPublisher(config);
     enabled_ = bus_->isEnabled();
-    
+
     if (enabled_) {
-        std::cout << "[NngSinkPublisher] Started on " << url_ 
-                  << " (cluster_topic: " << config.cluster_topic 
+        std::cout << "[NngSinkPublisher] Started on " << url_
+                  << " (cluster_topic: " << config.cluster_topic
                   << ", rate_limit: " << config.rate_limit << "Hz)" << std::endl;
     } else {
         std::cerr << "[NngSinkPublisher] Failed to start on " << url_ << std::endl;
     }
-    
+
     return enabled_;
+}
+
+void NngSinkPublisher::updateConfig(const SinkConfig& config) {
+    if (!config.isNng()) return;
+
+    rate_limit_ = config.rate_limit;
+
+    // URL変更がある場合のみ再接続
+    std::string new_url = config.nng().url;
+    if (new_url != url_) {
+        stop();
+        bus_ = std::make_unique<NngBus>();
+        url_ = new_url;
+        bus_->startPublisher(config);
+        enabled_ = bus_->isEnabled();
+        std::cout << "[NngSinkPublisher] Reconnected to " << url_ << std::endl;
+    } else {
+        // URL同一の場合はソケットを維持してフラグ類のみ更新
+        bus_->updateConfig(config);
+    }
 }
 
 void NngSinkPublisher::publishClusters(uint64_t t_ns, uint32_t seq, const std::vector<Cluster>& items) {
@@ -71,20 +92,40 @@ bool OscSinkPublisher::start(const SinkConfig& config) {
         enabled_ = false;
         return false;
     }
-    
+
+    rate_limit_ = config.rate_limit;
     url_ = config.osc().url;
     osc_->start(config);
     enabled_ = osc_->isEnabled();
-    
+
     if (enabled_) {
-        std::cout << "[OscSinkPublisher] Started on " << url_ 
-                  << " (cluster_topic: " << config.cluster_topic 
+        std::cout << "[OscSinkPublisher] Started on " << url_
+                  << " (cluster_topic: " << config.cluster_topic
                   << ", rate_limit: " << config.rate_limit << "Hz)" << std::endl;
     } else {
         std::cerr << "[OscSinkPublisher] Failed to start on " << url_ << std::endl;
     }
-    
+
     return enabled_;
+}
+
+void OscSinkPublisher::updateConfig(const SinkConfig& config) {
+    if (!config.isOsc()) return;
+
+    rate_limit_ = config.rate_limit;
+
+    std::string new_url = config.osc().url;
+    if (new_url != url_) {
+        stop();
+        osc_ = std::make_unique<OscPublisher>();
+        url_ = new_url;
+        osc_->start(config);
+        enabled_ = osc_->isEnabled();
+        std::cout << "[OscSinkPublisher] Reconnected to " << url_ << std::endl;
+    } else {
+        // URL同一の場合はソケットを維持してフラグ類のみ更新
+        osc_->updateConfig(config);
+    }
 }
 
 void OscSinkPublisher::publishClusters(uint64_t t_ns, uint32_t seq, const std::vector<Cluster>& items) {
@@ -121,18 +162,18 @@ PublisherManager::~PublisherManager() {
 
 bool PublisherManager::configure(const std::vector<SinkConfig>& sinks) {
     std::cout << "[PublisherManager] Configuring " << sinks.size() << " sink(s)..." << std::endl;
-    
+
     // Create new publisher array
     auto new_publishers = std::make_shared<PublisherArray>();
     new_publishers->reserve(sinks.size());
-    
+
     int success_count = 0;
     int failure_count = 0;
-    
+
     // Create and start publishers for each sink
     for (const auto& sink : sinks) {
         std::unique_ptr<ISinkPublisher> publisher;
-        
+
         if (sink.isNng()) {
             publisher = std::make_unique<NngSinkPublisher>();
         } else if (sink.isOsc()) {
@@ -142,17 +183,16 @@ bool PublisherManager::configure(const std::vector<SinkConfig>& sinks) {
             failure_count++;
             continue;
         }
-        
+
         if (publisher->start(sink)) {
             success_count++;
         } else {
             failure_count++;
         }
-        
-        // Add publisher to array regardless of start success (for monitoring)
+
         new_publishers->push_back(std::move(publisher));
     }
-    
+
     // Stop old publishers before swapping
     {
         std::lock_guard<std::mutex> lock(publishers_mutex_);
@@ -163,42 +203,69 @@ bool PublisherManager::configure(const std::vector<SinkConfig>& sinks) {
                 }
             }
         }
-        
+
         // Swap to new publishers
         publishers_ = new_publishers;
     }
-    
+
     std::cout << "[PublisherManager] Configuration complete: "
               << success_count << " started, "
               << failure_count << " failed, "
               << new_publishers->size() << " total" << std::endl;
-    
+
     return failure_count == 0;
 }
 
-void PublisherManager::publishClusters(uint64_t t_ns, uint32_t seq, const std::vector<Cluster>& items) const {
-    // Get current snapshot of publishers
+bool PublisherManager::updateSink(size_t index, const SinkConfig& config) {
+    std::lock_guard<std::mutex> lock(publishers_mutex_);
+    if (!publishers_ || index >= publishers_->size()) {
+        std::cerr << "[PublisherManager] updateSink: invalid index " << index << std::endl;
+        return false;
+    }
+
+    auto& publisher = (*publishers_)[index];
+    if (!publisher) return false;
+
+    // タイプが変わった場合は再作成が必要
+    bool type_changed = (config.isNng() && publisher->getType() != "nng") ||
+                        (config.isOsc() && publisher->getType() != "osc");
+
+    if (type_changed) {
+        publisher->stop();
+        if (config.isNng()) {
+            publisher = std::make_unique<NngSinkPublisher>();
+        } else {
+            publisher = std::make_unique<OscSinkPublisher>();
+        }
+        return publisher->start(config);
+    }
+
+    publisher->updateConfig(config);
+    return publisher->isEnabled();
+}
+
+void PublisherManager::publish(uint64_t t_ns, uint32_t seq,
+                               const std::vector<Cluster>& clusters,
+                               const std::vector<float>& xy, const std::vector<uint8_t>& sid) const {
     std::shared_ptr<PublisherArray> current_publishers;
     {
         std::lock_guard<std::mutex> lock(publishers_mutex_);
         current_publishers = publishers_;
     }
-    
-    if (!current_publishers) {
-        return;
-    }
-    
-    // Publish to all enabled publishers
-    for (const auto& publisher : *current_publishers) {
-        if (publisher && publisher->isEnabled()) {
-            try {
-                publisher->publishClusters(t_ns, seq, items);
-            } catch (const std::exception& e) {
-                // Log error but continue with other publishers
-                std::cerr << "[PublisherManager] Error publishing to "
-                          << publisher->getType() << " sink "
-                          << publisher->getUrl() << ": " << e.what() << std::endl;
-            }
+
+    if (!current_publishers) return;
+
+    for (auto& publisher : *current_publishers) {
+        if (!publisher || !publisher->isEnabled()) continue;
+        if (!publisher->shouldPublish()) continue;
+
+        try {
+            publisher->publishClusters(t_ns, seq, clusters);
+            publisher->publishRaw(t_ns, seq, xy, sid);
+        } catch (const std::exception& e) {
+            std::cerr << "[PublisherManager] Error publishing to "
+                      << publisher->getType() << " sink "
+                      << publisher->getUrl() << ": " << e.what() << std::endl;
         }
     }
 }
@@ -212,7 +279,7 @@ void PublisherManager::stopAll() {
             }
         }
     }
-    
+
     // Replace with empty array
     publishers_ = std::make_shared<PublisherArray>();
     std::cout << "[PublisherManager] All publishers stopped" << std::endl;
@@ -229,11 +296,11 @@ size_t PublisherManager::getEnabledPublisherCount() const {
         std::lock_guard<std::mutex> lock(publishers_mutex_);
         current_publishers = publishers_;
     }
-    
+
     if (!current_publishers) {
         return 0;
     }
-    
+
     size_t enabled_count = 0;
     for (const auto& publisher : *current_publishers) {
         if (publisher && publisher->isEnabled()) {
@@ -241,29 +308,4 @@ size_t PublisherManager::getEnabledPublisherCount() const {
         }
     }
     return enabled_count;
-}
-
-void PublisherManager::publishRaw(uint64_t t_ns, uint32_t seq, const std::vector<float>& xy, const std::vector<uint8_t>& sid) const {
-    // Get current snapshot of publishers
-    std::shared_ptr<PublisherArray> current_publishers;
-    {
-        std::lock_guard<std::mutex> lock(publishers_mutex_);
-        current_publishers = publishers_;
-    }
-
-    if (!current_publishers) {
-        return;
-    }
-
-    for (const auto& publisher : *current_publishers) {
-        if (publisher && publisher->isEnabled()) {
-            try {
-                publisher->publishRaw(t_ns, seq, xy, sid);
-            } catch (const std::exception& e) {
-                std::cerr << "[PublisherManager] Error publishing raw to "
-                          << publisher->getType() << " sink "
-                          << publisher->getUrl() << ": " << e.what() << std::endl;
-            }
-        }
-    }
 }

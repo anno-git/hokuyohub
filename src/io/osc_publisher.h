@@ -23,12 +23,10 @@ class OscPublisher {
   std::string cluster_path_;
   std::string raw_path_;
   bool enabled_{false};
-  int rate_limit_{0};
   bool in_bundle_{false};
   uint64_t bundle_fragment_size_{0};
   bool send_clusters_{true};
   bool send_raw_{false};
-  std::chrono::steady_clock::time_point last_publish_;
   
 #ifdef USE_OSC
   int socket_fd_{-1};
@@ -40,6 +38,7 @@ public:
   ~OscPublisher();
   
   void start(const SinkConfig& config);
+  void updateConfig(const SinkConfig& config);
   void publishClusters(uint64_t t_ns, uint32_t seq, const std::vector<Cluster>& items);
   void publishRaw(uint64_t t_ns, uint32_t seq, const std::vector<float>& xy, const std::vector<uint8_t>& sid);
   void stop();
@@ -52,6 +51,5 @@ private:
                               float cx, float cy, float minx, float miny, float maxx, float maxy, uint32_t n);
   std::string encodeOscStringMessage(const std::string& address, const std::string& s);
   std::string encodeOscPointMessage(const std::string& address, uint64_t t_ns, uint32_t seq, float x, float y, uint32_t sid);
-  bool shouldPublish();
   void sendUdp(const std::string& data);
 };

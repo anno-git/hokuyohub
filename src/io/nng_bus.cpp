@@ -8,7 +8,7 @@
 #include <sstream>
 #include <iomanip>
 
-NngBus::NngBus() : enabled_(false), rate_limit_(0) {
+NngBus::NngBus() : enabled_(false) {
 #ifdef USE_NNG
   socket_initialized_ = false;
 #endif
@@ -51,7 +51,6 @@ void NngBus::startPublisher(const SinkConfig& config) {
 
   url_ = config.nng().url;
   encoding_ = config.nng().encoding.empty() ? "msgpack" : config.nng().encoding;
-  rate_limit_ = config.rate_limit;
   send_clusters_ = config.send_clusters;
   send_raw_ = config.send_raw;
   cluster_topic_ = config.cluster_topic;
@@ -80,6 +79,15 @@ void NngBus::startPublisher(const SinkConfig& config) {
 #endif
 }
 
+void NngBus::updateConfig(const SinkConfig& config) {
+  if (!config.isNng()) return;
+  encoding_ = config.nng().encoding.empty() ? "msgpack" : config.nng().encoding;
+  send_clusters_ = config.send_clusters;
+  send_raw_ = config.send_raw;
+  cluster_topic_ = config.cluster_topic;
+  raw_topic_ = config.raw_topic;
+}
+
 void NngBus::stop() {
 #ifdef USE_NNG
   if (socket_initialized_) {
@@ -90,23 +98,8 @@ void NngBus::stop() {
   enabled_ = false;
 }
 
-bool NngBus::shouldPublish() {
-  if (rate_limit_ <= 0) return true;
-  
-  auto now = std::chrono::steady_clock::now();
-  auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - last_publish_).count();
-  auto min_interval = 1000 / rate_limit_; // ms
-  
-  if (elapsed >= min_interval) {
-    last_publish_ = now;
-    return true;
-  }
-  
-  return false;
-}
-
 void NngBus::publishClusters(uint64_t t_ns, uint32_t seq, const std::vector<Cluster>& items) {
-  if (!enabled_ || !send_clusters_ || !shouldPublish()) return;
+  if (!enabled_ || !send_clusters_) return;
   
 #ifdef USE_NNG
   std::string data;
@@ -298,7 +291,7 @@ std::string NngBus::serializeToJson(uint64_t t_ns, uint32_t seq, const std::vect
 }
 
 void NngBus::publishRaw(uint64_t t_ns, uint32_t seq, const std::vector<float>& xy, const std::vector<uint8_t>& sid) {
-  if (!enabled_ || !send_raw_ || !shouldPublish()) return;
+  if (!enabled_ || !send_raw_) return;
 
 #ifdef USE_NNG
   std::string data;

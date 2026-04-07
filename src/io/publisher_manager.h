@@ -3,21 +3,38 @@
 #include <vector>
 #include <memory>
 #include <mutex>
+#include <chrono>
 #include "detect/dbscan.h"
 #include "config/config.h"
 
 // Abstract interface for sink publishers
 class ISinkPublisher {
+protected:
+    int rate_limit_{0};
+    std::chrono::steady_clock::time_point last_publish_;
+
 public:
     virtual ~ISinkPublisher() = default;
     virtual bool start(const SinkConfig& config) = 0;
+    virtual void updateConfig(const SinkConfig& config) = 0;
     virtual void publishClusters(uint64_t t_ns, uint32_t seq, const std::vector<Cluster>& items) = 0;
-    // Optionally publish raw points (xy: [x0,y0,...], sid: per-point sensor id)
     virtual void publishRaw(uint64_t t_ns, uint32_t seq, const std::vector<float>& xy, const std::vector<uint8_t>& sid) = 0;
     virtual void stop() = 0;
     virtual bool isEnabled() const = 0;
     virtual std::string getType() const = 0;
     virtual std::string getUrl() const = 0;
+
+    bool shouldPublish() {
+        if (rate_limit_ <= 0) return true;
+        auto now = std::chrono::steady_clock::now();
+        auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - last_publish_).count();
+        auto min_interval = 1000 / rate_limit_;
+        if (elapsed >= min_interval) {
+            last_publish_ = now;
+            return true;
+        }
+        return false;
+    }
 };
 
 // Forward declarations
@@ -34,8 +51,9 @@ private:
 public:
     NngSinkPublisher();
     ~NngSinkPublisher() override;
-    
+
     bool start(const SinkConfig& config) override;
+    void updateConfig(const SinkConfig& config) override;
     void publishClusters(uint64_t t_ns, uint32_t seq, const std::vector<Cluster>& items) override;
     void publishRaw(uint64_t t_ns, uint32_t seq, const std::vector<float>& xy, const std::vector<uint8_t>& sid) override;
     void stop() override;
@@ -54,8 +72,9 @@ private:
 public:
     OscSinkPublisher();
     ~OscSinkPublisher() override;
-    
+
     bool start(const SinkConfig& config) override;
+    void updateConfig(const SinkConfig& config) override;
     void publishClusters(uint64_t t_ns, uint32_t seq, const std::vector<Cluster>& items) override;
     void publishRaw(uint64_t t_ns, uint32_t seq, const std::vector<float>& xy, const std::vector<uint8_t>& sid) override;
     void stop() override;
@@ -74,17 +93,21 @@ private:
 public:
     PublisherManager();
     ~PublisherManager();
-    
-    // Configure publishers from sink configuration
+
+    // Configure publishers from sink configuration (initial setup)
     bool configure(const std::vector<SinkConfig>& sinks);
-    
-    // Publish clusters to all active publishers
-    void publishClusters(uint64_t t_ns, uint32_t seq, const std::vector<Cluster>& items) const;
-    void publishRaw(uint64_t t_ns, uint32_t seq, const std::vector<float>& xy, const std::vector<uint8_t>& sid) const;
-    
+
+    // Update a single sink in-place without destroying other publishers
+    bool updateSink(size_t index, const SinkConfig& config);
+
+    // Publish clusters and raw in a single pass (rate limit checked once per sink)
+    void publish(uint64_t t_ns, uint32_t seq,
+                 const std::vector<Cluster>& clusters,
+                 const std::vector<float>& xy, const std::vector<uint8_t>& sid) const;
+
     // Stop all publishers
     void stopAll();
-    
+
     // Get current publisher count for logging/monitoring
     size_t getPublisherCount() const;
     size_t getEnabledPublisherCount() const;

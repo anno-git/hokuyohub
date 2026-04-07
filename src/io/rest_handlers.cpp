@@ -1050,15 +1050,15 @@ crow::response RestApi::patchSink(int index, const crow::request& req) {
     }
     
     if (updated) {
-      // Apply runtime configuration
-      applySinksRuntime();
-      
+      // Update only the affected sink in-place
+      publisher_manager_.updateSink(index, sink);
+
       // Notify WebSocket clients
       if (ws_) {
         ws_->broadcastSnapshot();
       }
     }
-    
+
     // Return updated sink
     Json::Value result;
     result["index"] = index;

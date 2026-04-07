@@ -12,12 +12,10 @@ class NngBus {
   std::string url_;
   std::string encoding_{"msgpack"}; // Default to msgpack
   bool enabled_{false};
-  int rate_limit_{0};
   bool send_clusters_{true};
   bool send_raw_{false};
   std::string cluster_topic_;
   std::string raw_topic_;
-  std::chrono::steady_clock::time_point last_publish_;
   
 #ifdef USE_NNG
   nng_socket socket_;
@@ -30,6 +28,7 @@ public:
   
   void startPublisher(const std::string& url);
   void startPublisher(const SinkConfig& config);
+  void updateConfig(const SinkConfig& config);
   void publishClusters(uint64_t t_ns, uint32_t seq, const std::vector<Cluster>& items);
   void publishRaw(uint64_t t_ns, uint32_t seq, const std::vector<float>& xy, const std::vector<uint8_t>& sid);
   void stop();
@@ -41,5 +40,4 @@ private:
   std::string serializeToJson(uint64_t t_ns, uint32_t seq, const std::vector<Cluster>& items);
   std::string serializeRawToMessagePack(uint64_t t_ns, uint32_t seq, const std::vector<float>& xy, const std::vector<uint8_t>& sid);
   std::string serializeRawToJson(uint64_t t_ns, uint32_t seq, const std::vector<float>& xy, const std::vector<uint8_t>& sid);
-  bool shouldPublish();
 };

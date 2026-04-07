@@ -31,7 +31,7 @@
 //   ]
 // We convert unix t_ns -> NTP (secs since 1900 + fractional 32-bit).
 
-OscPublisher::OscPublisher() : enabled_(false), rate_limit_(0) {
+OscPublisher::OscPublisher() : enabled_(false) {
 #ifdef USE_OSC
   socket_fd_ = -1;
 #ifdef _WIN32
@@ -77,7 +77,6 @@ void OscPublisher::start(const SinkConfig& config) {
     port_ = 7000; // Default OSC port
   }
   // TODO: map localhost to 127.0.0.1
-  rate_limit_ = config.rate_limit;
   bundle_fragment_size_ = config.osc().bundle_fragment_size;
   in_bundle_ = config.osc().in_bundle;
   send_clusters_ = config.send_clusters;
@@ -111,6 +110,16 @@ void OscPublisher::start(const SinkConfig& config) {
 #endif
 }
 
+void OscPublisher::updateConfig(const SinkConfig& config) {
+  if (!config.isOsc()) return;
+  cluster_path_ = config.send_clusters ? config.cluster_topic : "";
+  raw_path_ = config.send_raw ? config.raw_topic : "";
+  bundle_fragment_size_ = config.osc().bundle_fragment_size;
+  in_bundle_ = config.osc().in_bundle;
+  send_clusters_ = config.send_clusters;
+  send_raw_ = config.send_raw;
+}
+
 void OscPublisher::stop() {
 #ifdef USE_OSC
   if (socket_fd_ >= 0) {
@@ -123,20 +132,6 @@ void OscPublisher::stop() {
   }
 #endif
   enabled_ = false;
-}
-
-bool OscPublisher::shouldPublish() {
-  if (rate_limit_ <= 0) return true;
-
-  auto now = std::chrono::steady_clock::now();
-  auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - last_publish_).count();
-  auto min_interval = 1000 / rate_limit_; // ms
-
-  if (elapsed >= min_interval) {
-    last_publish_ = now;
-    return true;
-  }
-  return false;
 }
 
 // ---- NEW: Bundle encoder ----
@@ -227,7 +222,7 @@ std::string OscPublisher::encodeOscBundle(const std::vector<std::string>& messag
 }
 
 void OscPublisher::publishClusters(uint64_t t_ns, uint32_t seq, const std::vector<Cluster>& items) {
-  if (!enabled_ || !send_clusters_ || !shouldPublish()) return;
+  if (!enabled_ || !send_clusters_) return;
 
   // 1) まず全メッセージを生成
   std::vector<std::string> msgs;
@@ -335,7 +330,7 @@ std::string OscPublisher::encodeOscPointMessage(const std::string& address, uint
 }
 
 void OscPublisher::publishRaw(uint64_t t_ns, uint32_t seq, const std::vector<float>& xy, const std::vector<uint8_t>& sid) {
-  if (!enabled_ || !send_raw_ || !shouldPublish()) return;
+  if (!enabled_ || !send_raw_) return;
 
   // Build per-point OSC messages
   std::vector<std::string> msgs;
