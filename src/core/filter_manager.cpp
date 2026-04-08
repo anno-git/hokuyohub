@@ -1,5 +1,6 @@
 #include "filter_manager.h"
 #include <iostream>
+#include <mutex>
 #include <shared_mutex>
 
 FilterManager::FilterManager(PrefilterConfig& prefilter_config, PostfilterConfig& postfilter_config)
