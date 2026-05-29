@@ -341,30 +341,40 @@ function(setup_urg_external_project)
             ALWAYS 1
         )
 
-        # Add step to display MSBuild log and verify build output directory after build
-        ExternalProject_Add_Step(urg_library_proj verify_build_output
-            COMMAND ${CMAKE_COMMAND} -E echo "=== URG Library Build Verification ==="
-            COMMAND ${CMAKE_COMMAND} -E echo "Expected output directory: ${URG_BUILD_OUTPUT_DIR}"
-            COMMAND ${CMAKE_COMMAND} -E echo "Expected library file: ${URG_BUILD_OUTPUT_LIB}"
-            COMMAND ${CMAKE_COMMAND} -E echo "=== BUILD_COMMAND Execution Analysis ==="
-            COMMAND ${CMAKE_COMMAND} -E echo "If MSBuild log is missing, BUILD_COMMAND likely failed to execute"
-            COMMAND ${CMAKE_COMMAND} -E echo "Checking MSBuild log existence..."
-            COMMAND ${CMAKE_COMMAND} -DFILE_TO_CHECK=${URG_VS_PROJECT_DIR}/msbuild.log -P ${CMAKE_SOURCE_DIR}/cmake/check_file_exists.cmake
-            COMMAND ${CMAKE_COMMAND} -E echo "=== MSBuild Log Contents ==="
-            COMMAND ${CMAKE_COMMAND} -E echo "Reading MSBuild log from: ${URG_VS_PROJECT_DIR}/msbuild.log"
-            COMMAND ${CMAKE_COMMAND} -DLOG_FILE=${URG_VS_PROJECT_DIR}/msbuild.log -P ${CMAKE_SOURCE_DIR}/cmake/display_log.cmake
-            COMMAND ${CMAKE_COMMAND} -E echo "=== Build Output Directory Contents ==="
-            COMMAND ${CMAKE_COMMAND} -E make_directory ${URG_BUILD_OUTPUT_DIR}
-            COMMAND ${CMAKE_COMMAND} -DDIR_TO_LIST=${URG_BUILD_OUTPUT_DIR} -P ${CMAKE_SOURCE_DIR}/cmake/list_directory.cmake
-            COMMAND ${CMAKE_COMMAND} -E echo "=== VS Project Output Directories ==="
-            COMMAND ${CMAKE_COMMAND} -E echo "Checking default VS project output locations:"
-            COMMAND ${CMAKE_COMMAND} -DDIR_TO_LIST=${URG_VS_PROJECT_DIR}/x64/Release -P ${CMAKE_SOURCE_DIR}/cmake/list_directory.cmake
-            COMMAND ${CMAKE_COMMAND} -E echo "=== ExternalProject BUILD_COMMAND Diagnostic ==="
-            COMMAND ${CMAKE_COMMAND} -E echo "Running comprehensive BUILD_COMMAND diagnostic..."
-            COMMAND ${CMAKE_COMMAND} -P ${CMAKE_SOURCE_DIR}/cmake/debug_build_command.cmake
-            DEPENDEES build
-            ALWAYS 1
-        )
+        # Add step to display MSBuild log and verify build output directory after build.
+        # URG_VS_PROJECT_DIR / debug_build_command.cmake / msbuild.log は Windows MSBuild 専用
+        # 診断のため、非 Windows ではコマンドを no-op に差し替える（依存グラフは保つ）。
+        if(WIN32)
+            ExternalProject_Add_Step(urg_library_proj verify_build_output
+                COMMAND ${CMAKE_COMMAND} -E echo "=== URG Library Build Verification ==="
+                COMMAND ${CMAKE_COMMAND} -E echo "Expected output directory: ${URG_BUILD_OUTPUT_DIR}"
+                COMMAND ${CMAKE_COMMAND} -E echo "Expected library file: ${URG_BUILD_OUTPUT_LIB}"
+                COMMAND ${CMAKE_COMMAND} -E echo "=== BUILD_COMMAND Execution Analysis ==="
+                COMMAND ${CMAKE_COMMAND} -E echo "If MSBuild log is missing, BUILD_COMMAND likely failed to execute"
+                COMMAND ${CMAKE_COMMAND} -E echo "Checking MSBuild log existence..."
+                COMMAND ${CMAKE_COMMAND} -DFILE_TO_CHECK=${URG_VS_PROJECT_DIR}/msbuild.log -P ${CMAKE_SOURCE_DIR}/cmake/check_file_exists.cmake
+                COMMAND ${CMAKE_COMMAND} -E echo "=== MSBuild Log Contents ==="
+                COMMAND ${CMAKE_COMMAND} -E echo "Reading MSBuild log from: ${URG_VS_PROJECT_DIR}/msbuild.log"
+                COMMAND ${CMAKE_COMMAND} -DLOG_FILE=${URG_VS_PROJECT_DIR}/msbuild.log -P ${CMAKE_SOURCE_DIR}/cmake/display_log.cmake
+                COMMAND ${CMAKE_COMMAND} -E echo "=== Build Output Directory Contents ==="
+                COMMAND ${CMAKE_COMMAND} -E make_directory ${URG_BUILD_OUTPUT_DIR}
+                COMMAND ${CMAKE_COMMAND} -DDIR_TO_LIST=${URG_BUILD_OUTPUT_DIR} -P ${CMAKE_SOURCE_DIR}/cmake/list_directory.cmake
+                COMMAND ${CMAKE_COMMAND} -E echo "=== VS Project Output Directories ==="
+                COMMAND ${CMAKE_COMMAND} -E echo "Checking default VS project output locations:"
+                COMMAND ${CMAKE_COMMAND} -DDIR_TO_LIST=${URG_VS_PROJECT_DIR}/x64/Release -P ${CMAKE_SOURCE_DIR}/cmake/list_directory.cmake
+                COMMAND ${CMAKE_COMMAND} -E echo "=== ExternalProject BUILD_COMMAND Diagnostic ==="
+                COMMAND ${CMAKE_COMMAND} -E echo "Running comprehensive BUILD_COMMAND diagnostic..."
+                COMMAND ${CMAKE_COMMAND} -P ${CMAKE_SOURCE_DIR}/cmake/debug_build_command.cmake
+                DEPENDEES build
+                ALWAYS 1
+            )
+        else()
+            ExternalProject_Add_Step(urg_library_proj verify_build_output
+                COMMAND ${CMAKE_COMMAND} -E echo "[verify_build_output] non-Windows platform - skipping MSBuild diagnostics"
+                DEPENDEES build
+                ALWAYS 1
+            )
+        endif()
 
         # Add verification step to confirm urg.lib exists before copying
         ExternalProject_Add_Step(urg_library_proj verify_library_exists

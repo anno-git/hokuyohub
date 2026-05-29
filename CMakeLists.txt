@@ -84,10 +84,11 @@ install(DIRECTORY ${CMAKE_SOURCE_DIR}/configs/
         DESTINATION configs
         FILES_MATCHING PATTERN "*")
 
-# WebUI（webui/ 配下を丸ごと）
-install(DIRECTORY ${CMAKE_SOURCE_DIR}/webui/
-        DESTINATION webui
-        FILES_MATCHING PATTERN "*")
+# WebUI（webui-server/ 配下、node_modules / .DS_Store は除外）
+install(DIRECTORY ${CMAKE_SOURCE_DIR}/webui-server/
+        DESTINATION webui-server
+        PATTERN "node_modules" EXCLUDE
+        PATTERN ".DS_Store" EXCLUDE)
 
 # 実行時の動的ライブラリ解決（必要な場合のみ有効化してOK）
 # set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
