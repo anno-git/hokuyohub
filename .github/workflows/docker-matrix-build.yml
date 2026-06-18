@@ -122,7 +122,8 @@ jobs:
         elif [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
           TAG="latest"
         else
-          TAG='${{ github.ref_name }}'
+          # Docker tag に '/' は使えないため '-' に置換 (e.g. feat/foo-bar → feat-foo-bar)
+          TAG=$(echo '${{ github.ref_name }}' | tr '/' '-')
         fi
         echo "TAG=$TAG" >> $GITHUB_ENV
         echo "Using TAG=$TAG"
@@ -341,13 +342,24 @@ jobs:
         echo "::endgroup::"
 
     # Native CMake build steps (macOS/Windows)
-    - name: Configure CMake build (Windows - via preset)
+    - name: Configure CMake build (Windows)
       if: matrix.build-method == 'cmake' && runner.os == 'Windows'
       shell: pwsh
+      env:
+        VCPKG_ROOT: C:\vcpkg
       run: |
-        echo "::group::Configure CMake for ${{ matrix.platform }} (preset: win-release)"
+        echo "::group::Configure CMake for ${{ matrix.platform }}"
+        # preset を介さず直接呼ぶ (preset の $env{VCPKG_ROOT} 展開タイミング問題回避)
         # vcpkg manifest mode: configure 時に vcpkg.json の依存が自動 install される
-        cmake --preset win-release
+        cmake -B build/windows-amd64 -G "Visual Studio 17 2022" -A x64 `
+          -DCMAKE_BUILD_TYPE=Release `
+          -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake" `
+          -DVCPKG_TARGET_TRIPLET=x64-windows `
+          -DCMAKE_INSTALL_PREFIX="$pwd/dist/windows-amd64" `
+          -DDEPS_MODE=auto `
+          -DUSE_OSC=ON `
+          -DHOKUYO_NNG_ENABLE=ON `
+          -DCMAKE_PROJECT_INCLUDE="$pwd/cmake/toolchains/windows-x64.cmake"
         echo "::endgroup::"
 
     - name: Configure CMake build (macOS)
@@ -369,7 +381,7 @@ jobs:
       shell: pwsh
       run: |
         echo "::group::Build with CMake for ${{ matrix.platform }}"
-        cmake --build --preset build-win-release --parallel
+        cmake --build build/windows-amd64 --config Release --parallel
         echo "::endgroup::"
 
     - name: Build with CMake (macOS)
@@ -521,7 +533,8 @@ jobs:
         elif [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
           TAG="latest"
         else
-          TAG='${{ github.ref_name }}'
+          # Docker tag に '/' は使えないため '-' に置換 (e.g. feat/foo-bar → feat-foo-bar)
+          TAG=$(echo '${{ github.ref_name }}' | tr '/' '-')
         fi
         echo "TAG=$TAG" >> $GITHUB_ENV
         echo "Using TAG=$TAG"
@@ -586,7 +599,8 @@ jobs:
         elif [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
           TAG="latest"
         else
-          TAG='${{ github.ref_name }}'
+          # Docker tag に '/' は使えないため '-' に置換 (e.g. feat/foo-bar → feat-foo-bar)
+          TAG=$(echo '${{ github.ref_name }}' | tr '/' '-')
         fi
         echo "TAG=$TAG" >> $GITHUB_ENV
         echo "Using TAG=$TAG"
@@ -637,7 +651,8 @@ jobs:
         elif [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
           TAG="latest"
         else
-          TAG='${{ github.ref_name }}'
+          # Docker tag に '/' は使えないため '-' に置換 (e.g. feat/foo-bar → feat-foo-bar)
+          TAG=$(echo '${{ github.ref_name }}' | tr '/' '-')
         fi
         echo "TAG=$TAG" >> $GITHUB_ENV
         echo "Using TAG=$TAG"
