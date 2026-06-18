@@ -206,6 +206,9 @@ jobs:
         echo "::endgroup::"
 
     # Unified caching for all platforms
+    # NOTE: build/${{ matrix.platform-pair }} は意図的に外している。
+    # ここをキャッシュすると vcpkg_installed/<triplet>/ や CMakeCache.txt が
+    # 跨ぎ復元されてビルド構成変更 (triplet 変更等) と矛盾する。
     - name: Cache URG Library Build
       uses: actions/cache@v4
       with:
@@ -213,7 +216,6 @@ jobs:
           external/urg_library/current/src/*.a
           external/urg_library/current/include
           build-cache/urg-${{ matrix.platform-pair }}
-          build/${{ matrix.platform-pair }}
         key: ${{ needs.prepare-cache.outputs.urg-cache-key }}-${{ matrix.platform-pair }}-${{ matrix.platform }}-${{ runner.os }}
         restore-keys: |
           urg-library-${{ runner.os }}-${{ matrix.platform-pair }}-${{ matrix.platform }}
