@@ -11,8 +11,9 @@
 #    include <winsock2.h>
 #    include <ws2tcpip.h>
 #    pragma comment(lib, "ws2_32.lib")
-#    // Windows doesn't have ssize_t, define it for compatibility
-#    typedef intptr_t ssize_t;
+     // Windows doesn't have ssize_t, define it for compatibility.
+     // ('#' は preprocessor directive 用なので typedef 等の通常文には付けてはいけない)
+     typedef intptr_t ssize_t;
 #  else
 #    include <unistd.h>
 #    include <arpa/inet.h>
