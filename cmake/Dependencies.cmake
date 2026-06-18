@@ -79,40 +79,39 @@ endfunction()
 # Function to attempt system package discovery (without importing)
 function(try_system_package OUTPUT_VAR PACKAGE_NAME)
     set(${OUTPUT_VAR} FALSE PARENT_SCOPE)
-    
+
     if(PACKAGE_NAME STREQUAL "yaml-cpp")
-        # Check if yaml-cpp config exists without importing
-        find_file(YAMLCPP_CONFIG_FILE yaml-cppConfig.cmake
-            PATHS ${CMAKE_PREFIX_PATH}
-            PATH_SUFFIXES lib/cmake/yaml-cpp cmake/yaml-cpp
-            NO_DEFAULT_PATH
-        )
-        # Also check for pkgconfig version
+        # find_package CONFIG モードで一気通貫に検出（vcpkg / Homebrew / 自前ビルド全て対応）。
+        # 旧コードは "yaml-cppConfig.cmake" 固定ファイル名を NO_DEFAULT_PATH で探していたが、
+        # vcpkg は "yaml-cpp-config.cmake" を share/yaml-cpp/ に置くため拾えていなかった。
+        find_package(yaml-cpp CONFIG QUIET)
+        if(yaml-cpp_FOUND OR TARGET yaml-cpp::yaml-cpp OR TARGET yaml-cpp)
+            set(${OUTPUT_VAR} TRUE PARENT_SCOPE)
+            message(STATUS "Found system yaml-cpp package (CMake config)")
+            return()
+        endif()
+        # pkg-config フォールバック (Linux/macOS)
         if(PKG_CONFIG_FOUND)
             pkg_check_modules(PC_YAMLCPP QUIET yaml-cpp)
-        endif()
-        if(YAMLCPP_CONFIG_FILE OR TARGET yaml-cpp::yaml-cpp OR PC_YAMLCPP_FOUND)
-            set(${OUTPUT_VAR} TRUE PARENT_SCOPE)
-            message(STATUS "Found system yaml-cpp package")
+            if(PC_YAMLCPP_FOUND)
+                set(${OUTPUT_VAR} TRUE PARENT_SCOPE)
+                message(STATUS "Found system yaml-cpp package (pkg-config)")
+            endif()
         endif()
     elseif(PACKAGE_NAME STREQUAL "nng")
-        # Check if nng config exists or manual search
-        find_file(NNG_CONFIG_FILE nngConfig.cmake
-            PATHS ${CMAKE_PREFIX_PATH}
-            PATH_SUFFIXES lib/cmake/nng cmake/nng
-            NO_DEFAULT_PATH
-        )
-        if(NNG_CONFIG_FILE OR TARGET nng::nng)
+        # 同上: find_package CONFIG で vcpkg / 各種パッケージ全部拾う
+        find_package(nng CONFIG QUIET)
+        if(nng_FOUND OR TARGET nng::nng OR TARGET nng::nng-shared)
             set(${OUTPUT_VAR} TRUE PARENT_SCOPE)
-            message(STATUS "Found system nng package")
-        else()
-            # Fallback to manual search
-            find_path(NNG_INCLUDE_DIR nng/nng.h)
-            find_library(NNG_LIBRARY nng)
-            if(NNG_INCLUDE_DIR AND NNG_LIBRARY)
-                set(${OUTPUT_VAR} TRUE PARENT_SCOPE)
-                message(STATUS "Found system nng library (manual search)")
-            endif()
+            message(STATUS "Found system nng package (CMake config)")
+            return()
+        endif()
+        # Fallback to manual search
+        find_path(NNG_INCLUDE_DIR nng/nng.h)
+        find_library(NNG_LIBRARY nng)
+        if(NNG_INCLUDE_DIR AND NNG_LIBRARY)
+            set(${OUTPUT_VAR} TRUE PARENT_SCOPE)
+            message(STATUS "Found system nng library (manual search)")
         endif()
     endif()
 endfunction()
@@ -552,11 +551,15 @@ function(resolve_nng_dependency)
     if(NNG_MODE STREQUAL "system")
         try_system_package(SYSTEM_FOUND "nng")
         if(SYSTEM_FOUND)
-            if(nng_FOUND)
-                # Modern nng with CMake config
+            # CMake config をこのスコープでもう一度引いて nng_FOUND と nng::nng を立てる
+            # (function スコープを跨いで変数が伝わらないため)
+            find_package(nng CONFIG QUIET)
+            if(nng_FOUND OR TARGET nng::nng)
                 message(STATUS "Using system nng package (CMake config)")
             else()
                 # Manual library setup
+                find_path(NNG_INCLUDE_DIR nng/nng.h)
+                find_library(NNG_LIBRARY nng)
                 add_library(nng INTERFACE IMPORTED GLOBAL)
                 set_target_properties(nng PROPERTIES
                     INTERFACE_INCLUDE_DIRECTORIES ${NNG_INCLUDE_DIR}
@@ -568,17 +571,20 @@ function(resolve_nng_dependency)
             message(FATAL_ERROR "System NNG not found")
         endif()
     elseif(NNG_MODE STREQUAL "fetch")
-        setup_fetch_content("nng" 
-            "https://github.com/nanomsg/nng.git" 
+        setup_fetch_content("nng"
+            "https://github.com/nanomsg/nng.git"
             "v1.5.2")
     elseif(NNG_MODE STREQUAL "bundled")
         message(FATAL_ERROR "Bundled NNG not implemented")
     else() # auto mode
         try_system_package(SYSTEM_FOUND "nng")
         if(SYSTEM_FOUND)
-            if(nng_FOUND)
+            find_package(nng CONFIG QUIET)
+            if(nng_FOUND OR TARGET nng::nng)
                 message(STATUS "Auto-selected system nng package (CMake config)")
             else()
+                find_path(NNG_INCLUDE_DIR nng/nng.h)
+                find_library(NNG_LIBRARY nng)
                 add_library(nng INTERFACE IMPORTED GLOBAL)
                 set_target_properties(nng PROPERTIES
                     INTERFACE_INCLUDE_DIRECTORIES ${NNG_INCLUDE_DIR}
