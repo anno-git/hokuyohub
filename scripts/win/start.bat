@@ -3,6 +3,10 @@ REM HokuyoHub Windows ランチャ
 REM Node.js webui-server を起動し、内部で hokuyo_hub.exe を spawn します。
 REM ブラウザで http://localhost:8080 を開くと WebUI が見られます。
 
+REM cmd は既定で cp932 (Shift-JIS) のため、このファイル (UTF-8) の日本語が
+REM 文字化けして 'tp:' などの偽コマンドとして誤解釈される。UTF-8 に切替。
+chcp 65001 >nul
+
 setlocal
 cd /d "%~dp0"
 
