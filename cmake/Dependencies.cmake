@@ -277,7 +277,7 @@ function(setup_urg_external_project)
                 "/t:urg"
                 "/verbosity:detailed"
                 "/fileLogger"
-                "/fileLoggerParameters:LogFile=${URG_VS_PROJECT_DIR}/msbuild.log;Verbosity=detailed"
+                "/fileLoggerParameters:LogFile=${URG_VS_PROJECT_DIR}/msbuild.log"
             )
             message(STATUS "Configuring urg_library for Windows using Visual Studio 2019")
             message(STATUS "Expected build output directory: ${URG_BUILD_OUTPUT_DIR}")
@@ -319,7 +319,7 @@ function(setup_urg_external_project)
                             "/t:urg"
                             "/verbosity:detailed"
                             "/fileLogger"
-                            "/fileLoggerParameters:LogFile=${URG_VS_PROJECT_DIR}/msbuild.log;Verbosity=detailed"
+                            "/fileLoggerParameters:LogFile=${URG_VS_PROJECT_DIR}/msbuild.log"
                         )
                     else()
                         message(FATAL_ERROR "No suitable build tool found (MSBuild, devenv). Cannot build urg_library on Windows.")
@@ -350,7 +350,7 @@ function(setup_urg_external_project)
             BUILD_COMMAND     ${URG_BUILD_COMMAND}
             INSTALL_COMMAND   ""
             BUILD_IN_SOURCE   1
-            LOG_BUILD         1
+            LOG_BUILD         0
             BUILD_BYPRODUCTS  ${URG_BUILD_OUTPUT_LIB} ${URG_FINAL_LIB_PATH}
         )
 

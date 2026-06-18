@@ -70,29 +70,15 @@ jobs:
       max-parallel: 4
       matrix:
         # ITERATION MODE: Windows ネイティブビルド検証中のため Windows のみ。
-        # マージ前に元の [linux/amd64, linux/arm64, darwin/amd64, darwin/arm64, windows/amd64] に戻す。
+        # マージ前に元に戻す。元の matrix と include は以下:
+        #   platform: [linux/amd64, linux/arm64, darwin/amd64, darwin/arm64, windows/amd64]
+        #   include:
+        #   - platform: linux/amd64,  platform-pair: linux-amd64,  dockerfile: docker/Dockerfile.rpi.optimized, runner: ubuntu-latest, build-method: docker
+        #   - platform: linux/arm64,  platform-pair: linux-arm64,  dockerfile: docker/Dockerfile.rpi.optimized, runner: ubuntu-latest, build-method: docker
+        #   - platform: darwin/amd64, platform-pair: darwin-amd64, runner: macos-13,     build-method: cmake
+        #   - platform: darwin/arm64, platform-pair: darwin-arm64, runner: macos-latest, build-method: cmake
         platform: [windows/amd64]
         include:
-        # Docker builds for Linux
-        - platform: linux/amd64
-          platform-pair: linux-amd64
-          dockerfile: docker/Dockerfile.rpi.optimized
-          runner: ubuntu-latest
-          build-method: docker
-        - platform: linux/arm64
-          platform-pair: linux-arm64
-          dockerfile: docker/Dockerfile.rpi.optimized
-          runner: ubuntu-latest
-          build-method: docker
-        # Native builds for macOS
-        - platform: darwin/amd64
-          platform-pair: darwin-amd64
-          runner: macos-13
-          build-method: cmake
-        - platform: darwin/arm64
-          platform-pair: darwin-arm64
-          runner: macos-latest
-          build-method: cmake
         # Native build for Windows (MSVC + vcpkg manifest)
         - platform: windows/amd64
           platform-pair: windows-amd64
