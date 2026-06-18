@@ -1,0 +1,13 @@
+{
+  "$schema": "https://raw.githubusercontent.com/microsoft/vcpkg-tool/main/docs/vcpkg.schema.json",
+  "name": "hokuyo-hub",
+  "version-string": "1.0.0",
+  "description": "HokuyoHub - real-time LiDAR sensor data processing platform",
+  "homepage": "https://github.com/anno-git/hokuyohub",
+  "dependencies": [
+    "yaml-cpp",
+    "nng",
+    "asio",
+    "jsoncpp"
+  ]
+}

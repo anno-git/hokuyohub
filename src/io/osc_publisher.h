@@ -7,14 +7,16 @@
 #include "config/config.h"
 
 #ifdef USE_OSC
-#ifdef _WIN32
-#include <winsock2.h>
-#include <ws2tcpip.h>
-#else
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
-#endif
+#  ifdef _WIN32
+#    include <winsock2.h>
+#    include <ws2tcpip.h>
+#    define HOKUYO_OSC_INVALID_SOCKET INVALID_SOCKET
+#  else
+#    include <sys/socket.h>
+#    include <netinet/in.h>
+#    include <arpa/inet.h>
+#    define HOKUYO_OSC_INVALID_SOCKET (-1)
+#  endif
 #endif
 
 class OscPublisher {
@@ -29,7 +31,12 @@ class OscPublisher {
   bool send_raw_{false};
   
 #ifdef USE_OSC
+#  ifdef _WIN32
+  // Windows: SOCKET は UINT_PTR。INVALID_SOCKET (= (SOCKET)~0) で未初期化を表現
+  SOCKET socket_fd_{INVALID_SOCKET};
+#  else
   int socket_fd_{-1};
+#  endif
   struct sockaddr_in addr_;
 #endif
 

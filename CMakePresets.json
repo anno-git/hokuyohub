@@ -108,6 +108,48 @@
         "CMAKE_BUILD_TYPE": "RelWithDebInfo",
         "DEPS_MODE": "auto"
       }
+    },
+
+    {
+      "name": "win-base",
+      "displayName": "Windows x64 (MSVC + vcpkg) Base",
+      "description": "Native Windows x64 build via MSVC, deps via vcpkg manifest",
+      "generator": "Visual Studio 17 2022",
+      "architecture": "x64",
+      "binaryDir": "${sourceDir}/build/windows-amd64",
+      "toolchainFile": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake",
+      "cacheVariables": {
+        "HOKUYO_NNG_ENABLE": "ON",
+        "USE_OSC": "ON",
+        "DEPS_MODE": "auto",
+        "VCPKG_TARGET_TRIPLET": "x64-windows",
+        "CMAKE_INSTALL_PREFIX": "${sourceDir}/dist/windows-amd64",
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
+        "CMAKE_PROJECT_INCLUDE": "${sourceDir}/cmake/toolchains/windows-x64.cmake"
+      },
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Windows"
+      }
+    },
+    {
+      "name": "win-release",
+      "displayName": "Windows x64 Release",
+      "description": "Windows x64 Release build (MSVC + vcpkg)",
+      "inherits": "win-base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release"
+      }
+    },
+    {
+      "name": "win-debug",
+      "displayName": "Windows x64 Debug",
+      "description": "Windows x64 Debug build (MSVC + vcpkg)",
+      "inherits": "win-base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug"
+      }
     }
   ],
 
@@ -172,6 +214,24 @@
       "displayName": "Build All (macOS)",
       "description": "Build all targets for macOS Release",
       "configurePreset": "mac-release",
+      "jobs": 0
+    },
+    {
+      "name": "build-win-release",
+      "displayName": "Build (Windows x64 Release)",
+      "description": "Build Windows x64 Release configuration",
+      "configurePreset": "win-release",
+      "configuration": "Release",
+      "targets": [ "hokuyo_hub" ],
+      "jobs": 0
+    },
+    {
+      "name": "build-win-debug",
+      "displayName": "Build (Windows x64 Debug)",
+      "description": "Build Windows x64 Debug configuration",
+      "configurePreset": "win-debug",
+      "configuration": "Debug",
+      "targets": [ "hokuyo_hub" ],
       "jobs": 0
     }
   ],

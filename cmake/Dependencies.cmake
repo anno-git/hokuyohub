@@ -571,12 +571,19 @@ endfunction()
 # Resolve JsonCpp dependency
 function(resolve_jsoncpp_dependency)
     # Check if already resolved
-    if(TARGET jsoncpp_lib OR TARGET PkgConfig::jsoncpp)
+    if(TARGET jsoncpp_lib OR TARGET PkgConfig::jsoncpp OR TARGET jsoncpp_static)
         message(STATUS "JsonCpp already resolved")
         return()
     endif()
-    
-    # Try to find system JsonCpp first
+
+    # Try CMake config first (vcpkg / 最近の jsoncpp パッケージはこちらを provide)
+    find_package(jsoncpp CONFIG QUIET)
+    if(jsoncpp_FOUND OR TARGET jsoncpp_lib OR TARGET jsoncpp_static OR TARGET JsonCpp::JsonCpp)
+        message(STATUS "Using JsonCpp via CMake config (vcpkg / system)")
+        return()
+    endif()
+
+    # Try to find system JsonCpp via pkg-config (Linux/macOS の Homebrew 等)
     find_package(PkgConfig QUIET)
     if(PKG_CONFIG_FOUND)
         pkg_check_modules(jsoncpp QUIET jsoncpp)
@@ -746,8 +753,10 @@ function(link_hokuyo_dependencies TARGET_NAME)
         message(STATUS "Added legacy MSVC runtime library support for ${TARGET_NAME}")
     endif()
     
-    # Link JsonCpp (handle different target names)
-    if(TARGET jsoncpp_lib)
+    # Link JsonCpp (handle different target names; vcpkg は JsonCpp::JsonCpp も提供する)
+    if(TARGET JsonCpp::JsonCpp)
+        target_link_libraries(${TARGET_NAME} PRIVATE JsonCpp::JsonCpp)
+    elseif(TARGET jsoncpp_lib)
         target_link_libraries(${TARGET_NAME} PRIVATE jsoncpp_lib)
     elseif(TARGET PkgConfig::jsoncpp)
         target_link_libraries(${TARGET_NAME} PRIVATE PkgConfig::jsoncpp)

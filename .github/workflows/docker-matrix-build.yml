@@ -67,9 +67,7 @@ jobs:
       fail-fast: false
       max-parallel: 4
       matrix:
-        # WINDOWS BUILDS TEMPORARILY DISABLED - Can be re-enabled by uncommenting the following line and related Windows configurations below
-        platform: [linux/amd64, linux/arm64, darwin/amd64, darwin/arm64]
-        # platform: [linux/amd64, linux/arm64, darwin/amd64, darwin/arm64, windows/amd64]
+        platform: [linux/amd64, linux/arm64, darwin/amd64, darwin/arm64, windows/amd64]
         include:
         # Docker builds for Linux
         - platform: linux/amd64
@@ -91,12 +89,11 @@ jobs:
           platform-pair: darwin-arm64
           runner: macos-latest
           build-method: cmake
-        # WINDOWS BUILDS TEMPORARILY DISABLED - Uncomment the following lines to re-enable Windows builds
-        # Native build for Windows
-        # - platform: windows/amd64
-        #   platform-pair: windows-amd64
-        #   runner: windows-latest
-        #   build-method: cmake
+        # Native build for Windows (MSVC + vcpkg manifest)
+        - platform: windows/amd64
+          platform-pair: windows-amd64
+          runner: windows-latest
+          build-method: cmake
 
     env:
       DOCKER_BUILDKIT: 1
@@ -180,28 +177,42 @@ jobs:
         brew install pkg-config yaml-cpp jsoncpp nng asio
         echo "::endgroup::"
 
-    # WINDOWS BUILDS TEMPORARILY DISABLED - Uncomment the following sections to re-enable Windows builds
-    # Windows-specific setup
-    # - name: Set up MSVC (Windows)
-    #   if: runner.os == 'Windows'
-    #   uses: ilammy/msvc-dev-cmd@v1
-    #   with:
-    #     arch: x64
-    #     vsversion: 2019
+    # Windows-specific setup (MSVC + vcpkg manifest mode)
+    - name: Set up MSVC (Windows)
+      if: runner.os == 'Windows'
+      uses: ilammy/msvc-dev-cmd@v1
+      with:
+        arch: x64
 
-    # - name: Set up vcpkg (Windows)
-    #   if: runner.os == 'Windows'
-    #   run: |
-    #     echo "::group::Install Windows dependencies"
-    #     # Install vcpkg if not present
-    #     if (!(Test-Path "C:\vcpkg")) {
-    #       git clone https://github.com/Microsoft/vcpkg.git C:\vcpkg
-    #       C:\vcpkg\bootstrap-vcpkg.bat -disableMetrics
-    #     }
-    #     # Install required dependencies
-    #     C:\vcpkg\vcpkg.exe install yaml-cpp:x64-windows jsoncpp:x64-windows nng:x64-windows asio:x64-windows
-    #     echo "CMAKE_TOOLCHAIN_FILE=C:\vcpkg\scripts\buildsystems\vcpkg.cmake" >> $env:GITHUB_ENV
-    #     echo "::endgroup::"
+    - name: Set up vcpkg (Windows)
+      if: runner.os == 'Windows'
+      shell: pwsh
+      run: |
+        echo "::group::Bootstrap vcpkg"
+        # windows-latest runner には vcpkg がプリインストール (C:\vcpkg)。
+        # 念のため存在しなければ clone する。
+        if (-not (Test-Path "C:\vcpkg")) {
+          git clone https://github.com/Microsoft/vcpkg.git C:\vcpkg
+          & C:\vcpkg\bootstrap-vcpkg.bat -disableMetrics
+        }
+        # vcpkg manifest mode で cmake configure 時に自動 install される。
+        echo "VCPKG_ROOT=C:\vcpkg" >> $env:GITHUB_ENV
+        echo "::endgroup::"
+
+    - name: Set up Node.js (Windows - for portable bundle download)
+      if: runner.os == 'Windows'
+      shell: pwsh
+      run: |
+        echo "::group::Download Node.js Portable for bundling"
+        $nodeVersion = "v20.18.1"
+        $nodeZip = "node-$nodeVersion-win-x64.zip"
+        $nodeUrl = "https://nodejs.org/dist/$nodeVersion/$nodeZip"
+        Invoke-WebRequest -Uri $nodeUrl -OutFile $nodeZip
+        Expand-Archive -Path $nodeZip -DestinationPath . -Force
+        Move-Item "node-$nodeVersion-win-x64" "node-portable"
+        Remove-Item $nodeZip
+        echo "Node.js Portable extracted to ./node-portable"
+        echo "::endgroup::"
 
     # Unified caching for all platforms
     - name: Cache URG Library Build
@@ -328,71 +339,111 @@ jobs:
         echo "::endgroup::"
 
     # Native CMake build steps (macOS/Windows)
-    - name: Configure CMake build
-      if: matrix.build-method == 'cmake'
+    - name: Configure CMake build (Windows - via preset)
+      if: matrix.build-method == 'cmake' && runner.os == 'Windows'
+      shell: pwsh
+      run: |
+        echo "::group::Configure CMake for ${{ matrix.platform }} (preset: win-release)"
+        # vcpkg manifest mode: configure 時に vcpkg.json の依存が自動 install される
+        cmake --preset win-release
+        echo "::endgroup::"
+
+    - name: Configure CMake build (macOS)
+      if: matrix.build-method == 'cmake' && runner.os == 'macOS'
+      shell: bash
       run: |
         echo "::group::Configure CMake for ${{ matrix.platform }}"
         mkdir -p build/${{ matrix.platform-pair }}
         cd build/${{ matrix.platform-pair }}
-        
-        # WINDOWS BUILDS TEMPORARILY DISABLED - Uncomment the following Windows-specific cmake configuration
-        # if [ "${{ runner.os }}" = "Windows" ]; then
-        #   cmake ../.. -G "Visual Studio 16 2019" -A x64 \
-        #     -DCMAKE_BUILD_TYPE=Release \
-        #     -DCMAKE_TOOLCHAIN_FILE="${CMAKE_TOOLCHAIN_FILE}" \
-        #     -DDEPS_MODE=auto
-        # else
-        if true; then
-          # For macOS, add ASIO hints to help CMake find ASIO headers
-          if [ "${{ runner.os }}" = "macOS" ]; then
-            ASIO_INCLUDE_DIR=$(brew --prefix asio)/include
-            cmake ../.. \
-              -DCMAKE_BUILD_TYPE=Release \
-              -DDEPS_MODE=auto \
-              -DASIO_INCLUDE_DIR="${ASIO_INCLUDE_DIR}"
-          else
-            cmake ../.. \
-              -DCMAKE_BUILD_TYPE=Release \
-              -DDEPS_MODE=auto
-          fi
-        fi
+        ASIO_INCLUDE_DIR=$(brew --prefix asio)/include
+        cmake ../.. \
+          -DCMAKE_BUILD_TYPE=Release \
+          -DDEPS_MODE=auto \
+          -DASIO_INCLUDE_DIR="${ASIO_INCLUDE_DIR}"
         echo "::endgroup::"
-      shell: bash
 
-    - name: Build with CMake
-      if: matrix.build-method == 'cmake'
+    - name: Build with CMake (Windows)
+      if: matrix.build-method == 'cmake' && runner.os == 'Windows'
+      shell: pwsh
+      run: |
+        echo "::group::Build with CMake for ${{ matrix.platform }}"
+        cmake --build --preset build-win-release --parallel
+        echo "::endgroup::"
+
+    - name: Build with CMake (macOS)
+      if: matrix.build-method == 'cmake' && runner.os == 'macOS'
+      shell: bash
       run: |
         echo "::group::Build with CMake for ${{ matrix.platform }}"
         cd build/${{ matrix.platform-pair }}
-        
-        # WINDOWS BUILDS TEMPORARILY DISABLED - Uncomment the following Windows-specific build command
-        # if [ "${{ runner.os }}" = "Windows" ]; then
-        #   cmake --build . --config Release --parallel 4
-        # else
-        if true; then
-          cmake --build . --config Release --parallel $(sysctl -n hw.ncpu 2>/dev/null || nproc)
-        fi
+        cmake --build . --config Release --parallel $(sysctl -n hw.ncpu 2>/dev/null || nproc)
         echo "::endgroup::"
-      shell: bash
 
-    - name: Install to dist directory
-      if: matrix.build-method == 'cmake'
+    - name: Install to dist directory (Windows)
+      if: matrix.build-method == 'cmake' && runner.os == 'Windows'
+      shell: pwsh
+      run: |
+        echo "::group::Install artifacts for ${{ matrix.platform }}"
+        cmake --install build/windows-amd64 --config Release
+        echo "--- dist/windows-amd64 contents ---"
+        Get-ChildItem dist/windows-amd64 | Format-Table
+        echo "::endgroup::"
+
+    - name: Bundle Node.js Portable + webui-server deps (Windows)
+      if: matrix.build-method == 'cmake' && runner.os == 'Windows'
+      shell: pwsh
+      run: |
+        echo "::group::Bundle Node.js Portable + npm install"
+        # Node.js Portable をリリース dir 直下に配置
+        Copy-Item -Recurse -Path "./node-portable" -Destination "dist/windows-amd64/node-portable"
+
+        # webui-server に本番用 node_modules をインストール
+        Push-Location "dist/windows-amd64/webui-server"
+        $env:Path = "$PWD/../node-portable;$env:Path"
+        & "../node-portable/npm.cmd" ci --omit=dev
+        Pop-Location
+
+        echo "--- final dist tree (top level) ---"
+        Get-ChildItem dist/windows-amd64 | Format-Table
+        echo "::endgroup::"
+
+    - name: Create start.bat (Windows)
+      if: matrix.build-method == 'cmake' && runner.os == 'Windows'
+      shell: pwsh
+      run: |
+        $batContent = @'
+@echo off
+REM HokuyoHub Windows ランチャ
+REM Node.js webui-server を起動し、内部で hokuyo_hub.exe を spawn します。
+REM ブラウザで http://localhost:8080 を開くと WebUI が見られます。
+
+setlocal
+cd /d "%~dp0"
+
+set "BACKEND_PATH=%~dp0hokuyo_hub.exe"
+set "BACKEND_CONFIG=%~dp0configs\default.yaml"
+set "BACKEND_LISTEN=0.0.0.0:8081"
+
+REM 同梱の Node.js Portable を PATH に追加
+set "PATH=%~dp0node-portable;%PATH%"
+
+echo HokuyoHub 起動中... http://localhost:8080 をブラウザで開いてください
+cd webui-server
+"%~dp0node-portable\node.exe" server.js
+'@
+        Set-Content -Path "dist/windows-amd64/start.bat" -Value $batContent -Encoding ASCII
+        echo "start.bat created"
+
+    - name: Install to dist directory (macOS)
+      if: matrix.build-method == 'cmake' && runner.os == 'macOS'
+      shell: bash
       run: |
         echo "::group::Install artifacts for ${{ matrix.platform }}"
         cd build/${{ matrix.platform-pair }}
-        
-        # Install to platform-specific directory
         cmake --install . --prefix "../../dist/${{ matrix.platform-pair }}"
-        
-        # Verify installation
         ls -la "../../dist/${{ matrix.platform-pair }}/"
-        
-        # Make binary executable on Unix systems
-        if [ "${{ runner.os }}" != "Windows" ]; then
-          chmod +x "../../dist/${{ matrix.platform-pair }}/hokuyo_hub" || true
-        fi
+        chmod +x "../../dist/${{ matrix.platform-pair }}/hokuyo_hub" || true
         echo "::endgroup::"
-      shell: bash
 
     - name: Create platform-specific artifacts README
       if: matrix.build-method == 'cmake' && github.event_name != 'pull_request'
@@ -657,12 +708,11 @@ jobs:
         name: hokuyohub-darwin-arm64
         path: dist/darwin-arm64
 
-    # WINDOWS BUILDS TEMPORARILY DISABLED - Uncomment the following to re-enable Windows artifact download
-    # - name: Download Windows AMD64 artifacts
-    #   uses: actions/download-artifact@v4
-    #   with:
-    #     name: hokuyohub-windows-amd64
-    #     path: dist/windows-amd64
+    - name: Download Windows AMD64 artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: hokuyohub-windows-amd64
+        path: dist/windows-amd64
 
     # Create platform-specific packages
     - name: Create standalone packages (all platforms)
@@ -726,17 +776,27 @@ jobs:
           tar -czf deployment/hokuyohub-${{ github.ref_name }}-darwin-arm64.tar.gz -C deployment/darwin-arm64 .
         fi
 
-        # WINDOWS BUILDS TEMPORARILY DISABLED - Uncomment the following Windows packaging section
-        # Windows AMD64
-        # if [ -d "dist/windows-amd64" ]; then
-        #   mkdir -p deployment/windows-amd64
-        #   cp -r dist/windows-amd64/* deployment/windows-amd64/ 2>/dev/null || true
-        #   cat > deployment/windows-amd64/install.bat << 'EOF'
-        # @echo off
-        # echo Windows x64 package ready. Run: hokuyo_hub.exe --config configs/default.yaml
-        # EOF
-        #   cd deployment/windows-amd64 && zip -r ../hokuyohub-${{ github.ref_name }}-windows-amd64.zip . && cd ../..
-        # fi
+        # Windows AMD64 (start.bat / node-portable / webui-server は build job 側で組み込み済み)
+        if [ -d "dist/windows-amd64" ]; then
+          mkdir -p deployment/windows-amd64
+          cp -r dist/windows-amd64/* deployment/windows-amd64/ 2>/dev/null || true
+          cat > deployment/windows-amd64/README.txt << 'EOF'
+HokuyoHub for Windows x64
+
+[起動方法]
+  start.bat をダブルクリック
+  → http://localhost:8080 をブラウザで開く
+
+[必要なもの]
+  Windows 10 / 11 x64
+  (Node.js は同梱の node-portable を使うのでインストール不要)
+
+[センサー設定]
+  configs/default.yaml を編集して Hokuyo センサーの IP を設定してください
+EOF
+          # 大きなディレクトリなので zip に固める
+          (cd deployment && zip -r hokuyohub-${{ github.ref_name }}-windows-amd64.zip windows-amd64)
+        fi
 
         ls -lh deployment/
         echo "::endgroup::"
@@ -749,8 +809,7 @@ jobs:
           deployment/hokuyohub-${{ github.ref_name }}-linux-arm64.tar.gz
           deployment/hokuyohub-${{ github.ref_name }}-darwin-amd64.tar.gz
           deployment/hokuyohub-${{ github.ref_name }}-darwin-arm64.tar.gz
-          # WINDOWS BUILDS TEMPORARILY DISABLED - Uncomment the following line to re-enable Windows release assets
-          # deployment/hokuyohub-${{ github.ref_name }}-windows-amd64.zip
+          deployment/hokuyohub-${{ github.ref_name }}-windows-amd64.zip
         generate_release_notes: true
         draft: false
         prerelease: ${{ contains(github.ref, 'alpha') || contains(github.ref, 'beta') || contains(github.ref, 'rc') }}
@@ -774,13 +833,14 @@ jobs:
           - **macOS Apple Silicon**: `hokuyohub-${{ github.ref_name }}-darwin-arm64.tar.gz`
           
           #### Windows
-          <!-- WINDOWS BUILDS TEMPORARILY DISABLED -->
-          <!-- - **Windows x64**: `hokuyohub-${{ github.ref_name }}-windows-amd64.zip` -->
+          - **Windows x64**: `hokuyohub-${{ github.ref_name }}-windows-amd64.zip` (Node.js Portable 同梱、ダブルクリックで起動)
 
           ### 🚀 Quick Start
           1. Download the appropriate package for your platform
           2. Extract the archive
-          3. Run `./hokuyo_hub --config configs/default.yaml` (Unix) or `hokuyo_hub.exe --config configs\default.yaml` (Windows)
+          3. Run:
+             - **Unix**: `./hokuyo_hub --config configs/default.yaml`
+             - **Windows**: `start.bat` をダブルクリック (WebUI 経由で C++ バックエンドが起動)
 
           ### 🌐 Web Interface
           Access the web interface at http://localhost:8080 after starting the application.
@@ -814,11 +874,9 @@ jobs:
         ## Optimized Docker Matrix Build
 
         - Build Time: Improved via matrix and caching
-        - Parallel Execution: linux/amd64, linux/arm64, darwin/amd64, darwin/arm64
-        <!-- WINDOWS BUILDS TEMPORARILY DISABLED: windows/amd64 -->
+        - Parallel Execution: linux/amd64, linux/arm64, darwin/amd64, darwin/arm64, windows/amd64
         - Caching: BuildKit layer + URG dep cache + native dependency cache
-        - Runners: ubuntu-latest, macos-13, macos-latest
-        <!-- WINDOWS BUILDS TEMPORARILY DISABLED: windows-latest -->
+        - Runners: ubuntu-latest, macos-13, macos-latest, windows-latest
 
         Last updated: $(date -u '+%Y-%m-%d %H:%M:%S UTC')
         EOF

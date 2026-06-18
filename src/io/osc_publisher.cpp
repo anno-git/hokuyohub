@@ -33,7 +33,7 @@
 
 OscPublisher::OscPublisher() : enabled_(false) {
 #ifdef USE_OSC
-  socket_fd_ = -1;
+  socket_fd_ = HOKUYO_OSC_INVALID_SOCKET;
 #ifdef _WIN32
   // Initialize Winsock on Windows
   WSADATA wsaData;
@@ -84,7 +84,7 @@ void OscPublisher::start(const SinkConfig& config) {
 
 #ifdef USE_OSC
   socket_fd_ = socket(AF_INET, SOCK_DGRAM, 0);
-  if (socket_fd_ < 0) {
+  if (socket_fd_ == HOKUYO_OSC_INVALID_SOCKET) {
     std::cerr << "[OscPublisher] Failed to create UDP socket" << std::endl;
     enabled_ = false;
     return;
@@ -101,7 +101,7 @@ void OscPublisher::start(const SinkConfig& config) {
 #else
     close(socket_fd_);
 #endif
-    socket_fd_ = -1;
+    socket_fd_ = HOKUYO_OSC_INVALID_SOCKET;
     enabled_ = false;
     return;
   }
@@ -122,13 +122,13 @@ void OscPublisher::updateConfig(const SinkConfig& config) {
 
 void OscPublisher::stop() {
 #ifdef USE_OSC
-  if (socket_fd_ >= 0) {
+  if (socket_fd_ != HOKUYO_OSC_INVALID_SOCKET) {
 #ifdef _WIN32
     closesocket(socket_fd_);
 #else
     close(socket_fd_);
 #endif
-    socket_fd_ = -1;
+    socket_fd_ = HOKUYO_OSC_INVALID_SOCKET;
   }
 #endif
   enabled_ = false;
@@ -269,9 +269,10 @@ void OscPublisher::publishClusters(uint64_t t_ns, uint32_t seq, const std::vecto
 
 void OscPublisher::sendUdp(const std::string& data) {
 #ifdef USE_OSC
-  if (socket_fd_ < 0) return;
+  if (socket_fd_ == HOKUYO_OSC_INVALID_SOCKET) return;
 
-  ssize_t sent = sendto(socket_fd_, data.c_str(), data.size(), 0,
+  // Windows sendto は int 引数。size_t をそのまま渡すと警告/エラーの可能性があるため明示変換。
+  ssize_t sent = sendto(socket_fd_, data.c_str(), static_cast<int>(data.size()), 0,
                         (struct sockaddr*)&addr_, sizeof(addr_));
   if (sent < 0) {
     std::cerr << "[OscPublisher] Failed to send UDP packet" << std::endl;
