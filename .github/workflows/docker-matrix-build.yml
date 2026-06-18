@@ -349,10 +349,13 @@ jobs:
         VCPKG_ROOT: C:\vcpkg
       run: |
         echo "::group::Configure CMake for ${{ matrix.platform }}"
-        # preset を介さず直接呼ぶ (preset の $env{VCPKG_ROOT} 展開タイミング問題回避)
-        # vcpkg manifest mode: configure 時に vcpkg.json の依存が自動 install される
-        cmake -B build/windows-amd64 -G "Visual Studio 17 2022" -A x64 `
+        # windows-latest runner は今 windows-2025-vs2026 image = VS 18 (2026) のみ。
+        # CMake は VS 18 のジェネレータ名をまだ知らないので、Ninja + MSVC (msvc-dev-cmd
+        # で cl.exe を PATH に乗せた状態) で組む。これなら VS のバージョンに依らない。
+        cmake -B build/windows-amd64 -G "Ninja" `
           -DCMAKE_BUILD_TYPE=Release `
+          -DCMAKE_C_COMPILER=cl `
+          -DCMAKE_CXX_COMPILER=cl `
           -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake" `
           -DVCPKG_TARGET_TRIPLET=x64-windows `
           -DCMAKE_INSTALL_PREFIX="$pwd/dist/windows-amd64" `

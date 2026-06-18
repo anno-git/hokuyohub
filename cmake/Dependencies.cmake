@@ -221,26 +221,51 @@ function(setup_urg_external_project)
         if(WIN32)
             # Use Visual Studio on Windows for MSVC compatibility
             set(URG_VS_PROJECT_DIR "${URG_SRC_DIR}/vs2019/c")
-            
+
+            # CMAKE_VS_MSBUILD_COMMAND は VS generator を使ったときだけ自動設定される。
+            # Ninja generator で組んでいる場合は空なので、PATH から MSBuild を探す
+            # （msvc-dev-cmd を踏むと PATH に MSBuild が乗る）。それでも見つからなければ
+            # 既知のインストール先を順に探す。
+            if(NOT CMAKE_VS_MSBUILD_COMMAND)
+                message(STATUS "CMAKE_VS_MSBUILD_COMMAND not set (likely Ninja generator) - searching PATH and known VS install paths")
+                find_program(MSBUILD_FALLBACK MSBuild.exe
+                    HINTS ENV PATH
+                    PATHS
+                        "C:/Program Files/Microsoft Visual Studio/18/Enterprise/MSBuild/Current/Bin/amd64"
+                        "C:/Program Files/Microsoft Visual Studio/18/Professional/MSBuild/Current/Bin/amd64"
+                        "C:/Program Files/Microsoft Visual Studio/18/Community/MSBuild/Current/Bin/amd64"
+                        "C:/Program Files/Microsoft Visual Studio/2022/Enterprise/MSBuild/Current/Bin/amd64"
+                        "C:/Program Files/Microsoft Visual Studio/2022/Professional/MSBuild/Current/Bin/amd64"
+                        "C:/Program Files/Microsoft Visual Studio/2022/Community/MSBuild/Current/Bin/amd64"
+                        "C:/Program Files (x86)/Microsoft Visual Studio/2019/Enterprise/MSBuild/Current/Bin"
+                        "C:/Program Files (x86)/Microsoft Visual Studio/2019/Professional/MSBuild/Current/Bin"
+                        "C:/Program Files (x86)/Microsoft Visual Studio/2019/Community/MSBuild/Current/Bin"
+                )
+                if(MSBUILD_FALLBACK)
+                    set(CMAKE_VS_MSBUILD_COMMAND "${MSBUILD_FALLBACK}" CACHE FILEPATH "MSBuild executable" FORCE)
+                    message(STATUS "Found MSBuild via fallback: ${CMAKE_VS_MSBUILD_COMMAND}")
+                endif()
+            endif()
+
             # === CRITICAL BUILD_COMMAND DEBUGGING ===
             message(STATUS "=== ExternalProject BUILD_COMMAND Diagnostic ===")
             message(STATUS "CMAKE_VS_MSBUILD_COMMAND: '${CMAKE_VS_MSBUILD_COMMAND}'")
-            
+
             # Verify CMAKE_VS_MSBUILD_COMMAND is defined and valid
             if(NOT CMAKE_VS_MSBUILD_COMMAND)
-                message(FATAL_ERROR "CMAKE_VS_MSBUILD_COMMAND is not defined! MSBuild cannot execute.")
+                message(FATAL_ERROR "CMAKE_VS_MSBUILD_COMMAND is not defined and could not be discovered! MSBuild cannot execute.")
             endif()
-            
+
             if(NOT EXISTS "${CMAKE_VS_MSBUILD_COMMAND}")
                 message(FATAL_ERROR "CMAKE_VS_MSBUILD_COMMAND points to non-existent file: ${CMAKE_VS_MSBUILD_COMMAND}")
             endif()
-            
+
             # Verify solution file exists
             set(SOLUTION_FILE "${URG_VS_PROJECT_DIR}/urg.sln")
             if(NOT EXISTS "${SOLUTION_FILE}")
                 message(FATAL_ERROR "Visual Studio solution file not found: ${SOLUTION_FILE}")
             endif()
-            
+
             message(STATUS "✓ MSBuild executable verified: ${CMAKE_VS_MSBUILD_COMMAND}")
             message(STATUS "✓ Solution file verified: ${SOLUTION_FILE}")
             
