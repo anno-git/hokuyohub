@@ -181,26 +181,16 @@ RUN --mount=type=cache,target=/build/install-cache,sharing=locked \
     echo "Installation to staging completed" && \
     ls -la /staging/opt/hokuyohub/
 
-# Copy additional resources
-RUN echo "=== Copying Additional Resources ===" && \
-    # Copy web UI if exists
-    if [ -d "webui" ]; then \
-        mkdir -p /staging/opt/hokuyohub/webui && \
-        cp -r webui/* /staging/opt/hokuyohub/webui/ ; \
-    fi && \
-    # Copy configuration files
-    if [ -d "configs" ]; then \
-        mkdir -p /staging/opt/hokuyohub/configs && \
-        cp -r configs/* /staging/opt/hokuyohub/configs/ ; \
-    fi && \
-    echo "Resource copying completed"
+# 注: webui-server / configs は CMakeLists.txt の install ルールで
+# `ninja install` 時に /staging/opt/hokuyohub/ 配下にコピー済み。
+# レガシーな追加コピー処理はここで持つ必要は無し（重複・整合性ズレ防止のため削除）。
 
 # =============================================================================
 # Stage 4: Optimized Runtime Image
 # =============================================================================
 FROM debian:bookworm-slim AS runtime
 
-# Install only runtime dependencies with mount cache
+# Install runtime dependencies (C++ runtime libs + Node.js for webui-server)
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
     rm -f /etc/apt/apt.conf.d/docker-clean && \
@@ -212,6 +202,9 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     # Application runtime libraries
     libyaml-cpp0.7 \
     libnng1 \
+    # Node.js (webui-server を起動するため。Debian 12 標準は Node.js 18)
+    nodejs \
+    npm \
     # System utilities
     ca-certificates \
     curl \
@@ -226,21 +219,30 @@ RUN groupadd -r hokuyo && \
 # Copy application from build stage
 COPY --from=build-app --chown=hokuyo:hokuyo /staging/opt/hokuyohub /opt/hokuyohub
 
+# Install webui-server の Node.js 依存（package-lock.json があるので npm ci で確定的）
+WORKDIR /opt/hokuyohub/webui-server
+RUN --mount=type=cache,target=/root/.npm,sharing=locked \
+    npm ci --omit=dev && \
+    chown -R hokuyo:hokuyo /opt/hokuyohub/webui-server/node_modules
+
 # Switch to application user
 USER hokuyo
-
-# Set working directory
 WORKDIR /opt/hokuyohub
 
-# Expose default ports
-EXPOSE 8080 8081
+# Node.js 経由で起動するときの C++ バックエンド位置・設定を絶対パスで明示
+# （server.js の BackendManager がこの環境変数を参照して spawn する）
+ENV BACKEND_PATH=/opt/hokuyohub/hokuyo_hub \
+    BACKEND_CONFIG=/opt/hokuyohub/configs/default.yaml \
+    BACKEND_LISTEN=0.0.0.0:8081
 
-# Add health check with optimized intervals
-HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-    CMD curl -f http://localhost:8080/api/health || curl -f http://localhost:8080/ || exit 1
+# WebUI（Node.js）は 8080 で外部に公開。C++ の 8081 は Node.js が内部プロキシで使うのみ
+EXPOSE 8080
 
-# Set default command
-CMD ["./hokuyo_hub"]
+HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
+    CMD curl -f http://localhost:8080/ || exit 1
+
+# Node.js webui-server が起動 → 内部で C++ hokuyo_hub を spawn
+CMD ["node", "webui-server/server.js"]
 
 # =============================================================================
 # Build Arguments and Metadata

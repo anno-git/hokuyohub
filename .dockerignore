@@ -85,7 +85,7 @@ compile_commands.json
 !cmake/
 !src/
 !external/
-!webui/
+!webui-server/
 !configs/
 !scripts/
 !docker/
