@@ -341,6 +341,9 @@ function(setup_urg_external_project)
         endif()
 
         # ExternalProject configuration
+        # BUILD_BYPRODUCTS で「この成果物は urg_library_proj が作る」と Ninja に教える。
+        # これがないと IMPORTED 先 (urg_c の IMPORTED_LOCATION) を Ninja が「rule なし」と
+        # 判定して missing error になる (Make では緩いので mac/linux はこれが無くても通る)。
         ExternalProject_Add(urg_library_proj
             SOURCE_DIR        ${URG_SRC_DIR}
             CONFIGURE_COMMAND ""
@@ -348,6 +351,7 @@ function(setup_urg_external_project)
             INSTALL_COMMAND   ""
             BUILD_IN_SOURCE   1
             LOG_BUILD         1
+            BUILD_BYPRODUCTS  ${URG_BUILD_OUTPUT_LIB} ${URG_FINAL_LIB_PATH}
         )
 
         # Add diagnostic step BEFORE build to test BUILD_COMMAND execution
