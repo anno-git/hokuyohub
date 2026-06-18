@@ -345,7 +345,8 @@ jobs:
           -DCMAKE_C_COMPILER=cl `
           -DCMAKE_CXX_COMPILER=cl `
           -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake" `
-          -DVCPKG_TARGET_TRIPLET=x64-windows `
+          -DVCPKG_TARGET_TRIPLET=x64-windows-static-md `
+          -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreadedDLL `
           -DCMAKE_INSTALL_PREFIX="$pwd/dist/windows-amd64" `
           -DDEPS_MODE=auto `
           -DUSE_OSC=ON `

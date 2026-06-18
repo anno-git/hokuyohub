@@ -122,7 +122,8 @@
         "HOKUYO_NNG_ENABLE": "ON",
         "USE_OSC": "ON",
         "DEPS_MODE": "auto",
-        "VCPKG_TARGET_TRIPLET": "x64-windows",
+        "VCPKG_TARGET_TRIPLET": "x64-windows-static-md",
+        "CMAKE_MSVC_RUNTIME_LIBRARY": "MultiThreadedDLL",
         "CMAKE_INSTALL_PREFIX": "${sourceDir}/dist/windows-amd64",
         "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
         "CMAKE_PROJECT_INCLUDE": "${sourceDir}/cmake/toolchains/windows-x64.cmake"
