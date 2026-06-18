@@ -4,6 +4,14 @@
 #include <thread>
 #include <mutex>
 
+// URG library の urg_tcpclient.h は Windows で <windows.h> しか include
+// していないが、必要な sockaddr_in は <winsock2.h> に居る。winsock2.h は
+// 必ず windows.h より前に include しないと winsock 1 系と競合する。
+#ifdef _WIN32
+  #include <winsock2.h>
+  #include <ws2tcpip.h>
+#endif
+
 extern "C" {
   #include "urg_sensor.h"
   #include "urg_utils.h"
