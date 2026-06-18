@@ -760,20 +760,7 @@ jobs:
         if [ -d "dist/windows-amd64" ]; then
           mkdir -p deployment/windows-amd64
           cp -r dist/windows-amd64/* deployment/windows-amd64/ 2>/dev/null || true
-          cat > deployment/windows-amd64/README.txt << 'EOF'
-HokuyoHub for Windows x64
-
-[起動方法]
-  start.bat をダブルクリック
-  → http://localhost:8080 をブラウザで開く
-
-[必要なもの]
-  Windows 10 / 11 x64
-  (Node.js は同梱の node-portable を使うのでインストール不要)
-
-[センサー設定]
-  configs/default.yaml を編集して Hokuyo センサーの IP を設定してください
-EOF
+          cp scripts/win/README.txt deployment/windows-amd64/README.txt
           # 大きなディレクトリなので zip に固める
           (cd deployment && zip -r hokuyohub-${{ github.ref_name }}-windows-amd64.zip windows-amd64)
         fi
