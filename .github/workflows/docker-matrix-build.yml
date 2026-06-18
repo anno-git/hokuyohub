@@ -7,7 +7,9 @@ permissions:
 
 on:
   push:
-    branches: [ main, develop ]
+    # feat/** は Windows ネイティブビルド対応の開発中だけ有効。
+    # マージ後に削除して main/develop のみに戻す予定。
+    branches: [ main, develop, 'feat/**' ]
     tags: [ 'v*' ]
   pull_request:
     branches: [ main ]
