@@ -324,7 +324,7 @@ process.on('exit', () => {
     }
 });
 
-app.listen(PORT, async () => {
+const httpServer = app.listen(PORT, async () => {
     console.log(`WebUI Server running on http://localhost:${PORT}`);
     console.log(`Backend API proxy target: ${BACKEND_URL}`);
 
@@ -344,3 +344,9 @@ app.listen(PORT, async () => {
     // Start health checker
     healthChecker.start();
 });
+
+// WebSocket アップグレードを明示的にHTTPサーバへバインドする。
+// app.use('/ws', wsProxy) だけだと http-proxy-middleware の upgrade 登録が
+// 遅延扱いになり、ブラウザの ws://.../ws/live 接続が取りこぼされる
+// （= バックエンドに 0 clients となり Sensors/Sinks スナップショットが届かない）。
+httpServer.on('upgrade', wsProxy.upgrade);

@@ -53,11 +53,12 @@ struct Slot {
 };
 
 struct State {
-  std::vector<std::unique_ptr<Slot>> slots; 
+  std::vector<std::unique_ptr<Slot>> slots;
   std::unordered_map<std::string, uint8_t> id2sid;
   std::atomic<bool> running{false};
   std::thread th;
   std::atomic<uint32_t> seq{0};
+  std::mutex slots_mu;  // slots/id2sid コンテナ自体の保護（集約スレッドと configure() 等の競合回避）
 };
 
 State& S() {
@@ -83,7 +84,11 @@ SensorManager::SensorManager(AppConfig& app_config) : app_config_(app_config) {
 
 void SensorManager::configure(const std::vector<SensorConfig>& cfgs) {
   auto& st = S();
-  
+
+  // 集約スレッドが st.slots を走査している最中に clear()/emplace_back() で
+  // 作り替えると use-after-free（Windowsで 0xC0000005）になるため排他する。
+  std::lock_guard<std::mutex> slk(st.slots_mu);
+
   // Build maps for current and new configurations
   std::unordered_map<std::string, std::unique_ptr<Slot>> current_sensors;
   std::unordered_map<std::string, const SensorConfig*> new_configs;
@@ -431,6 +436,10 @@ void SensorManager::start(FrameCallback cb) {
       sid.clear();
       dist.clear();
 
+      // slots の差し替え（configure()）と競合しないよう走査中だけロック。
+      // 重い下流処理 cb(f) はロック外で呼ぶため、明示ブロックでスコープを限定する。
+      {
+      std::lock_guard<std::mutex> slk(st2.slots_mu);
       for (auto& up : st2.slots) {
         auto& sl = *up;
         if (!sl.started) continue;
@@ -476,6 +485,7 @@ void SensorManager::start(FrameCallback cb) {
           dist.push_back(r_m);
         }
       }
+      } // slots_mu unlock（cb はロック外で実行）
 
       ScanFrame f;
       f.seq  = st2.seq.fetch_add(1);
