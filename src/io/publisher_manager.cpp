@@ -163,6 +163,20 @@ PublisherManager::~PublisherManager() {
 bool PublisherManager::configure(const std::vector<SinkConfig>& sinks) {
     std::cout << "[PublisherManager] Configuring " << sinks.size() << " sink(s)..." << std::endl;
 
+    // 古いpublisherを先に停止してソケット/ポートを解放する。
+    // 新しいpublisherを起動する前に解放しないと、同一ポート(NNG等)への
+    // 二重bindになり、Windowsでは "Address in use" → アクセス違反でクラッシュする。
+    {
+        std::lock_guard<std::mutex> lock(publishers_mutex_);
+        if (publishers_) {
+            for (auto& pub : *publishers_) {
+                if (pub) {
+                    pub->stop();
+                }
+            }
+        }
+    }
+
     // Create new publisher array
     auto new_publishers = std::make_shared<PublisherArray>();
     new_publishers->reserve(sinks.size());
@@ -193,18 +207,10 @@ bool PublisherManager::configure(const std::vector<SinkConfig>& sinks) {
         new_publishers->push_back(std::move(publisher));
     }
 
-    // Stop old publishers before swapping
+    // 旧publisherは上で既に停止済み。新しいものへスワップする
+    // (古いオブジェクトの破棄はここでのデストラクタに任せる)。
     {
         std::lock_guard<std::mutex> lock(publishers_mutex_);
-        if (publishers_) {
-            for (auto& pub : *publishers_) {
-                if (pub) {
-                    pub->stop();
-                }
-            }
-        }
-
-        // Swap to new publishers
         publishers_ = new_publishers;
     }
 
